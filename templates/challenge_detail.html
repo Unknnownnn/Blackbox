@@ -121,6 +121,47 @@
                 <div class="alert alert-success">
                     <i class="bi bi-trophy-fill"></i> You have already solved this challenge!
                 </div>
+                
+                {% if challenge.has_branching %}
+                <hr>
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-diagram-3"></i> Explore More Paths
+                        </h5>
+                        <p class="text-muted mb-3">
+                            This challenge has multiple solution paths. Submit different flags to unlock new challenges!
+                            <span class="badge bg-info">No points awarded for additional flags</span>
+                        </p>
+                        <form id="exploreFlagForm" onsubmit="submitExploreFlag(event)">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="exploreFlagInput" 
+                                       placeholder="Try a different flag..." required>
+                                <button class="btn btn-outline-primary" type="submit" id="exploreSubmitBtn">
+                                    <i class="bi bi-search"></i> Explore
+                                </button>
+                            </div>
+                        </form>
+                        <div id="exploreResult" class="mt-3"></div>
+                        
+                        {% if challenge.unlocked_paths and challenge.unlocked_paths|length > 0 %}
+                        <div class="mt-3">
+                            <h6>Paths Unlocked:</h6>
+                            <div class="list-group">
+                                {% for path in challenge.unlocked_paths %}
+                                <div class="list-group-item">
+                                    <i class="bi bi-check-circle-fill text-success"></i>
+                                    <strong>{{ path.challenge_name }}</strong>
+                                    <span class="badge bg-secondary">{{ path.category }}</span>
+                                    <small class="text-muted">via {{ path.flag_label or 'flag' }}</small>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
                 {% endif %}
             </div>
         </div>
@@ -300,6 +341,84 @@ async function submitFlag(event) {
         
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<i class="bi bi-flag-fill"></i> Submit';
+    }
+}
+
+async function submitExploreFlag(event) {
+    event.preventDefault();
+    
+    const flagInput = document.getElementById('exploreFlagInput');
+    const flag = flagInput.value.trim();
+    const resultDiv = document.getElementById('exploreResult');
+    
+    if (!flag) {
+        resultDiv.innerHTML = `
+            <div class="alert alert-warning alert-dismissible fade show">
+                <i class="bi bi-exclamation-triangle-fill"></i> Please enter a flag.
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        return;
+    }
+    
+    // Show loading state
+    resultDiv.innerHTML = `
+        <div class="alert alert-info">
+            <span class="spinner-border spinner-border-sm"></span> Checking flag...
+        </div>
+    `;
+    
+    try {
+        const response = await fetch('{{ url_for("challenges.explore_flag", challenge_id=challenge.id) }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `flag=${encodeURIComponent(flag)}`
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            let message = `<div class="alert alert-success alert-dismissible fade show">
+                <i class="bi bi-check-circle-fill"></i> ${data.message}`;
+            
+            if (data.unlocked_challenges && data.unlocked_challenges.length > 0) {
+                message += '<br><strong>New paths unlocked:</strong><ul class="mb-0 mt-2">';
+                data.unlocked_challenges.forEach(challenge => {
+                    message += `<li><i class="bi bi-unlock-fill text-success"></i> ${challenge.name} (${challenge.category})</li>`;
+                });
+                message += '</ul>';
+            }
+            
+            message += '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
+            resultDiv.innerHTML = message;
+            
+            // Clear input
+            flagInput.value = '';
+            
+            // Reload page after 3 seconds to show unlocked paths
+            if (data.unlocked_challenges && data.unlocked_challenges.length > 0) {
+                setTimeout(() => {
+                    window.location.reload();
+                }, 3000);
+            }
+        } else {
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger alert-dismissible fade show">
+                    <i class="bi bi-x-circle-fill"></i> ${data.message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        resultDiv.innerHTML = `
+            <div class="alert alert-danger alert-dismissible fade show">
+                <i class="bi bi-exclamation-triangle-fill"></i> An error occurred. Please try again.
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
     }
 }
 </script>

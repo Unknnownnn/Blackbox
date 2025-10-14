@@ -61,6 +61,8 @@ def manage_challenges():
 def create_challenge():
     """Create a new challenge"""
     if request.method == 'POST':
+        from models.branching import ChallengeFlag
+        
         data = request.form
         
         challenge = Challenge(
@@ -82,6 +84,39 @@ def create_challenge():
         
         db.session.add(challenge)
         db.session.flush()  # Get challenge ID
+        
+        # Create primary flag entry in challenge_flags table
+        primary_flag = ChallengeFlag(
+            challenge_id=challenge.id,
+            flag_value=data.get('flag'),
+            flag_label='Primary Flag',
+            is_case_sensitive=data.get('flag_case_sensitive') == 'true'
+        )
+        db.session.add(primary_flag)
+        
+        # Handle additional flags
+        additional_flags = request.form.getlist('additional_flags[]')
+        flag_labels = request.form.getlist('flag_labels[]')
+        flag_points = request.form.getlist('flag_points[]')
+        flag_cases = request.form.getlist('flag_case[]')
+        
+        for i in range(len(additional_flags)):
+            if additional_flags[i].strip():
+                points_override = None
+                if i < len(flag_points) and flag_points[i].strip():
+                    try:
+                        points_override = int(flag_points[i])
+                    except ValueError:
+                        pass
+                
+                additional_flag = ChallengeFlag(
+                    challenge_id=challenge.id,
+                    flag_value=additional_flags[i].strip(),
+                    flag_label=flag_labels[i].strip() if i < len(flag_labels) and flag_labels[i].strip() else None,
+                    points_override=points_override,
+                    is_case_sensitive=flag_cases[i] == 'true' if i < len(flag_cases) else True
+                )
+                db.session.add(additional_flag)
         
         # Handle hints
         hint_contents = request.form.getlist('hint_content[]')
@@ -248,9 +283,32 @@ def delete_challenge(challenge_id):
     """Delete a challenge"""
     challenge = Challenge.query.get_or_404(challenge_id)
     
+    # Delete associated branching data first
+    from models.branching import ChallengeFlag, ChallengePrerequisite, ChallengeUnlock
+    
+    # Delete all flags for this challenge
+    ChallengeFlag.query.filter_by(challenge_id=challenge_id).delete()
+    
+    # Delete all flags that unlock this challenge
+    ChallengeFlag.query.filter_by(unlocks_challenge_id=challenge_id).update(
+        {'unlocks_challenge_id': None}
+    )
+    
+    # Delete prerequisites where this challenge is required or is the dependent
+    ChallengePrerequisite.query.filter(
+        db.or_(
+            ChallengePrerequisite.challenge_id == challenge_id,
+            ChallengePrerequisite.prerequisite_challenge_id == challenge_id
+        )
+    ).delete()
+    
+    # Delete unlock records
+    ChallengeUnlock.query.filter_by(challenge_id=challenge_id).delete()
+    
     # Delete associated files
     file_storage.delete_challenge_files(challenge_id)
     
+    # Now delete the challenge itself
     db.session.delete(challenge)
     db.session.commit()
     
@@ -539,3 +597,300 @@ def delete_hint(hint_id):
         'success': True,
         'message': 'Hint deleted successfully'
     })
+
+
+# Challenge Branching Management
+@admin_bp.route('/branching')
+@login_required
+@admin_required
+def manage_branching():
+    """Manage challenge branching and prerequisites"""
+    challenges = Challenge.query.order_by(Challenge.name).all()
+    return render_template('admin/branching.html', challenges=challenges)
+
+
+@admin_bp.route('/branching/flags', methods=['GET'])
+@login_required
+@admin_required
+def get_flags():
+    """Get all challenge flags"""
+    from models.branching import ChallengeFlag
+    
+    flags = ChallengeFlag.query.all()
+    flags_data = []
+    
+    for flag in flags:
+        flag_dict = flag.to_dict(include_value=True)
+        flag_dict['challenge_name'] = flag.challenge.name if flag.challenge else None
+        flag_dict['unlocks_challenge_name'] = flag.unlocks_challenge.name if flag.unlocks_challenge else None
+        flags_data.append(flag_dict)
+    
+    return jsonify({'success': True, 'flags': flags_data})
+
+
+@admin_bp.route('/branching/flags', methods=['POST'])
+@login_required
+@admin_required
+def add_flag():
+    """Add a new flag to a challenge"""
+    from models.branching import ChallengeFlag
+    
+    challenge_id = request.form.get('challenge_id')
+    flag_value = request.form.get('flag_value', '').strip()
+    flag_label = request.form.get('flag_label', '').strip()
+    unlocks_challenge_id = request.form.get('unlocks_challenge_id')
+    points_override = request.form.get('points_override')
+    is_case_sensitive = request.form.get('is_case_sensitive', '1') == '1'
+    
+    if not challenge_id or not flag_value:
+        return jsonify({'success': False, 'message': 'Challenge and flag value are required'}), 400
+    
+    # Validate challenge exists
+    challenge = Challenge.query.get(challenge_id)
+    if not challenge:
+        return jsonify({'success': False, 'message': 'Challenge not found'}), 404
+    
+    # Validate unlocks_challenge exists if provided
+    if unlocks_challenge_id:
+        unlocks_challenge = Challenge.query.get(unlocks_challenge_id)
+        if not unlocks_challenge:
+            return jsonify({'success': False, 'message': 'Unlocks challenge not found'}), 404
+    else:
+        unlocks_challenge_id = None
+    
+    # Convert points_override
+    if points_override and points_override.strip():
+        try:
+            points_override = int(points_override)
+        except ValueError:
+            return jsonify({'success': False, 'message': 'Invalid points override'}), 400
+    else:
+        points_override = None
+    
+    # Create flag
+    new_flag = ChallengeFlag(
+        challenge_id=challenge_id,
+        flag_value=flag_value,
+        flag_label=flag_label if flag_label else None,
+        unlocks_challenge_id=unlocks_challenge_id,
+        points_override=points_override,
+        is_case_sensitive=is_case_sensitive
+    )
+    
+    db.session.add(new_flag)
+    db.session.commit()
+    
+    cache_service.invalidate_challenge(challenge_id)
+    
+    return jsonify({'success': True, 'message': 'Flag added successfully', 'flag': new_flag.to_dict()})
+
+
+@admin_bp.route('/branching/flags/<int:flag_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def delete_flag(flag_id):
+    """Delete a challenge flag"""
+    from models.branching import ChallengeFlag
+    
+    flag = ChallengeFlag.query.get_or_404(flag_id)
+    challenge_id = flag.challenge_id
+    
+    db.session.delete(flag)
+    db.session.commit()
+    
+    cache_service.invalidate_challenge(challenge_id)
+    
+    return jsonify({'success': True, 'message': 'Flag deleted successfully'})
+
+
+@admin_bp.route('/branching/prerequisites', methods=['GET'])
+@login_required
+@admin_required
+def get_prerequisites():
+    """Get all challenge prerequisites"""
+    from models.branching import ChallengePrerequisite
+    
+    prerequisites = ChallengePrerequisite.query.all()
+    prereqs_data = []
+    
+    for prereq in prerequisites:
+        prereq_dict = prereq.to_dict()
+        prereq_dict['challenge_name'] = prereq.challenge.name if prereq.challenge else None
+        prereq_dict['prerequisite_name'] = prereq.prerequisite_challenge.name if prereq.prerequisite_challenge else None
+        prereqs_data.append(prereq_dict)
+    
+    return jsonify({'success': True, 'prerequisites': prereqs_data})
+
+
+@admin_bp.route('/branching/prerequisites', methods=['POST'])
+@login_required
+@admin_required
+def add_prerequisite():
+    """Add a prerequisite to a challenge"""
+    from models.branching import ChallengePrerequisite
+    
+    challenge_id = request.form.get('challenge_id')
+    prerequisite_challenge_id = request.form.get('prerequisite_challenge_id')
+    
+    if not challenge_id or not prerequisite_challenge_id:
+        return jsonify({'success': False, 'message': 'Both challenge and prerequisite are required'}), 400
+    
+    # Check if same challenge
+    if challenge_id == prerequisite_challenge_id:
+        return jsonify({'success': False, 'message': 'A challenge cannot be a prerequisite of itself'}), 400
+    
+    # Validate both challenges exist
+    challenge = Challenge.query.get(challenge_id)
+    prereq_challenge = Challenge.query.get(prerequisite_challenge_id)
+    
+    if not challenge or not prereq_challenge:
+        return jsonify({'success': False, 'message': 'Challenge(s) not found'}), 404
+    
+    # Check if prerequisite already exists
+    existing = ChallengePrerequisite.query.filter_by(
+        challenge_id=challenge_id,
+        prerequisite_challenge_id=prerequisite_challenge_id
+    ).first()
+    
+    if existing:
+        return jsonify({'success': False, 'message': 'This prerequisite already exists'}), 400
+    
+    # TODO: Check for circular dependencies
+    
+    # Create prerequisite
+    new_prereq = ChallengePrerequisite(
+        challenge_id=challenge_id,
+        prerequisite_challenge_id=prerequisite_challenge_id
+    )
+    
+    db.session.add(new_prereq)
+    
+    # Automatically set unlock_mode to 'prerequisite' and hide the challenge
+    if challenge.unlock_mode != 'prerequisite':
+        challenge.unlock_mode = 'prerequisite'
+        challenge.is_hidden = True
+    
+    db.session.commit()
+    
+    cache_service.invalidate_challenge(challenge_id)
+    
+    return jsonify({
+        'success': True, 
+        'message': 'Prerequisite added successfully. Challenge is now hidden until prerequisite is solved.',
+        'prerequisite': new_prereq.to_dict()
+    })
+
+
+@admin_bp.route('/branching/prerequisites/<int:prereq_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def delete_prerequisite(prereq_id):
+    """Delete a challenge prerequisite"""
+    from models.branching import ChallengePrerequisite
+    
+    prereq = ChallengePrerequisite.query.get_or_404(prereq_id)
+    challenge_id = prereq.challenge_id
+    
+    db.session.delete(prereq)
+    db.session.commit()
+    
+    cache_service.invalidate_challenge(challenge_id)
+    
+    return jsonify({'success': True, 'message': 'Prerequisite deleted successfully'})
+
+
+@admin_bp.route('/branching/unlock-mode/<int:challenge_id>', methods=['PUT'])
+@login_required
+@admin_required
+def update_unlock_mode(challenge_id):
+    """Update challenge unlock mode and hidden status"""
+    challenge = Challenge.query.get_or_404(challenge_id)
+    
+    data = request.get_json()
+    unlock_mode = data.get('unlock_mode')
+    is_hidden = data.get('is_hidden', False)
+    
+    if unlock_mode not in ['none', 'prerequisite', 'flag_unlock']:
+        return jsonify({'success': False, 'message': 'Invalid unlock mode'}), 400
+    
+    challenge.unlock_mode = unlock_mode
+    challenge.is_hidden = is_hidden
+    
+    db.session.commit()
+    
+    cache_service.invalidate_challenge(challenge_id)
+    
+    return jsonify({'success': True, 'message': 'Unlock mode updated successfully'})
+
+
+@admin_bp.route('/branching/challenges/<int:challenge_id>/flags', methods=['GET'])
+@login_required
+@admin_required
+def get_challenge_flags(challenge_id):
+    """Get all flags for a specific challenge"""
+    from models.branching import ChallengeFlag
+    
+    flags = ChallengeFlag.query.filter_by(challenge_id=challenge_id).all()
+    flags_data = [flag.to_dict(include_value=True) for flag in flags]
+    
+    return jsonify({'success': True, 'flags': flags_data})
+
+
+@admin_bp.route('/branching/flags/<int:flag_id>/unlock', methods=['PUT'])
+@login_required
+@admin_required
+def update_flag_unlock(flag_id):
+    """Update which challenge a flag unlocks"""
+    from models.branching import ChallengeFlag
+    
+    flag = ChallengeFlag.query.get_or_404(flag_id)
+    data = request.get_json()
+    unlocks_challenge_id = data.get('unlocks_challenge_id')
+    
+    # Validate unlocks_challenge exists if provided
+    if unlocks_challenge_id:
+        unlocks_challenge = Challenge.query.get(unlocks_challenge_id)
+        if not unlocks_challenge:
+            return jsonify({'success': False, 'message': 'Target challenge not found'}), 404
+        
+        # Auto-configure the target challenge for flag unlocking
+        if unlocks_challenge.unlock_mode != 'flag_unlock':
+            unlocks_challenge.unlock_mode = 'flag_unlock'
+            unlocks_challenge.is_hidden = True
+    
+    flag.unlocks_challenge_id = unlocks_challenge_id
+    db.session.commit()
+    
+    cache_service.invalidate_challenge(flag.challenge_id)
+    if unlocks_challenge_id:
+        cache_service.invalidate_challenge(unlocks_challenge_id)
+    
+    message = 'Branching configured successfully'
+    if unlocks_challenge_id:
+        message += '. Target challenge is now hidden until this flag is submitted.'
+    
+    return jsonify({'success': True, 'message': message})
+
+
+@admin_bp.route('/branching/connections', methods=['GET'])
+@login_required
+@admin_required
+def get_branching_connections():
+    """Get all branching connections (flags that unlock challenges)"""
+    from models.branching import ChallengeFlag
+    
+    flags = ChallengeFlag.query.filter(ChallengeFlag.unlocks_challenge_id.isnot(None)).all()
+    connections = []
+    
+    for flag in flags:
+        connections.append({
+            'flag_id': flag.id,
+            'parent_challenge': flag.challenge.name if flag.challenge else 'Unknown',
+            'parent_challenge_id': flag.challenge_id,
+            'flag_value': flag.flag_value,
+            'flag_label': flag.flag_label,
+            'child_challenge': flag.unlocks_challenge.name if flag.unlocks_challenge else 'Unknown',
+            'child_challenge_id': flag.unlocks_challenge_id
+        })
+    
+    return jsonify({'success': True, 'connections': connections})

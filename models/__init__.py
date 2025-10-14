@@ -11,3 +11,7 @@ team_members = db.Table('team_members',
     db.Column('team_id', db.Integer, db.ForeignKey('teams.id'), primary_key=True),
     db.Column('joined_at', db.DateTime, default=datetime.utcnow)
 )
+
+# Import models here to avoid circular imports
+from models.branching import ChallengeFlag, ChallengePrerequisite, ChallengeUnlock
+

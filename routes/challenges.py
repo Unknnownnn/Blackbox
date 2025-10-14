@@ -35,6 +35,11 @@ def list_challenges():
         if challenge.requires_team and not team and not current_user.is_admin:
             continue  # Skip this challenge if it requires team and user has no team
         
+        # Check if challenge is unlocked for user
+        if not current_user.is_admin:
+            if not challenge.is_unlocked_for_user(current_user.id, team.id if team else None):
+                continue  # Skip hidden/locked challenges
+        
         if challenge.category not in categories:
             categories[challenge.category] = []
         
@@ -47,6 +52,14 @@ def list_challenges():
         challenge_data = challenge.to_dict(include_flag=False)
         challenge_data['solved'] = solved
         challenge_data['requires_team'] = challenge.requires_team
+        
+        # Add prerequisite info if locked
+        if challenge.unlock_mode == 'prerequisite':
+            missing = challenge.get_missing_prerequisites(current_user.id, team.id if team else None)
+            if missing:
+                challenge_data['locked'] = True
+                challenge_data['missing_prerequisites'] = [c.name for c in missing]
+        
         categories[challenge.category].append(challenge_data)
     
     return render_template('challenges.html', categories=categories, team=team)
@@ -110,6 +123,45 @@ def view_challenge(challenge_id):
             hint_info['content'] = hint.content
         
         hints_data.append(hint_info)
+    
+    # Check if challenge has branching (multiple paths)
+    from models.branching import ChallengeFlag, ChallengeUnlock
+    challenge_flags = ChallengeFlag.query.filter_by(challenge_id=challenge_id).all()
+    has_branching = any(flag.unlocks_challenge_id is not None for flag in challenge_flags)
+    challenge_data['has_branching'] = has_branching
+    
+    # Get unlocked paths for this user/team
+    unlocked_paths = []
+    if solved and has_branching:
+        user_id = current_user.id
+        team_id = team.id if team else None
+        
+        # Find all flags from THIS challenge that unlock other challenges
+        unlocking_flags = ChallengeFlag.query.filter(
+            ChallengeFlag.challenge_id == challenge_id,
+            ChallengeFlag.unlocks_challenge_id.isnot(None)
+        ).all()
+        
+        # For each unlocking flag, check if user has unlocked it
+        for flag in unlocking_flags:
+            unlock = ChallengeUnlock.query.filter(
+                ChallengeUnlock.unlocked_by_flag_id == flag.id,
+                db.or_(
+                    ChallengeUnlock.user_id == user_id,
+                    ChallengeUnlock.team_id == team_id
+                )
+            ).first()
+            
+            if unlock:
+                unlocked_challenge = Challenge.query.get(flag.unlocks_challenge_id)
+                if unlocked_challenge:
+                    unlocked_paths.append({
+                        'challenge_name': unlocked_challenge.name,
+                        'category': unlocked_challenge.category,
+                        'flag_label': flag.flag_label if flag.flag_label else 'primary flag'
+                    })
+    
+    challenge_data['unlocked_paths'] = unlocked_paths
     
     return render_template('challenge_detail.html', 
                           challenge=challenge_data, 
@@ -192,7 +244,13 @@ def submit_flag(challenge_id):
     else:
         already_solved = challenge.is_solved_by_user(current_user.id)
     
-    if already_solved:
+    # Check if this challenge has branching flags (allows re-submission for different paths)
+    from models.branching import ChallengeFlag
+    challenge_flags = ChallengeFlag.query.filter_by(challenge_id=challenge_id).all()
+    has_branching = any(flag.unlocks_challenge_id is not None for flag in challenge_flags)
+    
+    # If already solved and challenge has no branching, reject submission
+    if already_solved and not has_branching:
         return jsonify({'success': False, 'message': 'This challenge has already been solved'}), 400
     
     # Check max attempts limit (0 means unlimited)
@@ -233,7 +291,8 @@ def submit_flag(challenge_id):
         }), 429
     
     # Check the flag
-    is_correct = challenge.check_flag(submitted_flag)
+    matched_flag = challenge.check_flag(submitted_flag)
+    is_correct = matched_flag is not None
     
     # Create submission record
     submission = Submission(
@@ -250,14 +309,42 @@ def submit_flag(challenge_id):
         # Calculate points at time of solve
         points = challenge.get_current_points()
         
+        # Check if flag has a points override
+        if hasattr(matched_flag, 'points_override') and matched_flag.points_override:
+            points = matched_flag.points_override
+        
         # Create solve record - marks challenge as solved for entire team
         solve = Solve(
             user_id=current_user.id,
             challenge_id=challenge_id,
+            flag_id=matched_flag.id if hasattr(matched_flag, 'id') else None,
             team_id=team_id,
             points_earned=points
         )
         db.session.add(solve)
+        
+        # Handle challenge unlocking via flags
+        from models.branching import ChallengeUnlock
+        unlocked_challenges = []
+        
+        if hasattr(matched_flag, 'unlocks_challenge_id') and matched_flag.unlocks_challenge_id:
+            # This flag unlocks another challenge
+            unlock_record = ChallengeUnlock(
+                user_id=current_user.id,
+                team_id=team_id,
+                challenge_id=matched_flag.unlocks_challenge_id,
+                unlocked_by_flag_id=matched_flag.id
+            )
+            db.session.add(unlock_record)
+            
+            # Get the unlocked challenge details
+            unlocked_challenge = Challenge.query.get(matched_flag.unlocks_challenge_id)
+            if unlocked_challenge:
+                unlocked_challenges.append({
+                    'id': unlocked_challenge.id,
+                    'name': unlocked_challenge.name,
+                    'category': unlocked_challenge.category
+                })
         
         # Award points to team (if in team) or user
         if team:
@@ -304,11 +391,19 @@ def submit_flag(challenge_id):
         if team:
             message += f' Points awarded to team "{team.name}".'
         
-        return jsonify({
+        # Add info about unlocked challenges
+        response_data = {
             'success': True,
             'message': message,
             'points': points
-        })
+        }
+        
+        if unlocked_challenges:
+            unlocked_names = ', '.join([c['name'] for c in unlocked_challenges])
+            response_data['unlocked_challenges'] = unlocked_challenges
+            response_data['message'] += f' New challenge(s) unlocked: {unlocked_names}!'
+        
+        return jsonify(response_data)
     else:
         db.session.commit()
         
@@ -338,6 +433,148 @@ def submit_flag(challenge_id):
                 response['message'] += f' ({attempts_remaining} attempts remaining)'
         
         return jsonify(response), 400
+
+
+@challenges_bp.route('/<int:challenge_id>/explore', methods=['POST'])
+@login_required
+def explore_flag(challenge_id):
+    """Submit an additional flag for an already-solved challenge to unlock more paths (no points awarded)"""
+    from models.settings import Settings
+    from models.branching import ChallengeFlag, ChallengeUnlock
+    
+    # Check CTF status
+    ctf_status = Settings.get_ctf_status()
+    
+    if ctf_status == 'not_started':
+        start_time = Settings.get('ctf_start_time')
+        return jsonify({
+            'success': False, 
+            'message': f'CTF has not started yet. Starts at: {start_time.strftime("%Y-%m-%d %H:%M UTC") if start_time else "TBD"}'
+        }), 403
+    
+    if ctf_status == 'ended':
+        end_time = Settings.get('ctf_end_time')
+        return jsonify({
+            'success': False, 
+            'message': f'CTF has ended. Ended at: {end_time.strftime("%Y-%m-%d %H:%M UTC") if end_time else "Unknown"}'
+        }), 403
+    
+    if ctf_status == 'paused':
+        return jsonify({
+            'success': False, 
+            'message': 'CTF is currently paused by administrators. Please wait for it to resume.'
+        }), 403
+    
+    challenge = Challenge.query.get_or_404(challenge_id)
+    
+    if not challenge.is_visible and not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'Challenge not found'}), 404
+    
+    # Get user's team
+    team = current_user.get_team()
+    team_id = team.id if team else None
+    
+    # Check if already solved (must be solved to explore)
+    if team:
+        already_solved = challenge.is_solved_by_team(team_id)
+    else:
+        already_solved = challenge.is_solved_by_user(current_user.id)
+    
+    if not already_solved:
+        return jsonify({
+            'success': False, 
+            'message': 'You must solve this challenge first before exploring additional paths'
+        }), 403
+    
+    # Check if this challenge has branching flags
+    challenge_flags = ChallengeFlag.query.filter_by(challenge_id=challenge_id).all()
+    has_branching = any(flag.unlocks_challenge_id is not None for flag in challenge_flags)
+    
+    if not has_branching:
+        return jsonify({
+            'success': False, 
+            'message': 'This challenge has no additional paths to explore'
+        }), 400
+    
+    submitted_flag = request.form.get('flag', '').strip()
+    
+    if not submitted_flag:
+        return jsonify({'success': False, 'message': 'Please enter a flag'}), 400
+    
+    # Rate limiting check (prevent brute force)
+    rate_limit_key = f'explore:{current_user.id}:{challenge_id}'
+    is_allowed, remaining = cache_service.check_rate_limit(rate_limit_key, limit=10, window=60)
+    
+    if not is_allowed:
+        return jsonify({
+            'success': False,
+            'message': 'Too many attempts. Please wait before trying again.'
+        }), 429
+    
+    # Check the flag
+    matched_flag = challenge.check_flag(submitted_flag)
+    
+    if not matched_flag:
+        return jsonify({'success': False, 'message': 'Incorrect flag'}), 400
+    
+    # Check if this specific flag unlocks anything
+    if not hasattr(matched_flag, 'unlocks_challenge_id') or not matched_flag.unlocks_challenge_id:
+        return jsonify({
+            'success': False, 
+            'message': 'This flag does not unlock any additional paths'
+        }), 400
+    
+    # Check if this path was already unlocked
+    existing_unlock = ChallengeUnlock.query.filter(
+        ChallengeUnlock.unlocked_by_flag_id == matched_flag.id,
+        db.or_(
+            ChallengeUnlock.user_id == current_user.id,
+            ChallengeUnlock.team_id == team_id
+        )
+    ).first()
+    
+    if existing_unlock:
+        return jsonify({
+            'success': False, 
+            'message': 'You have already unlocked this path'
+        }), 400
+    
+    # Create unlock record (no points, no solve record - just unlocking)
+    unlock_record = ChallengeUnlock(
+        user_id=current_user.id,
+        team_id=team_id,
+        challenge_id=matched_flag.unlocks_challenge_id,
+        unlocked_by_flag_id=matched_flag.id
+    )
+    db.session.add(unlock_record)
+    
+    # Get the unlocked challenge details
+    unlocked_challenge = Challenge.query.get(matched_flag.unlocks_challenge_id)
+    
+    # Optionally auto-configure the unlocked challenge to be visible
+    if unlocked_challenge and unlocked_challenge.unlock_mode == 'flag_unlock':
+        unlocked_challenge.is_hidden = False
+    
+    db.session.commit()
+    
+    # Invalidate caches
+    cache_service.invalidate_challenge(challenge_id)
+    cache_service.invalidate_challenge(matched_flag.unlocks_challenge_id)
+    
+    response_data = {
+        'success': True,
+        'message': 'Correct flag! New path unlocked!',
+        'unlocked_challenges': []
+    }
+    
+    if unlocked_challenge:
+        response_data['unlocked_challenges'].append({
+            'id': unlocked_challenge.id,
+            'name': unlocked_challenge.name,
+            'category': unlocked_challenge.category
+        })
+    
+    return jsonify(response_data)
 
 
 @challenges_bp.route('/solves/<int:challenge_id>')

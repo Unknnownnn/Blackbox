@@ -44,6 +44,7 @@ class Solve(db.Model):
     # Relationships
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
     challenge_id = db.Column(db.Integer, db.ForeignKey('challenges.id'), nullable=False, index=True)
+    flag_id = db.Column(db.Integer, db.ForeignKey('challenge_flags.id'), nullable=True)  # Which flag was used
     team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True, index=True)
     
     # Solve details

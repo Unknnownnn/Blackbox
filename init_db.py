@@ -12,6 +12,7 @@ from models.submission import Submission, Solve
 from models.file import ChallengeFile
 from models.settings import Settings
 from models.hint import Hint, HintUnlock
+from models.branching import ChallengeFlag, ChallengePrerequisite, ChallengeUnlock
 import sys
 
 def init_database(with_sample_data=True):
