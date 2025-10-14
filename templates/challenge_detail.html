@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+
+{% block title %}{{ challenge.name }} - {{ ctf_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0">
+                        {{ challenge.name }}
+                        {% if challenge.solved %}
+                        <i class="bi bi-check-circle-fill text-success"></i>
+                        {% endif %}
+                    </h3>
+                    <span class="badge bg-warning text-dark fs-5">{{ challenge.points }} pts</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <span class="badge bg-primary me-2">{{ challenge.category|upper }}</span>
+                    {% if challenge.difficulty %}
+                    <span class="badge 
+                        {% if challenge.difficulty == 'easy' %}bg-success
+                        {% elif challenge.difficulty == 'medium' %}bg-warning
+                        {% else %}bg-danger
+                        {% endif %}">
+                        {{ challenge.difficulty|upper }}
+                    </span>
+                    {% endif %}
+                    {% if challenge.author %}
+                    <span class="badge bg-secondary ms-2">
+                        <i class="bi bi-person"></i> {{ challenge.author }}
+                    </span>
+                    {% endif %}
+                </div>
+                
+                <hr>
+                
+                <div class="challenge-description mb-4">
+                    <h5>Description</h5>
+                    <p style="white-space: pre-wrap;">{{ challenge.description }}</p>
+                </div>
+                
+                {% if files and files|length > 0 %}
+                <div class="mb-4">
+                    <h5><i class="bi bi-file-earmark-arrow-down"></i> Downloads</h5>
+                    <div class="list-group">
+                        {% for file in files %}
+                        <a href="{{ file.download_url }}" class="list-group-item list-group-item-action" download>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="bi bi-download me-2"></i>
+                                    <strong>{{ file.original_filename }}</strong>
+                                </div>
+                                <span class="badge bg-secondary">{{ file.size_formatted }}</span>
+                            </div>
+                            {% if file.file_hash %}
+                            <small class="text-muted">SHA256: {{ file.file_hash[:16] }}...</small>
+                            {% endif %}
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if hints and hints|length > 0 %}
+                <div class="mb-4">
+                    <h5><i class="bi bi-lightbulb"></i> Hints</h5>
+                    <div id="hints-container">
+                        {% for hint in hints %}
+                        <div class="card mb-2" id="hint-{{ hint.id }}">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="flex-grow-1">
+                                        {% if hint.unlocked %}
+                                        <div class="hint-content">
+                                            <i class="bi bi-check-circle-fill text-success"></i>
+                                            <strong>Hint {{ hint.order }}</strong>
+                                            <span class="badge bg-success ms-2">Unlocked</span>
+                                            <p class="mb-0 mt-2">{{ hint.content }}</p>
+                                        </div>
+                                        {% else %}
+                                        <div class="hint-locked">
+                                            <i class="bi bi-lock-fill text-warning"></i>
+                                            <strong>Hint {{ hint.order }}</strong>
+                                            <span class="badge bg-warning text-dark ms-2">{{ hint.cost }} points</span>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    {% if not hint.unlocked %}
+                                    <button class="btn btn-sm btn-warning" onclick="unlockHint({{ hint.id }}, {{ hint.cost }})">
+                                        <i class="bi bi-unlock"></i> Unlock
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if not challenge.solved %}
+                <hr>
+                <div>
+                    <h5>Submit Flag</h5>
+                    <form id="flagForm" onsubmit="submitFlag(event)">
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" id="flagInput" 
+                                   placeholder="flag{...}" required>
+                            <button class="btn btn-primary" type="submit" id="submitBtn">
+                                <i class="bi bi-flag-fill"></i> Submit
+                            </button>
+                        </div>
+                    </form>
+                    <div id="submitResult"></div>
+                </div>
+                {% else %}
+                <div class="alert alert-success">
+                    <i class="bi bi-trophy-fill"></i> You have already solved this challenge!
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-info-circle"></i> Challenge Info</h5>
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-2">
+                        <strong>Points:</strong> 
+                        <span class="badge bg-warning text-dark">{{ challenge.points }}</span>
+                        {% if challenge.is_dynamic %}
+                        <small class="text-muted">(Dynamic)</small>
+                        {% endif %}
+                    </li>
+                    <li class="mb-2">
+                        <strong>Category:</strong> {{ challenge.category }}
+                    </li>
+                    {% if challenge.difficulty %}
+                    <li class="mb-2">
+                        <strong>Difficulty:</strong> {{ challenge.difficulty|capitalize }}
+                    </li>
+                    {% endif %}
+                    <li class="mb-2">
+                        <strong>Solves:</strong> {{ challenge.solves }}
+                    </li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-trophy"></i> First Bloods</h5>
+                <p class="text-muted small mb-0">View who solved this challenge first</p>
+                <a href="{{ url_for('challenges.challenge_solves', challenge_id=challenge.id) }}" 
+                   class="btn btn-sm btn-outline-primary mt-2">
+                    View Solves
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a href="{{ url_for('challenges.list_challenges') }}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Challenges
+    </a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function unlockHint(hintId, cost) {
+    if (!confirm(`Unlock this hint for ${cost} points? Your score will be deducted.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/hints/${hintId}/unlock`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Update hint display
+            const hintCard = document.getElementById(`hint-${hintId}`);
+            if (hintCard) {
+                hintCard.querySelector('.card-body').innerHTML = `
+                    <div class="hint-content">
+                        <i class="bi bi-check-circle-fill text-success"></i>
+                        <strong>Hint</strong>
+                        <span class="badge bg-success ms-2">Unlocked</span>
+                        <p class="mb-0 mt-2">${data.content}</p>
+                    </div>
+                `;
+            }
+            
+            // Show success message
+            showMessage('success', data.message);
+            
+            // Optionally reload to update score display
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showMessage('danger', data.message || 'Failed to unlock hint');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showMessage('danger', 'An error occurred while unlocking the hint');
+    }
+}
+
+function showMessage(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.card-body');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+
+async function submitFlag(event) {
+    event.preventDefault();
+    
+    const flagInput = document.getElementById('flagInput');
+    const submitBtn = document.getElementById('submitBtn');
+    const resultDiv = document.getElementById('submitResult');
+    
+    const flag = flagInput.value.trim();
+    
+    if (!flag) {
+        return;
+    }
+    
+    // Disable button during submission
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Submitting...';
+    
+    try {
+        const response = await fetch('{{ url_for("challenges.submit_flag", challenge_id=challenge.id) }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `flag=${encodeURIComponent(flag)}`
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            resultDiv.innerHTML = `
+                <div class="alert alert-success alert-dismissible fade show">
+                    <i class="bi bi-check-circle-fill"></i> ${data.message}
+                    <br><strong>Points earned: ${data.points}</strong>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            
+            // Reload page after 2 seconds to show solved status
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger alert-dismissible fade show">
+                    <i class="bi bi-x-circle-fill"></i> ${data.message}
+                    ${data.remaining_attempts !== undefined ? 
+                      `<br><small>Remaining attempts: ${data.remaining_attempts}</small>` : ''}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            
+            // Reset button
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-flag-fill"></i> Submit';
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        resultDiv.innerHTML = `
+            <div class="alert alert-danger alert-dismissible fade show">
+                <i class="bi bi-exclamation-triangle-fill"></i> An error occurred. Please try again.
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="bi bi-flag-fill"></i> Submit';
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Challenges - Admin - {{ ctf_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="admin-sidebar p-3">
+            <h5 class="mb-3">Admin Menu</h5>
+            <nav class="nav flex-column">
+                <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-link">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+                <a href="{{ url_for('admin.manage_challenges') }}" class="admin-nav-link active">
+                    <i class="bi bi-puzzle"></i> Challenges
+                </a>
+                <a href="{{ url_for('admin.manage_users') }}" class="admin-nav-link">
+                    <i class="bi bi-people"></i> Users
+                </a>
+                <a href="{{ url_for('admin.manage_teams') }}" class="admin-nav-link">
+                    <i class="bi bi-people-fill"></i> Teams
+                </a>
+                <a href="{{ url_for('admin.ctf_control') }}" class="admin-nav-link">
+                    <i class="bi bi-clock-history"></i> CTF Control
+                </a>
+                <a href="{{ url_for('admin.settings') }}" class="admin-nav-link">
+                    <i class="bi bi-gear"></i> Settings
+                </a>
+            </nav>
+        </div>
+    </div>
+    
+    <div class="col-md-9">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="mb-0">
+                <i class="bi bi-puzzle"></i> Challenges
+            </h2>
+            <a href="{{ url_for('admin.create_challenge') }}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Create Challenge
+            </a>
+        </div>
+        
+        {% if challenges %}
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Category</th>
+                                <th>Points</th>
+                                <th>Solves</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for challenge in challenges %}
+                            <tr id="challenge-{{ challenge.id }}">
+                                <td>
+                                    <strong>{{ challenge.name }}</strong>
+                                    {% if challenge.is_dynamic %}
+                                    <span class="badge bg-info text-white ms-1">Dynamic</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ challenge.category }}</span>
+                                </td>
+                                <td>
+                                    {{ challenge.get_current_points() }}
+                                    {% if challenge.is_dynamic %}
+                                    <small class="text-muted">
+                                        ({{ challenge.initial_points }}-{{ challenge.minimum_points }})
+                                    </small>
+                                    {% endif %}
+                                </td>
+                                <td>{{ challenge.solve_count }}</td>
+                                <td>
+                                    <div class="status-badges">
+                                        {% if not challenge.is_enabled %}
+                                        <span class="badge bg-danger" id="enabled-badge-{{ challenge.id }}">
+                                            <i class="bi bi-x-circle"></i> Disabled
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-success" id="enabled-badge-{{ challenge.id }}">
+                                            <i class="bi bi-check-circle"></i> Enabled
+                                        </span>
+                                        {% endif %}
+                                        
+                                        {% if not challenge.is_visible %}
+                                        <span class="badge bg-warning">
+                                            <i class="bi bi-eye-slash"></i> Hidden
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <a href="{{ url_for('admin.edit_challenge', challenge_id=challenge.id) }}" 
+                                           class="btn btn-outline-primary" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button type="button" 
+                                                class="btn btn-outline-{% if challenge.is_enabled %}warning{% else %}success{% endif %}" 
+                                                onclick="toggleEnabled({{ challenge.id }}, {{ 'true' if challenge.is_enabled else 'false' }})" 
+                                                id="toggle-btn-{{ challenge.id }}"
+                                                title="{% if challenge.is_enabled %}Disable{% else %}Enable{% endif %}">
+                                            <i class="bi bi-{% if challenge.is_enabled %}eye-slash{% else %}eye{% endif %}" 
+                                               id="toggle-icon-{{ challenge.id }}"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-danger" 
+                                                onclick="deleteChallenge({{ challenge.id }}, '{{ challenge.name }}')" 
+                                                title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> No challenges created yet. 
+            <a href="{{ url_for('admin.create_challenge') }}">Create your first challenge</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function toggleEnabled(id, currentlyEnabled) {
+    fetch(`/admin/challenges/${id}/toggle-enabled`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const newState = data.is_enabled;
+            
+            // Update badge
+            const badge = document.getElementById(`enabled-badge-${id}`);
+            if (newState) {
+                badge.className = 'badge bg-success';
+                badge.innerHTML = '<i class="bi bi-check-circle"></i> Enabled';
+            } else {
+                badge.className = 'badge bg-danger';
+                badge.innerHTML = '<i class="bi bi-x-circle"></i> Disabled';
+            }
+            
+            // Update button
+            const button = document.getElementById(`toggle-btn-${id}`);
+            const icon = document.getElementById(`toggle-icon-${id}`);
+            if (newState) {
+                button.className = 'btn btn-outline-warning btn-sm';
+                button.title = 'Disable';
+                icon.className = 'bi bi-eye-slash';
+            } else {
+                button.className = 'btn btn-outline-success btn-sm';
+                button.title = 'Enable';
+                icon.className = 'bi bi-eye';
+            }
+            
+            showFlash(`Challenge ${newState ? 'enabled' : 'disabled'} successfully`, 'success');
+        } else {
+            showFlash(data.message || 'Error toggling challenge', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showFlash('Error toggling challenge', 'danger');
+    });
+}
+
+function deleteChallenge(id, name) {
+    if (!confirm(`Are you sure you want to delete "${name}"? This cannot be undone.`)) {
+        return;
+    }
+    
+    fetch(`/admin/challenges/${id}/delete`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById(`challenge-${id}`).remove();
+            showFlash('Challenge deleted successfully', 'success');
+        } else {
+            showFlash(data.message || 'Error deleting challenge', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showFlash('Error deleting challenge', 'danger');
+    });
+}
+
+function showFlash(message, type) {
+    const flashContainer = document.querySelector('.container');
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} alert-dismissible fade show mt-3`;
+    alert.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    flashContainer.insertBefore(alert, flashContainer.firstChild);
+    setTimeout(() => alert.remove(), 5000);
+}
+</script>
+{% endblock %}

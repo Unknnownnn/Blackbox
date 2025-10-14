@@ -1,0 +1,55 @@
+# Ignore Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Flask
+instance/
+.webassets-cache
+flask_session/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Docker data directories
+.data/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Uploads (don't commit uploaded files)
+uploads/
+
+# Temporary
+*.tmp
+*.bak
+
+# OS
+Thumbs.db

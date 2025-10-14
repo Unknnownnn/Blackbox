@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}About - {{ ctf_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <h1 class="mb-4">About {{ ctf_name }}</h1>
+            
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h3 class="card-title">What is CTF?</h3>
+                    <p class="card-text">
+                        Capture The Flag (CTF) is a cybersecurity competition where participants solve security-related 
+                        challenges to find hidden flags. These challenges test various skills including cryptography, 
+                        web exploitation, reverse engineering, forensics, and more.
+                    </p>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h3 class="card-title">How to Play</h3>
+                    <ol class="card-text">
+                        <li><strong>Register:</strong> Create an account and optionally join or create a team</li>
+                        <li><strong>Browse Challenges:</strong> View available challenges in different categories</li>
+                        <li><strong>Solve:</strong> Download challenge files, analyze them, and find the flag</li>
+                        <li><strong>Submit:</strong> Enter the flag in the challenge submission form</li>
+                        <li><strong>Score:</strong> Earn points for each correct submission. Points decrease as more teams solve the challenge</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h3 class="card-title">Scoring System</h3>
+                    <p class="card-text">
+                        This CTF uses dynamic scoring. Challenge values decrease as more teams solve them:
+                    </p>
+                    <ul>
+                        <li>Challenges start at their maximum point value</li>
+                        <li>Points decrease logarithmically with each solve</li>
+                        <li>Minimum points are guaranteed even with many solves</li>
+                        <li>First blood (first solve) gets bonus recognition!</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h3 class="card-title">Rules</h3>
+                    <ul class="card-text">
+                        <li>Do not attack the CTF infrastructure</li>
+                        <li>Do not share flags or solutions with other teams</li>
+                        <li>Do not use automated tools to spam submissions</li>
+                        <li>Be respectful to other participants</li>
+                        <li>Have fun and learn!</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <h3 class="card-title">Contact</h3>
+                    <p class="card-text">
+                        For questions, issues, or concerns, please contact the CTF administrators.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

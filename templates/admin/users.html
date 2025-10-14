@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Users - Admin - {{ ctf_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="admin-sidebar p-3">
+            <h5 class="mb-3">Admin Menu</h5>
+            <nav class="nav flex-column">
+                <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-link">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+                <a href="{{ url_for('admin.manage_challenges') }}" class="admin-nav-link">
+                    <i class="bi bi-puzzle"></i> Challenges
+                </a>
+                <a href="{{ url_for('admin.manage_users') }}" class="admin-nav-link active">
+                    <i class="bi bi-people"></i> Users
+                </a>
+                <a href="{{ url_for('admin.manage_teams') }}" class="admin-nav-link">
+                    <i class="bi bi-people-fill"></i> Teams
+                </a>
+                <a href="{{ url_for('admin.ctf_control') }}" class="admin-nav-link">
+                    <i class="bi bi-clock-history"></i> CTF Control
+                </a>
+                <a href="{{ url_for('admin.settings') }}" class="admin-nav-link">
+                    <i class="bi bi-gear"></i> Settings
+                </a>
+            </nav>
+        </div>
+    </div>
+    
+    <div class="col-md-9">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="mb-0">
+                <i class="bi bi-people"></i> Users
+            </h2>
+            <span class="text-muted">Total: {{ users|length }}</span>
+        </div>
+        
+        {% if users %}
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Team</th>
+                                <th>Score</th>
+                                <th>Admin</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr id="user-{{ user.id }}">
+                                <td>
+                                    <strong>{{ user.username }}</strong>
+                                    {% if user.is_team_captain %}
+                                    <i class="bi bi-shield-fill text-warning" title="Team Captain"></i>
+                                    {% endif %}
+                                </td>
+                                <td>{{ user.email }}</td>
+                                <td>
+                                    {% if user.team %}
+                                    <a href="{{ url_for('teams.view_team', team_id=user.team.id) }}">
+                                        {{ user.team.name }}
+                                    </a>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">{{ user.score }}</span>
+                                    <button class="btn btn-sm btn-link p-0 ms-1" 
+                                            onclick="showPointsModal({{ user.id }}, '{{ user.username }}', {{ user.score }}, 'user')">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </button>
+                                </td>
+                                <td>
+                                    <span class="badge {% if user.is_admin %}bg-danger{% else %}bg-secondary{% endif %}" 
+                                          id="admin-badge-{{ user.id }}">
+                                        {{ 'Yes' if user.is_admin else 'No' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge {% if user.is_active %}bg-success{% else %}bg-warning{% endif %}" 
+                                          id="status-badge-{{ user.id }}">
+                                        {{ 'Active' if user.is_active else 'Inactive' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-outline-primary" 
+                                                onclick="toggleAdmin({{ user.id }})" 
+                                                title="Toggle Admin"
+                                                {% if user.id == current_user.id %}disabled{% endif %}>
+                                            <i class="bi bi-shield"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-warning" 
+                                                onclick="toggleActive({{ user.id }})" 
+                                                title="Toggle Active"
+                                                {% if user.id == current_user.id %}disabled{% endif %}>
+                                            <i class="bi bi-person-check"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> No users registered yet.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Points Adjustment Modal -->
+<div class="modal fade" id="pointsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Adjust Points</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Adjust points for <strong id="target-name"></strong></p>
+                <p>Current score: <span class="badge bg-primary" id="current-score"></span></p>
+                
+                <div class="mb-3">
+                    <label for="points-delta" class="form-label">Points Change</label>
+                    <input type="number" class="form-control" id="points-delta" 
+                           placeholder="Enter positive or negative number">
+                    <div class="form-text">
+                        Use positive numbers to add points, negative to subtract
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="points-reason" class="form-label">Reason (optional)</label>
+                    <input type="text" class="form-control" id="points-reason" 
+                           placeholder="e.g., Bonus points for participation">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="adjustPoints()">Apply</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentTargetId = null;
+let currentTargetType = null;
+let pointsModal = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    pointsModal = new bootstrap.Modal(document.getElementById('pointsModal'));
+});
+
+function showPointsModal(id, name, currentScore, type) {
+    currentTargetId = id;
+    currentTargetType = type;
+    document.getElementById('target-name').textContent = name;
+    document.getElementById('current-score').textContent = currentScore;
+    document.getElementById('points-delta').value = '';
+    document.getElementById('points-reason').value = '';
+    pointsModal.show();
+}
+
+function adjustPoints() {
+    const delta = parseInt(document.getElementById('points-delta').value);
+    const reason = document.getElementById('points-reason').value;
+    
+    if (isNaN(delta) || delta === 0) {
+        alert('Please enter a valid non-zero number');
+        return;
+    }
+    
+    const endpoint = currentTargetType === 'user' 
+        ? `/admin/users/${currentTargetId}/adjust-points`
+        : `/admin/teams/${currentTargetId}/adjust-points`;
+    
+    fetch(endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            points: delta,
+            reason: reason
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            pointsModal.hide();
+            showFlash(data.message, 'success');
+            // Reload page to update scores
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showFlash(data.message || 'Error adjusting points', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showFlash('Error adjusting points', 'danger');
+    });
+}
+
+function toggleAdmin(userId) {
+    fetch(`/admin/users/${userId}/toggle-admin`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const badge = document.getElementById(`admin-badge-${userId}`);
+            badge.textContent = data.is_admin ? 'Yes' : 'No';
+            badge.className = `badge ${data.is_admin ? 'bg-danger' : 'bg-secondary'}`;
+            showFlash(data.message, 'success');
+        } else {
+            showFlash(data.message || 'Error updating admin status', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showFlash('Error updating admin status', 'danger');
+    });
+}
+
+function toggleActive(userId) {
+    fetch(`/admin/users/${userId}/toggle-active`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const badge = document.getElementById(`status-badge-${userId}`);
+            badge.textContent = data.is_active ? 'Active' : 'Inactive';
+            badge.className = `badge ${data.is_active ? 'bg-success' : 'bg-warning'}`;
+            showFlash(data.message, 'success');
+        } else {
+            showFlash(data.message || 'Error updating user status', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showFlash('Error updating user status', 'danger');
+    });
+}
+
+function showFlash(message, type) {
+    const flashContainer = document.querySelector('.container');
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} alert-dismissible fade show mt-3`;
+    alert.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    flashContainer.insertBefore(alert, flashContainer.firstChild);
+    setTimeout(() => alert.remove(), 5000);
+}
+</script>
+{% endblock %}

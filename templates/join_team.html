@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}Join Team - {{ ctf_name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h2 class="mb-4">
+            <i class="bi bi-people-fill"></i> Join a Team
+        </h2>
+        
+        {% if not confirm %}
+        <!-- Invite Code Input Form -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Enter Invite Code</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    Ask your team captain for the unique 8-character invite code to join their team.
+                </p>
+                
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="invite_code" class="form-label">
+                            <i class="bi bi-key-fill"></i> Invite Code
+                        </label>
+                        <input type="text" class="form-control form-control-lg text-uppercase" 
+                               id="invite_code" name="invite_code" 
+                               placeholder="XXXXXXXX" 
+                               maxlength="8" 
+                               pattern="[A-Za-z0-9]{8}"
+                               required 
+                               autofocus
+                               style="letter-spacing: 0.2em; font-weight: bold;">
+                        <div class="form-text">
+                            Enter the 8-character code (letters and numbers)
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('teams.list_teams') }}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Back to Teams
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-search"></i> Find Team
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-info-circle"></i> How to Join a Team</h6>
+                <ol class="mb-0">
+                    <li>Get the invite code from your team captain</li>
+                    <li>Enter the code above</li>
+                    <li>Confirm the team details</li>
+                    <li>Join and start solving challenges together!</li>
+                </ol>
+                
+                <hr>
+                
+                <p class="mb-0">
+                    <strong>Don't have a code?</strong> 
+                    <a href="{{ url_for('teams.create_team') }}">Create your own team</a> instead!
+                </p>
+            </div>
+        </div>
+        
+        {% else %}
+        <!-- Team Confirmation -->
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-check-circle"></i> Team Found!</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    Please confirm that you want to join this team:
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-4 fw-bold">Team Name:</div>
+                    <div class="col-md-8">
+                        <h5><strong>{{ team.name }}</strong></h5>
+                    </div>
+                </div>
+                
+                {% if team.affiliation %}
+                <div class="row mb-3">
+                    <div class="col-md-4 fw-bold">Affiliation:</div>
+                    <div class="col-md-8">{{ team.affiliation }}</div>
+                </div>
+                {% endif %}
+                
+                {% if team.country %}
+                <div class="row mb-3">
+                    <div class="col-md-4 fw-bold">Country:</div>
+                    <div class="col-md-8">{{ team.country }}</div>
+                </div>
+                {% endif %}
+                
+                <div class="row mb-3">
+                    <div class="col-md-4 fw-bold">Current Members:</div>
+                    <div class="col-md-8">
+                        <span class="badge bg-info">{{ team.member_count }} members</span>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-4 fw-bold">Team Score:</div>
+                    <div class="col-md-8">
+                        <span class="badge bg-primary">{{ team.score }} points</span>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="d-flex justify-content-between" id="confirm-buttons">
+                    <a href="{{ url_for('teams.join_team_by_code') }}" class="btn btn-secondary">
+                        <i class="bi bi-x"></i> Cancel
+                    </a>
+                    <button type="button" class="btn btn-success btn-lg" onclick="confirmJoin()">
+                        <i class="bi bi-check-circle"></i> Confirm & Join Team
+                    </button>
+                </div>
+                
+                <div id="loading" class="text-center" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Joining team...</span>
+                    </div>
+                    <p class="mt-2">Joining team...</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// Auto-uppercase invite code input
+document.getElementById('invite_code')?.addEventListener('input', function(e) {
+    this.value = this.value.toUpperCase();
+});
+
+function confirmJoin() {
+    const confirmButtons = document.getElementById('confirm-buttons');
+    const loading = document.getElementById('loading');
+    
+    confirmButtons.style.display = 'none';
+    loading.style.display = 'block';
+    
+    fetch('{{ url_for("teams.confirm_join_team") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'invite_code={{ invite_code }}'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Redirect to team page
+            window.location.href = data.redirect;
+        } else {
+            alert(data.message || 'Error joining team');
+            confirmButtons.style.display = 'flex';
+            loading.style.display = 'none';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while joining the team');
+        confirmButtons.style.display = 'flex';
+        loading.style.display = 'none';
+    });
+}
+</script>
+{% endblock %}

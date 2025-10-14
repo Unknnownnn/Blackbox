@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+
+{% block title %}{{ team.name }} - {{ ctf_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <h2 class="mb-4">
+            <i class="bi bi-people-fill"></i> {{ team.name }}
+            {% if is_captain %}
+            <span class="badge bg-warning text-dark ms-2">Captain</span>
+            {% endif %}
+        </h2>
+        
+        <!-- Team Info Card -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Team Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 fw-bold">Score:</div>
+                    <div class="col-md-8">
+                        <span class="badge bg-primary" style="font-size: 1.2rem;">{{ team.score }} points</span>
+                    </div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-md-4 fw-bold">Solves:</div>
+                    <div class="col-md-8">{{ team.solves }} challenges</div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-md-4 fw-bold">Members:</div>
+                    <div class="col-md-8">{{ team.member_count }} members</div>
+                </div>
+                
+                {% if team.affiliation %}
+                <hr>
+                <div class="row">
+                    <div class="col-md-4 fw-bold">Affiliation:</div>
+                    <div class="col-md-8">{{ team.affiliation }}</div>
+                </div>
+                {% endif %}
+                
+                {% if team.country %}
+                <hr>
+                <div class="row">
+                    <div class="col-md-4 fw-bold">Country:</div>
+                    <div class="col-md-8">{{ team.country }}</div>
+                </div>
+                {% endif %}
+                
+                {% if team.website %}
+                <hr>
+                <div class="row">
+                    <div class="col-md-4 fw-bold">Website:</div>
+                    <div class="col-md-8">
+                        <a href="{{ team.website }}" target="_blank">{{ team.website }}</a>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <hr>
+                <div class="row">
+                    <div class="col-md-4 fw-bold">Created:</div>
+                    <div class="col-md-8">{{ team.created_at }}</div>
+                </div>
+                
+                {% if is_member and team.invite_code %}
+                <hr>
+                <div class="row">
+                    <div class="col-md-4 fw-bold">Invite Code:</div>
+                    <div class="col-md-8">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="invite-code" 
+                                   value="{{ team.invite_code }}" readonly 
+                                   style="letter-spacing: 0.2em; font-weight: bold; font-size: 1.1rem;">
+                            <button class="btn btn-outline-secondary" type="button" onclick="copyInviteCode()">
+                                <i class="bi bi-clipboard"></i> Copy
+                            </button>
+                        </div>
+                        <div class="form-text">
+                            <i class="bi bi-info-circle"></i> Share this code with others to invite them to your team
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Members Card -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Team Members</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group">
+                    {% for member in members %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center" id="member-{{ member.id }}">
+                        <div>
+                            <strong>{{ member.username }}</strong>
+                            {% if member.id == team.captain_id %}
+                            <span class="badge bg-warning text-dark ms-2">
+                                <i class="bi bi-shield-fill"></i> Captain
+                            </span>
+                            {% endif %}
+                            {% if member.email %}
+                            <br>
+                            <small class="text-muted">{{ member.email }}</small>
+                            {% endif %}
+                        </div>
+                        <div>
+                            {% if is_captain and member.id != current_user.id %}
+                            <button class="btn btn-sm btn-outline-danger" 
+                                    onclick="kickMember({{ member.id }}, '{{ member.username }}')">
+                                <i class="bi bi-x-circle"></i> Kick
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Team Actions -->
+        {% if is_member %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Actions</h5>
+            </div>
+            <div class="card-body">
+                {% if not is_captain %}
+                <button class="btn btn-warning" onclick="leaveTeam()">
+                    <i class="bi bi-box-arrow-right"></i> Leave Team
+                </button>
+                {% else %}
+                <p class="text-muted mb-0">
+                    <i class="bi bi-info-circle"></i> 
+                    As team captain, you must transfer ownership before leaving the team.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="col-md-4">
+        <!-- Progress Card -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Progress</h5>
+            </div>
+            <div class="card-body">
+                {% if progress and progress.solves %}
+                <h6>Solved by Category:</h6>
+                {% set category_counts = {} %}
+                {% for solve in progress.solves %}
+                    {% set _ = category_counts.update({solve.category: category_counts.get(solve.category, 0) + 1}) %}
+                {% endfor %}
+                {% for category, count in category_counts.items() %}
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="badge bg-secondary">{{ category }}</span>
+                    <span>{{ count }} solved</span>
+                </div>
+                {% endfor %}
+                
+                <hr>
+                
+                <h6>Recent Solves:</h6>
+                <div class="list-group list-group-flush">
+                    {% for solve in progress.solves[-5:]|reverse %}
+                    <div class="list-group-item px-0 py-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ solve.challenge_name }}</strong>
+                                <br>
+                                <small class="text-muted">
+                                    <i class="bi bi-person"></i> {{ solve.solved_by }}
+                                </small>
+                            </div>
+                            <span class="badge bg-success">+{{ solve.points_earned }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No challenges solved yet</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Quick Links -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Links</h5>
+            </div>
+            <div class="card-body">
+                <a href="{{ url_for('challenges.list_challenges') }}" class="btn btn-primary w-100 mb-2">
+                    <i class="bi bi-puzzle"></i> View Challenges
+                </a>
+                <a href="{{ url_for('scoreboard.view_scoreboard') }}" class="btn btn-info w-100 mb-2">
+                    <i class="bi bi-trophy"></i> Scoreboard
+                </a>
+                <a href="{{ url_for('teams.list_teams') }}" class="btn btn-secondary w-100">
+                    <i class="bi bi-people"></i> All Teams
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyInviteCode() {
+    const codeInput = document.getElementById('invite-code');
+    codeInput.select();
+    document.execCommand('copy');
+    
+    const btn = event.target.closest('button');
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+    btn.classList.remove('btn-outline-secondary');
+    btn.classList.add('btn-success');
+    
+    setTimeout(() => {
+        btn.innerHTML = originalHTML;
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-outline-secondary');
+    }, 2000);
+}
+
+function leaveTeam() {
+    if (!confirm('Are you sure you want to leave this team?')) {
+        return;
+    }
+    
+    fetch('{{ url_for("teams.leave_team", team_id=team.id) }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = '{{ url_for("teams.list_teams") }}';
+        } else {
+            alert(data.message || 'Error leaving team');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred');
+    });
+}
+
+function kickMember(userId, username) {
+    if (!confirm(`Are you sure you want to kick ${username} from the team?`)) {
+        return;
+    }
+    
+    fetch(`{{ url_for("teams.kick_member", team_id=team.id, user_id=0) }}`.replace('/0', `/${userId}`), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById(`member-${userId}`).remove();
+            alert(data.message);
+            location.reload();
+        } else {
+            alert(data.message || 'Error kicking member');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred');
+    });
+}
+</script>
+{% endblock %}

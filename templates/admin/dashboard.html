@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - {{ ctf_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="admin-sidebar p-3">
+            <h5 class="mb-3">Admin Menu</h5>
+            <nav class="nav flex-column">
+                <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-link active">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+                <a href="{{ url_for('admin.manage_challenges') }}" class="admin-nav-link">
+                    <i class="bi bi-puzzle"></i> Challenges
+                </a>
+                <a href="{{ url_for('admin.manage_users') }}" class="admin-nav-link">
+                    <i class="bi bi-people"></i> Users
+                </a>
+                <a href="{{ url_for('admin.manage_teams') }}" class="admin-nav-link">
+                    <i class="bi bi-people-fill"></i> Teams
+                </a>
+                <a href="{{ url_for('admin.ctf_control') }}" class="admin-nav-link">
+                    <i class="bi bi-clock-history"></i> CTF Control
+                </a>
+                <a href="{{ url_for('admin.settings') }}" class="admin-nav-link">
+                    <i class="bi bi-gear"></i> Settings
+                </a>
+            </nav>
+        </div>
+    </div>
+    
+    <div class="col-md-9">
+        <h2 class="mb-4">
+            <i class="bi bi-speedometer2"></i> Dashboard
+        </h2>
+        
+        <!-- Statistics Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="bi bi-people-fill text-primary" style="font-size: 2rem;"></i>
+                        <h3 class="mt-2">{{ stats.users }}</h3>
+                        <p class="text-muted mb-0">Users</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="bi bi-people text-success" style="font-size: 2rem;"></i>
+                        <h3 class="mt-2">{{ stats.teams }}</h3>
+                        <p class="text-muted mb-0">Teams</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="bi bi-puzzle-fill text-warning" style="font-size: 2rem;"></i>
+                        <h3 class="mt-2">{{ stats.challenges }}</h3>
+                        <p class="text-muted mb-0">Challenges</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="bi bi-trophy-fill text-info" style="font-size: 2rem;"></i>
+                        <h3 class="mt-2">{{ stats.solves }}</h3>
+                        <p class="text-muted mb-0">Solves</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Solves -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recent Solves</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_solves %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>User</th>
+                                <th>Team</th>
+                                <th>Challenge</th>
+                                <th>Points</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for solve in recent_solves %}
+                            <tr>
+                                <td>{{ solve.solved_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>{{ solve.user.username }}</td>
+                                <td>{{ solve.team.name if solve.team else '-' }}</td>
+                                <td>{{ solve.challenge.name }}</td>
+                                <td><span class="badge bg-primary">{{ solve.points_earned }}</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No solves yet</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

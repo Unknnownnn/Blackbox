@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Challenges - {{ ctf_name }}{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">
+    <i class="bi bi-puzzle-fill"></i> Challenges
+</h2>
+
+{% if not categories %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> No challenges available yet. Check back later!
+</div>
+{% else %}
+    {% for category, challenges in categories.items() %}
+    <div class="mb-5">
+        <h3 class="mb-3">
+            <span class="badge bg-primary">{{ category|upper }}</span>
+            <small class="text-muted">({{ challenges|length }} challenges)</small>
+        </h3>
+        
+        <div class="row">
+            {% for challenge in challenges %}
+            <div class="col-md-6 col-lg-4 mb-3">
+                <div class="card h-100 {% if challenge.solved %}border-success{% endif %}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title mb-0">
+                                {{ challenge.name }}
+                                {% if challenge.solved %}
+                                <i class="bi bi-check-circle-fill text-success"></i>
+                                {% endif %}
+                            </h5>
+                            <span class="badge bg-warning text-dark">{{ challenge.points }} pts</span>
+                        </div>
+                        
+                        {% if challenge.difficulty %}
+                        <span class="badge 
+                            {% if challenge.difficulty == 'easy' %}bg-success
+                            {% elif challenge.difficulty == 'medium' %}bg-warning
+                            {% else %}bg-danger
+                            {% endif %} mb-2">
+                            {{ challenge.difficulty|upper }}
+                        </span>
+                        {% endif %}
+                        
+                        <p class="card-text text-muted small">
+                            {{ challenge.description[:100] }}{% if challenge.description|length > 100 %}...{% endif %}
+                        </p>
+                        
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                <i class="bi bi-trophy"></i> {{ challenge.solves }} solves
+                            </small>
+                            <a href="{{ url_for('challenges.view_challenge', challenge_id=challenge.id) }}" 
+                               class="btn btn-sm btn-outline-primary">
+                                View Challenge
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+{% endif %}
+{% endblock %}

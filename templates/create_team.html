@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Create Team - {{ ctf_name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h2 class="mb-4">
+            <i class="bi bi-plus-circle"></i> Create a Team
+        </h2>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Team Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Team Features:</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>Work together to solve challenges</li>
+                        <li>Share points across all team members</li>
+                        <li>When one member solves a challenge, it's marked solved for everyone</li>
+                        <li>Get a unique invite code to share with teammates</li>
+                    </ul>
+                </div>
+                
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="team_name" class="form-label">Team Name *</label>
+                        <input type="text" class="form-control" id="team_name" name="team_name" 
+                               placeholder="Enter a unique team name" required autofocus>
+                        <div class="form-text">Choose a memorable name for your team</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="affiliation" class="form-label">Affiliation (Optional)</label>
+                        <input type="text" class="form-control" id="affiliation" name="affiliation" 
+                               placeholder="e.g., University, Company, Organization">
+                        <div class="form-text">Your school, company, or organization</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="country" class="form-label">Country (Optional)</label>
+                        <input type="text" class="form-control" id="country" name="country" 
+                               placeholder="e.g., United States, Canada, India">
+                    </div>
+                    
+                    <div class="alert alert-success">
+                        <i class="bi bi-key-fill"></i>
+                        <strong>Invite Code:</strong> After creating your team, you'll receive a unique 8-character invite code. 
+                        Share this code with teammates so they can join your team!
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('teams.list_teams') }}" class="btn btn-secondary">
+                            <i class="bi bi-x"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Create Team
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-question-circle"></i> Team Guidelines</h6>
+                <ul class="mb-0">
+                    <li><strong>Team Size:</strong> Teams can have up to 4 members</li>
+                    <li><strong>Captain Role:</strong> Team creator becomes the captain automatically</li>
+                    <li><strong>Adding Members:</strong> Share your invite code for others to join</li>
+                    <li><strong>Shared Progress:</strong> Challenge solves and points are shared across the team</li>
+                    <li><strong>Team Captain:</strong> Can kick members but must transfer ownership before leaving</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

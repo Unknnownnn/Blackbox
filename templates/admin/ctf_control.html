@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}CTF Control - Admin - {{ ctf_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="admin-sidebar p-3">
+            <h5 class="mb-3">Admin Menu</h5>
+            <nav class="nav flex-column">
+                <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-link">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+                <a href="{{ url_for('admin.manage_challenges') }}" class="admin-nav-link">
+                    <i class="bi bi-puzzle"></i> Challenges
+                </a>
+                <a href="{{ url_for('admin.manage_users') }}" class="admin-nav-link">
+                    <i class="bi bi-people"></i> Users
+                </a>
+                <a href="{{ url_for('admin.manage_teams') }}" class="admin-nav-link">
+                    <i class="bi bi-people-fill"></i> Teams
+                </a>
+                <a href="{{ url_for('admin.ctf_control') }}" class="admin-nav-link active">
+                    <i class="bi bi-clock-history"></i> CTF Control
+                </a>
+                <a href="{{ url_for('admin.settings') }}" class="admin-nav-link">
+                    <i class="bi bi-gear"></i> Settings
+                </a>
+            </nav>
+        </div>
+    </div>
+    
+    <div class="col-md-9">
+        <h2 class="mb-4">
+            <i class="bi bi-clock-history"></i> CTF Control Panel
+        </h2>
+        
+        <!-- Current Status -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Current Status</h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center py-3">
+                    {% if ctf_settings.status == 'running' %}
+                    <i class="bi bi-play-circle-fill text-success" style="font-size: 4rem;"></i>
+                    <h3 class="mt-3 text-success">CTF is Running</h3>
+                    <p class="text-muted">Submissions are enabled</p>
+                    {% elif ctf_settings.status == 'paused' %}
+                    <i class="bi bi-pause-circle-fill text-warning" style="font-size: 4rem;"></i>
+                    <h3 class="mt-3 text-warning">CTF is Paused</h3>
+                    <p class="text-muted">Submissions are disabled</p>
+                    {% elif ctf_settings.status == 'not_started' %}
+                    <i class="bi bi-hourglass-split text-info" style="font-size: 4rem;"></i>
+                    <h3 class="mt-3 text-info">CTF Not Started</h3>
+                    <p class="text-muted">Waiting for start time</p>
+                    {% elif ctf_settings.status == 'ended' %}
+                    <i class="bi bi-stop-circle-fill text-danger" style="font-size: 4rem;"></i>
+                    <h3 class="mt-3 text-danger">CTF has Ended</h3>
+                    <p class="text-muted">Competition is over</p>
+                    {% endif %}
+                </div>
+                
+                <hr>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>Start Time:</strong><br>
+                        {% if ctf_settings.start_time %}
+                        <span class="badge bg-info">{{ ctf_settings.start_time.strftime('%Y-%m-%d %H:%M:%S UTC') }}</span>
+                        {% else %}
+                        <span class="text-muted">Not set (Always running)</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>End Time:</strong><br>
+                        {% if ctf_settings.end_time %}
+                        <span class="badge bg-info">{{ ctf_settings.end_time.strftime('%Y-%m-%d %H:%M:%S UTC') }}</span>
+                        {% else %}
+                        <span class="text-muted">Not set (Never ends)</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Pause/Resume Controls -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Controls</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        {% if ctf_settings.is_paused %}
+                        <form method="POST" class="d-inline">
+                            <input type="hidden" name="action" value="resume">
+                            <button type="submit" class="btn btn-success w-100 btn-lg">
+                                <i class="bi bi-play-fill"></i> Resume CTF
+                            </button>
+                        </form>
+                        <small class="text-muted d-block mt-2">Enable submissions and allow users to compete</small>
+                        {% else %}
+                        <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to pause the CTF? All submissions will be disabled.');">
+                            <input type="hidden" name="action" value="pause">
+                            <button type="submit" class="btn btn-warning w-100 btn-lg">
+                                <i class="bi bi-pause-fill"></i> Pause CTF
+                            </button>
+                        </form>
+                        <small class="text-muted d-block mt-2">Temporarily disable all submissions</small>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <form method="POST" onsubmit="return confirm('Clear all scheduling? CTF will run continuously.');">
+                            <input type="hidden" name="action" value="clear_times">
+                            <button type="submit" class="btn btn-secondary w-100 btn-lg">
+                                <i class="bi bi-x-circle"></i> Clear Schedule
+                            </button>
+                        </form>
+                        <small class="text-muted d-block mt-2">Remove start/end times (CTF always running)</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Schedule Settings -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Schedule Settings</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <input type="hidden" name="action" value="set_times">
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Tip:</strong> Set start and end times to control when the CTF runs. 
+                        Leave blank to allow the CTF to run continuously.
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="start_time" class="form-label">
+                                <i class="bi bi-calendar-check"></i> Start Time (UTC)
+                            </label>
+                            <input type="datetime-local" 
+                                   class="form-control" 
+                                   id="start_time" 
+                                   name="start_time"
+                                   value="{% if ctf_settings.start_time %}{{ ctf_settings.start_time.strftime('%Y-%m-%dT%H:%M') }}{% endif %}">
+                            <div class="form-text">When the CTF should begin</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="end_time" class="form-label">
+                                <i class="bi bi-calendar-x"></i> End Time (UTC)
+                            </label>
+                            <input type="datetime-local" 
+                                   class="form-control" 
+                                   id="end_time" 
+                                   name="end_time"
+                                   value="{% if ctf_settings.end_time %}{{ ctf_settings.end_time.strftime('%Y-%m-%dT%H:%M') }}{% endif %}">
+                            <div class="form-text">When the CTF should end</div>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Update Schedule
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Usage Guide -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Usage Guide</h5>
+            </div>
+            <div class="card-body">
+                <h6>CTF States:</h6>
+                <ul>
+                    <li><strong class="text-info">Not Started:</strong> Before start time - submissions disabled</li>
+                    <li><strong class="text-success">Running:</strong> Between start and end time - submissions enabled</li>
+                    <li><strong class="text-warning">Paused:</strong> Manually paused - submissions disabled</li>
+                    <li><strong class="text-danger">Ended:</strong> After end time - submissions disabled</li>
+                </ul>
+                
+                <h6 class="mt-4">Quick Actions:</h6>
+                <ul>
+                    <li><strong>Pause:</strong> Immediately disable submissions (for maintenance/issues)</li>
+                    <li><strong>Resume:</strong> Re-enable submissions after pause</li>
+                    <li><strong>Clear Schedule:</strong> Remove all time restrictions</li>
+                </ul>
+                
+                <h6 class="mt-4">Common Scenarios:</h6>
+                <ul>
+                    <li><strong>Practice Mode:</strong> Clear schedule for always-on CTF</li>
+                    <li><strong>Timed Event:</strong> Set start and end times</li>
+                    <li><strong>Emergency Stop:</strong> Use pause button</li>
+                    <li><strong>Extend Time:</strong> Update end time</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
