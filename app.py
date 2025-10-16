@@ -1,7 +1,7 @@
 import eventlet
 eventlet.monkey_patch()
 
-from flask import Flask, render_template, send_from_directory, abort
+from flask import Flask, render_template, send_from_directory, send_file, abort
 from flask_login import LoginManager
 from flask.json.provider import DefaultJSONProvider
 from config import config
@@ -126,31 +126,48 @@ def create_app(config_name=None):
     def serve_file(filename):
         """Serve uploaded files with original filename"""
         from models.file import ChallengeFile
-        from flask import send_file
+        from flask import Response
         import os
+        from werkzeug.utils import safe_join
         
         upload_folder = app.config.get('UPLOAD_FOLDER', 'uploads')
         
-        # Normalize the path for database lookup
+        # Normalize the path for database lookup (try both forward and backslashes)
         normalized_path = filename.replace('/', os.sep)
+        
+        # Try to find file record (check both path formats)
         file_record = ChallengeFile.query.filter_by(relative_path=normalized_path).first()
+        if not file_record:
+            # Try with forward slashes
+            file_record = ChallengeFile.query.filter_by(relative_path=filename).first()
         
-        # Build full file path
-        file_path = os.path.join(upload_folder, normalized_path)
+        # Build full file path safely
+        file_path = safe_join(upload_folder, normalized_path)
         
-        if not os.path.exists(file_path):
+        if not file_path or not os.path.exists(file_path):
+            app.logger.warning(f"File not found: {file_path}")
             abort(404)
         
-        # Use original filename if we have a database record
-        if file_record and file_record.original_filename:
-            return send_file(
-                file_path,
-                as_attachment=True,
-                download_name=file_record.original_filename
-            )
+        # Determine the filename to use for download
+        download_filename = file_record.original_filename if file_record and file_record.original_filename else os.path.basename(file_path)
+        
+        # Read file content
+        with open(file_path, 'rb') as f:
+            file_data = f.read()
+        
+        # Create response with proper headers for download
+        response = Response(file_data)
+        response.headers['Content-Disposition'] = f'attachment; filename="{download_filename}"'
+        
+        # Set content type if available
+        if file_record and hasattr(file_record, 'mime_type') and file_record.mime_type:
+            response.headers['Content-Type'] = file_record.mime_type
         else:
-            # Fallback: use the stored filename
-            return send_file(file_path, as_attachment=True)
+            response.headers['Content-Type'] = 'application/octet-stream'
+        
+        app.logger.info(f"Serving file: {download_filename} (stored as: {filename})")
+        
+        return response
     
     @app.route('/favicon.ico')
     def favicon():
