@@ -200,17 +200,21 @@ code {
     font-size: 0.9em;
 }
 
+[data-bs-theme="dark"] code {
+    background-color: #2d3238;
+}
+
 /* Connection Info - Simple pink code style */
 code.connection-info {
-    color: #e83e8c;
-    background-color: transparent;
+    color: #e83e8c !important;
+    background-color: transparent !important;
     font-size: 1rem;
     padding: 0;
     border: none;
 }
 
 code.connection-info a {
-    color: #e83e8c;
+    color: #e83e8c !important;
     text-decoration: none;
 }
 
@@ -219,11 +223,12 @@ code.connection-info a:hover {
 }
 
 [data-bs-theme="dark"] code.connection-info {
-    color: #ff6ec7;
+    color: #ff6ec7 !important;
+    background-color: transparent !important;
 }
 
 [data-bs-theme="dark"] code.connection-info a {
-    color: #ff6ec7;
+    color: #ff6ec7 !important;
 }
 
 /* Footer */
