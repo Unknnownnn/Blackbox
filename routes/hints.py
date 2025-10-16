@@ -86,6 +86,20 @@ def unlock_hint(hint_id):
         )
         db.session.add(hint_unlock)
         
+        # Log hint unlock for tracking
+        import logging
+        logger = logging.getLogger('blackbox')
+        
+        if team:
+            logger.info(f"HINT_UNLOCK: User '{current_user.username}' (ID: {current_user.id}) "
+                       f"from Team '{team.name}' (ID: {team.id}) unlocked hint #{hint.order} "
+                       f"for Challenge '{challenge.name}' (ID: {challenge.id}). "
+                       f"Cost: {hint.cost} points. New score: {new_score}")
+        else:
+            logger.info(f"HINT_UNLOCK: User '{current_user.username}' (ID: {current_user.id}) "
+                       f"unlocked hint #{hint.order} for Challenge '{challenge.name}' (ID: {challenge.id}). "
+                       f"Cost: {hint.cost} points. New score: {new_score}")
+        
         # Deduct points from user or team
         # Points are tracked through solves, so we need to adjust the score
         # We'll create a negative solve entry or adjust existing scores

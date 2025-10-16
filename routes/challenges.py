@@ -615,7 +615,11 @@ def explore_flag(challenge_id):
 @challenges_bp.route('/solves/<int:challenge_id>')
 @login_required
 def challenge_solves(challenge_id):
-    """Get list of teams/users who solved a challenge"""
+    """Get list of teams/users who solved a challenge (Admin only)"""
+    # Restrict to admin only - removed public access
+    if not current_user.is_admin:
+        return jsonify({'error': 'Admin access required'}), 403
+    
     challenge = Challenge.query.get_or_404(challenge_id)
     
     solves = Solve.query.filter_by(challenge_id=challenge_id)\
@@ -629,7 +633,8 @@ def challenge_solves(challenge_id):
                 'name': team.name,
                 'type': 'team',
                 'solved_at': solve.solved_at.isoformat(),
-                'points': solve.points_earned
+                'points': solve.points_earned,
+                'is_first_blood': solve.is_first_blood
             })
         else:
             user = solve.user
@@ -637,7 +642,8 @@ def challenge_solves(challenge_id):
                 'name': user.username,
                 'type': 'user',
                 'solved_at': solve.solved_at.isoformat(),
-                'points': solve.points_earned
+                'points': solve.points_earned,
+                'is_first_blood': solve.is_first_blood
             })
     
     return jsonify({
