@@ -126,9 +126,8 @@ def create_app(config_name=None):
     def serve_file(filename):
         """Serve uploaded files with original filename"""
         from models.file import ChallengeFile
-        from flask import Response
         import os
-        from werkzeug.utils import safe_join
+        from urllib.parse import quote
         
         upload_folder = app.config.get('UPLOAD_FOLDER', 'uploads')
         
@@ -138,36 +137,31 @@ def create_app(config_name=None):
         # Try to find file record (check both path formats)
         file_record = ChallengeFile.query.filter_by(relative_path=normalized_path).first()
         if not file_record:
-            # Try with forward slashes
+            # Try with forward slashes  
             file_record = ChallengeFile.query.filter_by(relative_path=filename).first()
         
-        # Build full file path safely
-        file_path = safe_join(upload_folder, normalized_path)
+        # Build full file path
+        file_path = os.path.join(upload_folder, normalized_path)
         
-        if not file_path or not os.path.exists(file_path):
+        if not os.path.exists(file_path):
             app.logger.warning(f"File not found: {file_path}")
             abort(404)
         
         # Determine the filename to use for download
-        download_filename = file_record.original_filename if file_record and file_record.original_filename else os.path.basename(file_path)
-        
-        # Read file content
-        with open(file_path, 'rb') as f:
-            file_data = f.read()
-        
-        # Create response with proper headers for download
-        response = Response(file_data)
-        response.headers['Content-Disposition'] = f'attachment; filename="{download_filename}"'
-        
-        # Set content type if available
-        if file_record and hasattr(file_record, 'mime_type') and file_record.mime_type:
-            response.headers['Content-Type'] = file_record.mime_type
+        if file_record and file_record.original_filename:
+            download_filename = file_record.original_filename
+            app.logger.info(f"Found DB record: {download_filename}")
         else:
-            response.headers['Content-Type'] = 'application/octet-stream'
+            download_filename = os.path.basename(file_path)
+            app.logger.warning(f"No DB record, using: {download_filename}")
         
-        app.logger.info(f"Serving file: {download_filename} (stored as: {filename})")
-        
-        return response
+        # Use send_file with proper parameters
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name=download_filename,
+            mimetype=file_record.mime_type if file_record and file_record.mime_type else 'application/octet-stream'
+        )
     
     @app.route('/favicon.ico')
     def favicon():

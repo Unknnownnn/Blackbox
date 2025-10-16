@@ -57,7 +57,7 @@
                     <h5><i class="bi bi-file-earmark-arrow-down"></i> Downloads</h5>
                     <div class="list-group">
                         {% for file in files %}
-                        <a href="{{ file.download_url }}" class="list-group-item list-group-item-action" download>
+                        <a href="{{ file.download_url }}" class="list-group-item list-group-item-action" download="{{ file.original_filename }}">
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
                                     <i class="bi bi-download me-2"></i>
