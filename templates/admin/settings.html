@@ -79,15 +79,40 @@
                             
                             <div class="col-md-6 mb-3">
                                 <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" id="team_mode" name="team_mode" 
-                                           {% if settings.get('team_mode', True) %}checked{% endif %}>
-                                    <label class="form-check-label" for="team_mode">
-                                        <strong>Team Mode</strong>
+                                    <input class="form-check-input" type="checkbox" id="teams_enabled" name="teams_enabled" 
+                                           {% if settings.get('teams_enabled', True) %}checked{% endif %}>
+                                    <label class="form-check-label" for="teams_enabled">
+                                        <strong>Enable Teams</strong>
                                     </label>
                                 </div>
                                 <div class="form-text">
-                                    <i class="bi bi-info-circle"></i> When <strong>enabled</strong>: Users compete as teams, shared scores and challenges.<br>
-                                    <i class="bi bi-info-circle"></i> When <strong>disabled</strong>: Individual competition mode, each user competes alone.
+                                    <i class="bi bi-info-circle"></i> When <strong>enabled</strong>: Users can create and join teams. Team scoring is active.<br>
+                                    <i class="bi bi-info-circle"></i> When <strong>disabled</strong>: Solo competition mode. Teams menu is hidden. Individual scoring only.
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="team_mode" name="team_mode" 
+                                           {% if settings.get('team_mode', True) %}checked{% endif %}>
+                                    <label class="form-check-label" for="team_mode">
+                                        <strong>Team Mode (Require Teams)</strong>
+                                    </label>
+                                </div>
+                                <div class="form-text">
+                                    <i class="bi bi-info-circle"></i> When <strong>enabled</strong>: Users must be in a team to solve challenges.<br>
+                                    <i class="bi bi-info-circle"></i> When <strong>disabled</strong>: Users can solve challenges individually, teams are optional.
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="first_blood_bonus" class="form-label"><strong>First Blood Bonus Points</strong></label>
+                                <input type="number" class="form-control" id="first_blood_bonus" name="first_blood_bonus" 
+                                       value="{{ settings.get('first_blood_bonus', 0) }}" min="0" max="500">
+                                <div class="form-text">
+                                    <i class="bi bi-info-circle"></i> Extra points awarded to the first solver of each challenge. Set to 0 to disable.
                                 </div>
                             </div>
                         </div>
@@ -147,30 +172,6 @@
                     <dt class="col-sm-4">Web Server</dt>
                     <dd class="col-sm-8">Gunicorn with Eventlet</dd>
                 </dl>
-            </div>
-        </div>
-        
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-book"></i> Documentation</h5>
-            </div>
-            <div class="card-body">
-                <h6>Available Documentation Files:</h6>
-                <ul>
-                    <li><code>README.md</code> - Main project documentation</li>
-                    <li><code>DEPLOYMENT.md</code> - Deployment guide</li>
-                    <li><code>SECURITY.md</code> - Security features and best practices</li>
-                    <li><code>TROUBLESHOOTING.md</code> - Common issues and solutions</li>
-                </ul>
-                
-                <h6 class="mt-4">Quick Tips:</h6>
-                <ul>
-                    <li>Use dynamic scoring for challenges to reward early solvers</li>
-                    <li>Monitor the scoreboard for suspicious activity</li>
-                    <li>Regularly backup your database</li>
-                    <li>Check logs for errors: <code>docker-compose logs -f ctf</code></li>
-                    <li>Use Redis for better performance with many users</li>
-                </ul>
             </div>
         </div>
         </div>

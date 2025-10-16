@@ -65,7 +65,10 @@ docker-compose exec -T blackbox bash -c "
     mysql -h db -u blackbox_user -pblackbox_password blackbox_ctf < migrations/add_challenge_branching.sql 2>/dev/null || true
     mysql -h db -u blackbox_user -pblackbox_password blackbox_ctf < migrations/add_ctf_control.sql 2>/dev/null || true
     mysql -h db -u blackbox_user -pblackbox_password blackbox_ctf < migrations/add_event_config.sql 2>/dev/null || true
+    mysql -h db -u blackbox_user -pblackbox_password blackbox_ctf < migrations/add_first_blood_and_dynamic_scoring.sql 2>/dev/null || true
 "
+
+echo "✓ Migrations completed"
 
 echo ""
 echo "Reset complete!"

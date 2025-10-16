@@ -30,7 +30,7 @@ main {
 }
 
 .card:hover {
-    transform: translateY(-5px);
+    /* transform: translateY(-5px); */
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
@@ -198,4 +198,20 @@ code {
     padding: 0.2em 0.4em;
     border-radius: 3px;
     font-size: 0.9em;
+}
+
+/* Footer */
+footer {
+    background-color: transparent;
+}
+
+.footer-credit {
+    font-size: 0.75rem;
+    color: #f8f9fa;
+    margin-top: 0.5rem;
+    user-select: text;
+}
+
+[data-bs-theme="dark"] .footer-credit {
+    color: #212529;
 }

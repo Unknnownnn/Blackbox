@@ -28,14 +28,20 @@ class Team(db.Model):
     solves = db.relationship('Solve', backref='team', lazy='dynamic', cascade='all, delete-orphan')
     
     def get_score(self):
-        """Calculate team's total score (solves - hint costs)"""
-        # Sum solve points
-        solve_points = sum([solve.points_earned for solve in self.solves])
+        """Calculate team's total score dynamically (solves - hint costs)
+        
+        For dynamic challenges: Recalculates based on current challenge value
+        For static challenges: Uses stored points_earned
+        """
+        # Sum solve points (recalculated for dynamic challenges)
+        solve_points = sum([solve.get_current_points() for solve in self.solves])
+        
         # Subtract hint costs
         from models.hint import HintUnlock
         hint_costs = db.session.query(db.func.sum(HintUnlock.cost_paid)).filter(
             HintUnlock.team_id == self.id
         ).scalar() or 0
+        
         # Convert Decimal to int for JSON serialization
         total = int(solve_points) - int(hint_costs)
         return total

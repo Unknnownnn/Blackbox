@@ -8,33 +8,50 @@ scoreboard_bp = Blueprint('scoreboard', __name__, url_prefix='/scoreboard')
 @scoreboard_bp.route('/')
 def view_scoreboard():
     """View scoreboard page"""
-    return render_template('scoreboard.html')
+    from models.settings import Settings
+    
+    # Check if teams are enabled
+    teams_enabled = Settings.get('teams_enabled', default=True, type='bool')
+    
+    return render_template('scoreboard.html', teams_enabled=teams_enabled)
 
 
 @scoreboard_bp.route('/api/data')
 def get_scoreboard_data():
     """Get scoreboard data (API endpoint)"""
+    from models.settings import Settings
+    
+    # Check if teams are enabled
+    teams_enabled = Settings.get('teams_enabled', default=True, type='bool')
+    
     # Try cache first
-    scoreboard = cache_service.get_scoreboard()
+    cache_key = 'scoreboard_team' if teams_enabled else 'scoreboard_individual'
+    scoreboard = cache_service.get(cache_key)
     
     if not scoreboard:
         # Generate fresh scoreboard
-        scoreboard = ScoringService.get_scoreboard(team_based=True, limit=100)
-        cache_service.set_scoreboard(scoreboard, ttl=60)
+        scoreboard = ScoringService.get_scoreboard(team_based=teams_enabled, limit=100)
+        cache_service.set(cache_key, scoreboard, ttl=60)
     
     return jsonify(scoreboard)
 
 
 @scoreboard_bp.route('/api/top/<int:limit>')
 def get_top_teams(limit):
-    """Get top N teams"""
+    """Get top N teams or users"""
+    from models.settings import Settings
+    
     limit = min(limit, 100)  # Cap at 100
     
-    scoreboard = cache_service.get_scoreboard()
+    # Check if teams are enabled
+    teams_enabled = Settings.get('teams_enabled', default=True, type='bool')
+    
+    cache_key = 'scoreboard_team' if teams_enabled else 'scoreboard_individual'
+    scoreboard = cache_service.get(cache_key)
     
     if not scoreboard:
-        scoreboard = ScoringService.get_scoreboard(team_based=True, limit=limit)
-        cache_service.set_scoreboard(scoreboard, ttl=60)
+        scoreboard = ScoringService.get_scoreboard(team_based=teams_enabled, limit=limit)
+        cache_service.set(cache_key, scoreboard, ttl=60)
     else:
         scoreboard = scoreboard[:limit]
     

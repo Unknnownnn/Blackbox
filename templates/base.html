@@ -55,11 +55,13 @@
                             <i class="bi bi-trophy"></i> Scoreboard
                         </a>
                     </li>
+                    {% if teams_enabled %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('teams.list_teams') }}">
                             <i class="bi bi-people"></i> Teams
                         </a>
                     </li>
+                    {% endif %}
                     {% endif %}
                 </ul>
                 <ul class="navbar-nav">
@@ -84,7 +86,7 @@
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
                                 <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">Profile</a></li>
-                                {% if current_user.team_id %}
+                                {% if teams_enabled and current_user.team_id %}
                                 <li><a class="dropdown-item" href="{{ url_for('teams.view_team', team_id=current_user.team_id) }}">My Team</a></li>
                                 {% endif %}
                                 <li><hr class="dropdown-divider"></li>
@@ -126,10 +128,10 @@
     </main>
 
     <!-- Footer -->
-    <footer class="bg-dark text-white mt-5 py-4">
+    <footer class="mt-5 py-2">
         <div class="container text-center">
             <p class="mb-0">{{ ctf_name }}</p>
-            <p class="mb-0 small text-white mt-5">BlackBox Platform - Developed By Aakansh</p>
+            <p class="mb-0 footer-credit">BlackBox Platform - Developed by Aakansh</p>
         </div>
     </footer>
 

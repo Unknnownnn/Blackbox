@@ -60,9 +60,13 @@ def init_database(with_sample_data=True):
         
         # Initialize default settings
         print("\nInitializing default settings...")
-        Settings.set('ctf_start_time', None, 'datetime')
-        Settings.set('ctf_end_time', None, 'datetime')
-        Settings.set('is_paused', False, 'bool')
+        Settings.set('ctf_start_time', None, 'datetime', 'CTF start time')
+        Settings.set('ctf_end_time', None, 'datetime', 'CTF end time')
+        Settings.set('is_paused', False, 'bool', 'Is CTF paused')
+        Settings.set('teams_enabled', True, 'bool', 'Enable teams feature (for solo competitions)')
+        Settings.set('first_blood_bonus', 15, 'int', 'Bonus points for first blood (first solve)')
+        Settings.set('allow_registration', True, 'bool', 'Allow new user registrations')
+        Settings.set('team_mode', False, 'bool', 'Require teams to solve challenges')
         print("✓ Default settings initialized")
         
         if with_sample_data:
@@ -239,13 +243,14 @@ def add_sample_data():
     
     challenges = Challenge.query.all()
     
-    # Team 1 solves first 3 challenges
+    # Team 1 solves first 3 challenges (gets first blood on all 3)
     for i, challenge in enumerate(challenges[:3]):
         solve = Solve(
             user_id=users[0].id,
             team_id=team1.id,
             challenge_id=challenge.id,
             points_earned=challenge.get_current_points(),
+            is_first_blood=(i == 0),  # First challenge gets first blood
             solved_at=datetime.utcnow() - timedelta(hours=random.randint(1, 24))
         )
         db.session.add(solve)
@@ -259,14 +264,15 @@ def add_sample_data():
         )
         db.session.add(submission)
     
-    # Team 2 solves first 2 challenges
+    # Team 2 solves first 2 challenges (no first blood, team 1 was first)
     for i, challenge in enumerate(challenges[:2]):
         solve = Solve(
             user_id=users[2].id,
             team_id=team2.id,
             challenge_id=challenge.id,
             points_earned=challenge.get_current_points(),
-            solved_at=datetime.utcnow() - timedelta(hours=random.randint(1, 24))
+            is_first_blood=False,
+            solved_at=datetime.utcnow() - timedelta(hours=random.randint(1, 20))
         )
         db.session.add(solve)
         
@@ -279,14 +285,15 @@ def add_sample_data():
         )
         db.session.add(submission)
     
-    # Team 3 solves first challenge
+    # Team 3 solves first challenge (no first blood)
     challenge = challenges[0]
     solve = Solve(
         user_id=users[4].id,
         team_id=team3.id,
         challenge_id=challenge.id,
         points_earned=challenge.get_current_points(),
-        solved_at=datetime.utcnow() - timedelta(hours=random.randint(1, 24))
+        is_first_blood=False,
+        solved_at=datetime.utcnow() - timedelta(hours=random.randint(1, 18))
     )
     db.session.add(solve)
     

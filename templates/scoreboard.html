@@ -129,7 +129,7 @@
             <thead>
                 <tr>
                     <th>Rank</th>
-                    <th>Team</th>
+                    <th>{% if teams_enabled %}Team{% else %}User{% endif %}</th>
                     <th class="text-end">Score</th>
                     <th class="text-center">Solves</th>
                     <th>Last Solve</th>
@@ -200,7 +200,16 @@ function updateScoreboardTable() {
     tbody.innerHTML = '';
     
     if (scoreboardData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No teams yet</td></tr>';
+        // Show loading state if no data received yet
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading scoreboard...</span>
+                    </div>
+                    <div class="mt-2 text-muted">Loading scoreboard...</div>
+                </td>
+            </tr>`;
         return;
     }
     
@@ -283,20 +292,26 @@ function formatDate(date) {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    connectWebSocket();
+    // Load scoreboard data immediately via REST API (fast)
+    fetch('/scoreboard/api/data')
+        .then(response => response.json())
+        .then(data => {
+            scoreboardData = data;
+            updateScoreboardTable();
+        })
+        .catch(error => {
+            console.error('Error loading scoreboard:', error);
+            const tbody = document.getElementById('scoreboardBody');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-danger py-4">
+                        <i class="bi bi-exclamation-triangle"></i> Error loading scoreboard
+                    </td>
+                </tr>`;
+        });
     
-    // Fallback: Load via API if WebSocket fails
-    setTimeout(function() {
-        if (scoreboardData.length === 0) {
-            fetch('/scoreboard/api/data')
-                .then(response => response.json())
-                .then(data => {
-                    scoreboardData = data;
-                    updateScoreboardTable();
-                })
-                .catch(error => console.error('Error loading scoreboard:', error));
-        }
-    }, 2000);
+    // Then connect WebSocket for live updates
+    connectWebSocket();
 });
 </script>
 {% endblock %}

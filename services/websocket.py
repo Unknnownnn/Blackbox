@@ -65,14 +65,19 @@ def handle_request_scoreboard():
     """Client requests current scoreboard data"""
     from services.scoring import ScoringService
     from services.cache import cache_service
+    from models.settings import Settings
     
-    # Try to get from cache first
-    scoreboard = cache_service.get_scoreboard()
+    # Check if teams are enabled
+    teams_enabled = Settings.get('teams_enabled', default=True, type='bool')
+    
+    # Try cache first
+    cache_key = 'scoreboard_team' if teams_enabled else 'scoreboard_individual'
+    scoreboard = cache_service.get(cache_key)
     
     if not scoreboard:
         # Generate fresh scoreboard
-        scoreboard = ScoringService.get_scoreboard(team_based=True, limit=100)
-        cache_service.set_scoreboard(scoreboard, ttl=60)
+        scoreboard = ScoringService.get_scoreboard(team_based=teams_enabled, limit=100)
+        cache_service.set(cache_key, scoreboard, ttl=60)
     
     emit('scoreboard_update', scoreboard)
 

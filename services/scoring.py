@@ -73,8 +73,8 @@ class ScoringService:
             scoreboard.sort(key=lambda x: (-x['score'], x['last_solve'] or '9999'))
             
         else:
-            # Get individual user scores (users without teams)
-            users = User.query.filter_by(team_id=None, is_active=True).all()
+            # Get ALL individual user scores (teams mode disabled = solo competition)
+            users = User.query.filter_by(is_active=True).all()
             
             scoreboard = []
             for user in users:
@@ -90,7 +90,8 @@ class ScoringService:
                     'name': user.username,
                     'score': score,
                     'solves': solves,
-                    'last_solve': last_solve_time.isoformat() if last_solve_time else None
+                    'last_solve': last_solve_time.isoformat() if last_solve_time else None,
+                    'affiliation': user.full_name or ''  # Use full_name as affiliation
                 })
             
             # Sort by score (descending), then by last solve time (ascending)

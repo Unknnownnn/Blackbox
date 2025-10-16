@@ -16,12 +16,15 @@ challenges_bp = Blueprint('challenges', __name__, url_prefix='/challenges')
 def list_challenges():
     from models.settings import Settings
     
-    # Check if team is required globally
+    # Check if teams are enabled at all
+    teams_enabled = Settings.get('teams_enabled', default=True, type='bool')
+    
+    # Check if team is required globally (only matters if teams are enabled)
     require_team = Settings.get('require_team_for_challenges', default=False, type='bool')
     team = current_user.get_team()
     
-    # If team is required globally and user is not in a team (and not admin), show message
-    if require_team and not team and not current_user.is_admin:
+    # If teams are enabled AND team is required globally and user is not in a team (and not admin), show message
+    if teams_enabled and require_team and not team and not current_user.is_admin:
         flash('You must join a team to view and solve challenges. Please join or create a team first.', 'warning')
         return redirect(url_for('teams.list_teams'))
     
@@ -46,8 +49,8 @@ def list_challenges():
     # Organize challenges by category
     categories = {}
     for challenge in challenges:
-        # Check if this specific challenge requires a team
-        if challenge.requires_team and not team and not current_user.is_admin:
+        # Check if this specific challenge requires a team (only enforce if teams are enabled)
+        if teams_enabled and challenge.requires_team and not team and not current_user.is_admin:
             continue  # Skip this challenge if it requires team and user has no team
         
         # Check if challenge is unlocked for user
@@ -92,10 +95,13 @@ def view_challenge(challenge_id):
     # Get user's team
     team = current_user.get_team()
     
-    # Check if team is required (either globally or per-challenge)
+    # Check if teams are enabled
+    teams_enabled = Settings.get('teams_enabled', default=True, type='bool')
+    
+    # Check if team is required (either globally or per-challenge) - only if teams are enabled
     require_team_global = Settings.get('require_team_for_challenges', default=False, type='bool')
     
-    if (require_team_global or challenge.requires_team) and not team and not current_user.is_admin:
+    if teams_enabled and (require_team_global or challenge.requires_team) and not team and not current_user.is_admin:
         flash('You must be in a team to view this challenge. Please join or create a team first.', 'warning')
         return redirect(url_for('teams.list_teams'))
     
@@ -227,15 +233,18 @@ def submit_flag(challenge_id):
     team = current_user.get_team()
     team_id = team.id if team else None
     
-    # Check if team is required for this challenge
-    if challenge.requires_team and not team_id and not current_user.is_admin:
+    # Check if teams are enabled
+    teams_enabled = Settings.get('teams_enabled', default=True, type='bool')
+    
+    # Check if team is required for this challenge (only if teams are enabled)
+    if teams_enabled and challenge.requires_team and not team_id and not current_user.is_admin:
         return jsonify({
             'success': False, 
             'message': 'You must be in a team to solve this challenge. Please join or create a team first.'
         }), 403
     
-    # Check global team requirement setting
-    if Settings.get('require_team_for_challenges', default=False, type='bool') and not team_id and not current_user.is_admin:
+    # Check global team requirement setting (only if teams are enabled)
+    if teams_enabled and Settings.get('require_team_for_challenges', default=False, type='bool') and not team_id and not current_user.is_admin:
         return jsonify({
             'success': False, 
             'message': 'You must be in a team to solve challenges. Please join or create a team first.'
@@ -325,13 +334,28 @@ def submit_flag(challenge_id):
         if hasattr(matched_flag, 'points_override') and matched_flag.points_override:
             points = matched_flag.points_override
         
+        # Check if this is first blood (first solve of this challenge)
+        from models.settings import Settings
+        is_first_blood = False
+        first_blood_bonus = Settings.get('first_blood_bonus', 0, type='int')
+        
+        existing_solves = Solve.query.filter_by(challenge_id=challenge_id).filter(
+            Solve.challenge_id != None  # Exclude manual adjustments
+        ).count()
+        
+        if existing_solves == 0:
+            is_first_blood = True
+            if first_blood_bonus > 0:
+                points += first_blood_bonus
+        
         # Create solve record - marks challenge as solved for entire team
         solve = Solve(
             user_id=current_user.id,
             challenge_id=challenge_id,
             flag_id=matched_flag.id if hasattr(matched_flag, 'id') else None,
             team_id=team_id,
-            points_earned=points
+            points_earned=points,
+            is_first_blood=is_first_blood
         )
         db.session.add(solve)
         
@@ -358,11 +382,8 @@ def submit_flag(challenge_id):
                     'category': unlocked_challenge.category
                 })
         
-        # Award points to team (if in team) or user
-        if team:
-            team.score = team.score + points if hasattr(team, 'score') and team.score else points
-        else:
-            current_user.score = current_user.score + points if current_user.score else points
+        # Scores are automatically calculated from Solve records
+        # No need to update user.score or team.score (they don't exist as columns)
         
         db.session.commit()
         
@@ -394,9 +415,11 @@ def submit_flag(challenge_id):
                 'points': new_points
             })
         
-        # Send updated scoreboard
-        scoreboard = ScoringService.get_scoreboard(team_based=True, limit=50)
-        cache_service.set_scoreboard(scoreboard)
+        # Send updated scoreboard (check if teams are enabled)
+        teams_enabled = Settings.get('teams_enabled', default=True, type='bool')
+        cache_key = 'scoreboard_team' if teams_enabled else 'scoreboard_individual'
+        scoreboard = ScoringService.get_scoreboard(team_based=teams_enabled, limit=50)
+        cache_service.set(cache_key, scoreboard, ttl=60)
         WebSocketService.emit_scoreboard_update(scoreboard)
         
         message = 'Correct flag! Challenge solved!'

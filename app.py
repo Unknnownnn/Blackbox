@@ -197,12 +197,14 @@ def create_app(config_name=None):
         ctf_description = Settings.get('ctf_description', app.config.get('CTF_DESCRIPTION', ''))
         allow_registration = Settings.get('allow_registration', True)
         ctf_logo = Settings.get('ctf_logo', '')
+        teams_enabled = Settings.get('teams_enabled', True, type='bool')
         
         return {
             'ctf_name': ctf_name,
             'ctf_description': ctf_description,
             'registration_enabled': allow_registration,
             'ctf_logo': ctf_logo,  # Add logo to context
+            'teams_enabled': teams_enabled,  # Add teams toggle
             'settings': Settings  # Add Settings class for template access
         }
     

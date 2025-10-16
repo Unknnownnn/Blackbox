@@ -502,6 +502,99 @@ def adjust_team_points(team_id):
     if points_delta == 0:
         return jsonify({'success': False, 'message': 'Points delta cannot be zero'}), 400
     
+    # Create adjustment solve for team
+    adjustment = Solve(
+        user_id=None,
+        team_id=team_id,
+        challenge_id=None,
+        points_earned=points_delta,
+        solved_at=datetime.utcnow()
+    )
+    
+    db.session.add(adjustment)
+    db.session.commit()
+    
+    cache_service.invalidate_scoreboard()
+    cache_service.invalidate_team(team_id)
+    
+    return jsonify({
+        'success': True,
+        'new_score': team.get_score(),
+        'message': f'Adjusted {team.name} points by {points_delta:+d}. Reason: {reason}'
+    })
+
+
+@admin_bp.route('/users/<int:user_id>/solves', methods=['GET'])
+@login_required
+@admin_required
+def get_user_solves(user_id):
+    """Get solve history for a user including manual adjustments"""
+    from models.submission import Solve
+    from models.challenge import Challenge
+    
+    user = User.query.get_or_404(user_id)
+    
+    solves = db.session.query(Solve, Challenge).outerjoin(
+        Challenge, Solve.challenge_id == Challenge.id
+    ).filter(
+        Solve.user_id == user_id
+    ).order_by(Solve.solved_at.desc()).all()
+    
+    solve_list = []
+    for solve, challenge in solves:
+        solve_list.append({
+            'challenge_name': challenge.name if challenge else None,
+            'points': solve.points_earned,
+            'solved_at': solve.solved_at.isoformat(),
+            'is_adjustment': challenge is None,
+            'reason': None  # Could add reason field to Solve model
+        })
+    
+    return jsonify({
+        'success': True,
+        'solves': solve_list
+    })
+
+
+@admin_bp.route('/teams/<int:team_id>/solves', methods=['GET'])
+@login_required
+@admin_required
+def get_team_solves(team_id):
+    """Get solve history for a team including manual adjustments"""
+    from models.submission import Solve
+    from models.challenge import Challenge
+    
+    team = Team.query.get_or_404(team_id)
+    
+    solves = db.session.query(Solve, Challenge).outerjoin(
+        Challenge, Solve.challenge_id == Challenge.id
+    ).filter(
+        Solve.team_id == team_id
+    ).order_by(Solve.solved_at.desc()).all()
+    
+    solve_list = []
+    for solve, challenge in solves:
+        solve_list.append({
+            'challenge_name': challenge.name if challenge else None,
+            'points': solve.points_earned,
+            'solved_at': solve.solved_at.isoformat(),
+            'is_adjustment': challenge is None,
+            'reason': None
+        })
+    
+    return jsonify({
+        'success': True,
+        'solves': solve_list
+    })
+
+    data = request.get_json()
+    
+    points_delta = int(data.get('points', 0))
+    reason = data.get('reason', 'Manual adjustment by admin')
+    
+    if points_delta == 0:
+        return jsonify({'success': False, 'message': 'Points delta cannot be zero'}), 400
+    
     # Create a "virtual" solve record for the team
     # Use the first team member as the user, or None if no members
     first_member = team.members.first()
@@ -585,8 +678,19 @@ def update_event_config():
         allow_registration = 'allow_registration' in request.form
         Settings.set('allow_registration', allow_registration, 'bool', 'Allow new user registrations')
         
+        teams_enabled = 'teams_enabled' in request.form
+        Settings.set('teams_enabled', teams_enabled, 'bool', 'Enable teams feature (for solo competitions)')
+        
         team_mode = 'team_mode' in request.form
         Settings.set('team_mode', team_mode, 'bool', 'Enable team-based CTF mode')
+        
+        # Update first blood bonus
+        first_blood_bonus = request.form.get('first_blood_bonus', '0')
+        try:
+            first_blood_bonus = int(first_blood_bonus)
+            Settings.set('first_blood_bonus', first_blood_bonus, 'int', 'Bonus points for first blood')
+        except ValueError:
+            pass  # Ignore invalid values
         
         # Handle logo upload
         if 'ctf_logo' in request.files:

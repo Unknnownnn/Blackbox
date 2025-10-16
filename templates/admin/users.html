@@ -52,9 +52,9 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <span class="badge bg-primary">{{ user.score }}</span>
+                                    <span class="badge bg-primary">{{ user.get_score() }}</span>
                                     <button class="btn btn-sm btn-link p-0 ms-1" 
-                                            onclick="showPointsModal({{ user.id }}, '{{ user.username }}', {{ user.score }}, 'user')">
+                                            onclick="showScoreModal({{ user.id }}, '{{ user.username }}', {{ user.get_score() }}, 'user')">
                                         <i class="bi bi-pencil-square"></i>
                                     </button>
                                 </td>
@@ -101,36 +101,79 @@
     </div>
 </div>
 
-<!-- Points Adjustment Modal -->
-<div class="modal fade" id="pointsModal" tabindex="-1">
-    <div class="modal-dialog">
+<!-- Score Management Modal -->
+<div class="modal fade" id="scoreModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Adjust Points</h5>
+                <h5 class="modal-title">Manage Score - <span id="target-name"></span></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p>Adjust points for <strong id="target-name"></strong></p>
-                <p>Current score: <span class="badge bg-primary" id="current-score"></span></p>
-                
-                <div class="mb-3">
-                    <label for="points-delta" class="form-label">Points Change</label>
-                    <input type="number" class="form-control" id="points-delta" 
-                           placeholder="Enter positive or negative number">
-                    <div class="form-text">
-                        Use positive numbers to add points, negative to subtract
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="text-muted mb-2">Current Score</h6>
+                                <h3 class="mb-0"><span class="badge bg-primary" id="current-score"></span> points</h3>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
-                <div class="mb-3">
-                    <label for="points-reason" class="form-label">Reason (optional)</label>
-                    <input type="text" class="form-control" id="points-reason" 
-                           placeholder="e.g., Bonus points for participation">
+                <!-- Manual Points Adjustment -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <i class="bi bi-plus-circle"></i> Manual Points Adjustment
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="points-delta" class="form-label">Points to Add/Subtract</label>
+                                <input type="number" class="form-control" id="points-delta" 
+                                       placeholder="Enter positive or negative number" value="0">
+                                <div class="form-text">
+                                    Positive numbers add points, negative subtract
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Quick Actions</label>
+                                <div class="btn-group d-flex" role="group">
+                                    <button class="btn btn-outline-success btn-sm" onclick="setPointsDelta(100)">+100</button>
+                                    <button class="btn btn-outline-success btn-sm" onclick="setPointsDelta(50)">+50</button>
+                                    <button class="btn btn-outline-danger btn-sm" onclick="setPointsDelta(-50)">-50</button>
+                                    <button class="btn btn-outline-danger btn-sm" onclick="setPointsDelta(-100)">-100</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="points-reason" class="form-label">Reason</label>
+                            <input type="text" class="form-control" id="points-reason" 
+                                   placeholder="e.g., Bonus for participation, Penalty for rule violation">
+                        </div>
+                        <button class="btn btn-primary w-100" onclick="adjustPoints()">
+                            <i class="bi bi-check-circle"></i> Apply Point Adjustment
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Solve History -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-list-check"></i> Recent Solves & Adjustments
+                    </div>
+                    <div class="card-body" id="solve-history">
+                        <div class="text-center text-muted">
+                            <div class="spinner-border spinner-border-sm" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            Loading history...
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="adjustPoints()">Apply</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -139,20 +182,110 @@
 <script>
 let currentTargetId = null;
 let currentTargetType = null;
-let pointsModal = null;
+let scoreModal = null;
 
 document.addEventListener('DOMContentLoaded', function() {
-    pointsModal = new bootstrap.Modal(document.getElementById('pointsModal'));
+    scoreModal = new bootstrap.Modal(document.getElementById('scoreModal'));
 });
 
-function showPointsModal(id, name, currentScore, type) {
+function showScoreModal(id, name, currentScore, type) {
     currentTargetId = id;
     currentTargetType = type;
     document.getElementById('target-name').textContent = name;
     document.getElementById('current-score').textContent = currentScore;
-    document.getElementById('points-delta').value = '';
+    document.getElementById('points-delta').value = 0;
     document.getElementById('points-reason').value = '';
-    pointsModal.show();
+    
+    // Load solve history
+    loadSolveHistory(id, type);
+    
+    scoreModal.show();
+}
+
+function setPointsDelta(value) {
+    document.getElementById('points-delta').value = value;
+}
+
+function loadSolveHistory(id, type) {
+    const endpoint = type === 'user' 
+        ? `/admin/users/${id}/solves`
+        : `/admin/teams/${id}/solves`;
+    
+    fetch(endpoint)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displaySolveHistory(data.solves);
+            } else {
+                document.getElementById('solve-history').innerHTML = 
+                    '<p class="text-muted">No solve history available</p>';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('solve-history').innerHTML = 
+                '<p class="text-danger">Error loading history</p>';
+        });
+}
+
+function displaySolveHistory(solves) {
+    const container = document.getElementById('solve-history');
+    
+    if (solves.length === 0) {
+        container.innerHTML = '<p class="text-muted">No solves yet</p>';
+        return;
+    }
+    
+    let html = '<div class="list-group list-group-flush">';
+    solves.slice(0, 10).forEach(solve => {
+        const isAdjustment = !solve.challenge_name;
+        const icon = isAdjustment ? 'bi-gear' : 'bi-flag-fill';
+        const badgeClass = solve.points >= 0 ? 'bg-success' : 'bg-danger';
+        
+        html += `
+            <div class="list-group-item px-0">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi ${icon} me-2"></i>
+                        <strong>${isAdjustment ? 'Manual Adjustment' : solve.challenge_name}</strong>
+                        ${solve.reason ? '<br><small class="text-muted ms-4">' + solve.reason + '</small>' : ''}
+                    </div>
+                    <div class="text-end">
+                        <span class="badge ${badgeClass}">${solve.points >= 0 ? '+' : ''}${solve.points}</span>
+                        <br><small class="text-muted">${formatDate(solve.solved_at)}</small>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    
+    if (solves.length > 10) {
+        html += `<p class="text-muted text-center mt-2 mb-0">Showing 10 of ${solves.length} solves</p>`;
+    }
+    
+    container.innerHTML = html;
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now - date;
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    if (days === 0) {
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        if (hours === 0) {
+            const minutes = Math.floor(diff / (1000 * 60));
+            return minutes <= 1 ? 'Just now' : `${minutes}m ago`;
+        }
+        return `${hours}h ago`;
+    } else if (days === 1) {
+        return 'Yesterday';
+    } else if (days < 7) {
+        return `${days}d ago`;
+    }
+    return date.toLocaleDateString();
 }
 
 function adjustPoints() {
@@ -175,16 +308,22 @@ function adjustPoints() {
         },
         body: JSON.stringify({
             points: delta,
-            reason: reason
+            reason: reason || 'Manual adjustment by admin'
         })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            pointsModal.hide();
             showFlash(data.message, 'success');
-            // Reload page to update scores
-            setTimeout(() => location.reload(), 1000);
+            // Update current score display
+            document.getElementById('current-score').textContent = data.new_score;
+            // Reload solve history
+            loadSolveHistory(currentTargetId, currentTargetType);
+            // Reset form
+            document.getElementById('points-delta').value = 0;
+            document.getElementById('points-reason').value = '';
+            // Reload page after 2 seconds to update table
+            setTimeout(() => location.reload(), 2000);
         } else {
             showFlash(data.message || 'Error adjusting points', 'danger');
         }

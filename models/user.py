@@ -43,19 +43,25 @@ class User(UserMixin, db.Model):
         return Team.query.get(self.team_id) if self.team_id else None
     
     def get_score(self):
-        """Calculate user's total score (solves - hint costs)"""
+        """Calculate user's total score dynamically (solves - hint costs)
+        
+        For dynamic challenges: Recalculates based on current challenge value
+        For static challenges: Uses stored points_earned
+        """
         if self.team_id:
             team = self.get_team()
             return team.get_score() if team else 0
         else:
-            # Sum solve points
-            solve_points = sum([solve.points_earned for solve in self.solves])
+            # Sum solve points (recalculated for dynamic challenges)
+            solve_points = sum([solve.get_current_points() for solve in self.solves])
+            
             # Subtract hint costs
             from models.hint import HintUnlock
             hint_costs = db.session.query(db.func.sum(HintUnlock.cost_paid)).filter(
                 HintUnlock.user_id == self.id,
                 HintUnlock.team_id == None
             ).scalar() or 0
+            
             # Convert Decimal to int for JSON serialization
             total = int(solve_points) - int(hint_costs)
             return total
