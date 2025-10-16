@@ -16,6 +16,14 @@ challenges_bp = Blueprint('challenges', __name__, url_prefix='/challenges')
 def list_challenges():
     from models.settings import Settings
     
+    # Check if CTF has started (admins bypass this check)
+    if not current_user.is_admin and not Settings.is_ctf_started():
+        start_time = Settings.get('ctf_start_time', type='datetime')
+        return render_template('countdown.html', 
+                             start_time=start_time,
+                             page_title='Challenges',
+                             return_url=url_for('challenges.list_challenges'))
+    
     # Check if teams are enabled at all
     teams_enabled = Settings.get('teams_enabled', default=True, type='bool')
     

@@ -684,6 +684,10 @@ def update_event_config():
         team_mode = 'team_mode' in request.form
         Settings.set('team_mode', team_mode, 'bool', 'Enable team-based CTF mode')
         
+        # Update scoreboard visibility
+        scoreboard_visible = 'scoreboard_visible' in request.form
+        Settings.set('scoreboard_visible', scoreboard_visible, 'bool', 'Show scoreboard to users')
+        
         # Update first blood bonus
         first_blood_bonus = request.form.get('first_blood_bonus', '0')
         try:
@@ -1100,3 +1104,73 @@ def get_branching_connections():
         })
     
     return jsonify({'success': True, 'connections': connections})
+
+
+@admin_bp.route('/hint-logs')
+@login_required
+@admin_required
+def hint_logs():
+    """View hint unlock logs"""
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    
+    # Get all hint unlocks with pagination
+    hint_unlocks = HintUnlock.query.order_by(HintUnlock.unlocked_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    
+    return render_template('admin/hint_logs.html', hint_unlocks=hint_unlocks)
+
+
+@admin_bp.route('/hint-logs/api')
+@login_required
+@admin_required
+def hint_logs_api():
+    """Get hint unlock logs as JSON"""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    user_id = request.args.get('user_id', type=int)
+    team_id = request.args.get('team_id', type=int)
+    challenge_id = request.args.get('challenge_id', type=int)
+    
+    query = HintUnlock.query
+    
+    # Apply filters
+    if user_id:
+        query = query.filter_by(user_id=user_id)
+    if team_id:
+        query = query.filter_by(team_id=team_id)
+    if challenge_id:
+        query = query.join(Hint).filter(Hint.challenge_id == challenge_id)
+    
+    hint_unlocks = query.order_by(HintUnlock.unlocked_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    
+    logs = []
+    for unlock in hint_unlocks.items:
+        hint = unlock.hint
+        challenge = hint.challenge if hint else None
+        user = unlock.user
+        team = unlock.team
+        
+        logs.append({
+            'id': unlock.id,
+            'user': user.username if user else 'Unknown',
+            'user_id': unlock.user_id,
+            'team': team.name if team else None,
+            'team_id': unlock.team_id,
+            'challenge': challenge.name if challenge else 'Unknown',
+            'challenge_id': challenge.id if challenge else None,
+            'hint_order': hint.order if hint else 0,
+            'cost': unlock.cost_paid,
+            'unlocked_at': unlock.unlocked_at.isoformat()
+        })
+    
+    return jsonify({
+        'success': True,
+        'logs': logs,
+        'total': hint_unlocks.total,
+        'pages': hint_unlocks.pages,
+        'current_page': hint_unlocks.page
+    })

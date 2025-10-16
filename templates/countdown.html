@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - {{ ctf_name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-lg">
+                <div class="card-body text-center p-5">
+                    <div class="mb-4">
+                        <i class="bi bi-clock-history" style="font-size: 4rem; color: #0d6efd;"></i>
+                    </div>
+                    
+                    <h2 class="mb-3">{{ page_title }} Coming Soon!</h2>
+                    <p class="text-muted mb-4">The event hasn't started yet. Get ready!</p>
+                    
+                    <div class="mb-4">
+                        <h3 class="mb-3">Event Starts In:</h3>
+                        <div id="countdown" class="d-flex justify-content-center gap-3 flex-wrap">
+                            <div class="countdown-box">
+                                <div class="countdown-value" id="days">0</div>
+                                <div class="countdown-label">Days</div>
+                            </div>
+                            <div class="countdown-box">
+                                <div class="countdown-value" id="hours">0</div>
+                                <div class="countdown-label">Hours</div>
+                            </div>
+                            <div class="countdown-box">
+                                <div class="countdown-value" id="minutes">0</div>
+                                <div class="countdown-label">Minutes</div>
+                            </div>
+                            <div class="countdown-box">
+                                <div class="countdown-value" id="seconds">0</div>
+                                <div class="countdown-label">Seconds</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        <strong>Start Time:</strong> {{ start_time.strftime('%B %d, %Y at %H:%M UTC') }}
+                    </div>
+                    
+                    <p class="text-muted small mt-4">
+                        <i class="bi bi-arrow-clockwise"></i> This page will automatically refresh when the event starts
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.countdown-box {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 10px;
+    padding: 20px 30px;
+    min-width: 120px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.countdown-value {
+    font-size: 3rem;
+    font-weight: bold;
+    color: white;
+    line-height: 1;
+    margin-bottom: 5px;
+}
+
+.countdown-label {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.9);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+@media (max-width: 576px) {
+    .countdown-box {
+        min-width: 90px;
+        padding: 15px 20px;
+    }
+    
+    .countdown-value {
+        font-size: 2rem;
+    }
+}
+</style>
+
+<script>
+// Parse start time from server (UTC)
+const startTime = new Date("{{ start_time.strftime('%Y-%m-%dT%H:%M:%SZ') }}");
+
+function updateCountdown() {
+    const now = new Date();
+    const diff = startTime - now;
+    
+    if (diff <= 0) {
+        // Event has started! Reload the page
+        window.location.href = "{{ return_url }}";
+        return;
+    }
+    
+    // Calculate time components
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    
+    // Update display
+    document.getElementById('days').textContent = days;
+    document.getElementById('hours').textContent = hours.toString().padStart(2, '0');
+    document.getElementById('minutes').textContent = minutes.toString().padStart(2, '0');
+    document.getElementById('seconds').textContent = seconds.toString().padStart(2, '0');
+}
+
+// Update countdown immediately and every second
+updateCountdown();
+setInterval(updateCountdown, 1000);
+
+// Also check every 30 seconds if we should reload (in case of clock skew)
+setInterval(() => {
+    fetch("{{ return_url }}")
+        .then(response => {
+            if (response.ok && !response.url.includes('countdown')) {
+                window.location.href = "{{ return_url }}";
+            }
+        })
+        .catch(() => {});
+}, 30000);
+</script>
+{% endblock %}

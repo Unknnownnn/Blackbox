@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+
+{% block title %}Hint Logs - Admin{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        {% include 'admin/_sidebar.html' %}
+    </div>
+    
+    <div class="col-md-9">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="bi bi-journal-text"></i> Hint Unlock Logs</h2>
+        </div>
+
+        <!-- Filters -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Filters</h5>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">User</label>
+                        <input type="text" id="filterUser" class="form-control" placeholder="Search by username...">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Team</label>
+                        <input type="text" id="filterTeam" class="form-control" placeholder="Search by team...">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Challenge</label>
+                        <input type="text" id="filterChallenge" class="form-control" placeholder="Search by challenge...">
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-primary" onclick="applyFilters()">
+                        <i class="bi bi-funnel"></i> Apply Filters
+                    </button>
+                    <button class="btn btn-secondary" onclick="clearFilters()">
+                        <i class="bi bi-x-circle"></i> Clear
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="text-muted">Total Hints Unlocked</h6>
+                        <h3 id="totalHints">{{ hint_unlocks.total }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="text-muted">Total Points Spent</h6>
+                        <h3 id="totalPoints">
+                            {% set total_cost = hint_unlocks.items|sum(attribute='cost_paid', start=0) %}
+                            {{ total_cost }}
+                        </h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="text-muted">Unique Users</h6>
+                        <h3 id="uniqueUsers">
+                            {% set unique_users = hint_unlocks.items|map(attribute='user_id')|unique|list|length %}
+                            {{ unique_users }}
+                        </h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hint Logs Table -->
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>User</th>
+                                <th>Team</th>
+                                <th>Challenge</th>
+                                <th>Hint #</th>
+                                <th>Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logsTableBody">
+                            {% for unlock in hint_unlocks.items %}
+                            <tr>
+                                <td>
+                                    <small class="text-muted" data-timestamp="{{ unlock.unlocked_at.isoformat() }}">
+                                        {{ unlock.unlocked_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                                    </small>
+                                </td>
+                                <td>
+                                    {% if unlock.user %}
+                                        <a href="{{ url_for('admin.manage_users') }}?user_id={{ unlock.user_id }}">
+                                            {{ unlock.user.username }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">Unknown</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if unlock.team %}
+                                        <a href="{{ url_for('admin.manage_teams') }}?team_id={{ unlock.team_id }}">
+                                            {{ unlock.team.name }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if unlock.hint and unlock.hint.challenge %}
+                                        <a href="{{ url_for('admin.edit_challenge', challenge_id=unlock.hint.challenge.id) }}">
+                                            {{ unlock.hint.challenge.name }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">Unknown</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">
+                                        #{{ unlock.hint.order if unlock.hint else '?' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-warning text-dark">
+                                        -{{ unlock.cost_paid }} pts
+                                    </span>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    No hint unlocks yet
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if hint_unlocks.pages > 1 %}
+                <nav aria-label="Hint logs pagination">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item {% if not hint_unlocks.has_prev %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('admin.hint_logs', page=hint_unlocks.prev_num) if hint_unlocks.has_prev else '#' }}">
+                                Previous
+                            </a>
+                        </li>
+                        
+                        {% for page_num in hint_unlocks.iter_pages(left_edge=2, right_edge=2, left_current=2, right_current=2) %}
+                            {% if page_num %}
+                                <li class="page-item {% if page_num == hint_unlocks.page %}active{% endif %}">
+                                    <a class="page-link" href="{{ url_for('admin.hint_logs', page=page_num) }}">
+                                        {{ page_num }}
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        <li class="page-item {% if not hint_unlocks.has_next %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('admin.hint_logs', page=hint_unlocks.next_num) if hint_unlocks.has_next else '#' }}">
+                                Next
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Export Button -->
+        <div class="mt-3">
+            <button class="btn btn-success" onclick="exportLogs()">
+                <i class="bi bi-download"></i> Export to CSV
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Convert timestamps to relative time
+document.querySelectorAll('[data-timestamp]').forEach(el => {
+    const timestamp = new Date(el.getAttribute('data-timestamp'));
+    const now = new Date();
+    const diffMs = now - timestamp;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    let relativeTime = '';
+    if (diffMins < 1) {
+        relativeTime = 'Just now';
+    } else if (diffMins < 60) {
+        relativeTime = `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+    } else if (diffHours < 24) {
+        relativeTime = `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    } else {
+        relativeTime = `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    }
+    
+    el.title = el.textContent;
+    el.textContent = relativeTime;
+});
+
+function applyFilters() {
+    const user = document.getElementById('filterUser').value.trim().toLowerCase();
+    const team = document.getElementById('filterTeam').value.trim().toLowerCase();
+    const challenge = document.getElementById('filterChallenge').value.trim().toLowerCase();
+    
+    const rows = document.querySelectorAll('#logsTableBody tr');
+    rows.forEach(row => {
+        const userText = row.children[1]?.textContent.toLowerCase() || '';
+        const teamText = row.children[2]?.textContent.toLowerCase() || '';
+        const challengeText = row.children[3]?.textContent.toLowerCase() || '';
+        
+        const matchesUser = !user || userText.includes(user);
+        const matchesTeam = !team || teamText.includes(team);
+        const matchesChallenge = !challenge || challengeText.includes(challenge);
+        
+        if (matchesUser && matchesTeam && matchesChallenge) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function clearFilters() {
+    document.getElementById('filterUser').value = '';
+    document.getElementById('filterTeam').value = '';
+    document.getElementById('filterChallenge').value = '';
+    document.querySelectorAll('#logsTableBody tr').forEach(row => {
+        row.style.display = '';
+    });
+}
+
+function exportLogs() {
+    // Collect visible rows
+    const rows = Array.from(document.querySelectorAll('#logsTableBody tr'))
+        .filter(row => row.style.display !== 'none');
+    
+    if (rows.length === 0 || rows[0].children.length === 1) {
+        alert('No logs to export');
+        return;
+    }
+    
+    // Create CSV content
+    let csv = 'Time,User,Team,Challenge,Hint #,Cost\n';
+    rows.forEach(row => {
+        const cells = Array.from(row.children).map(cell => {
+            const text = cell.textContent.trim().replace(/"/g, '""');
+            return `"${text}"`;
+        });
+        csv += cells.join(',') + '\n';
+    });
+    
+    // Download CSV
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `hint_logs_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+}
+</script>
+{% endblock %}

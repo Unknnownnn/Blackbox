@@ -17,6 +17,9 @@
         <a href="{{ url_for('admin.manage_teams') }}" class="admin-nav-link {% if request.endpoint == 'admin.manage_teams' %}active{% endif %}">
             <i class="bi bi-people-fill"></i> Teams
         </a>
+        <a href="{{ url_for('admin.hint_logs') }}" class="admin-nav-link {% if request.endpoint == 'admin.hint_logs' %}active{% endif %}">
+            <i class="bi bi-journal-text"></i> Hint Logs
+        </a>
         <a href="{{ url_for('admin.ctf_control') }}" class="admin-nav-link {% if request.endpoint == 'admin.ctf_control' %}active{% endif %}">
             <i class="bi bi-clock-history"></i> CTF Control
         </a>

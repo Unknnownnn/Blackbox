@@ -117,6 +117,22 @@
                             </div>
                         </div>
                         
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="scoreboard_visible" name="scoreboard_visible" 
+                                           {% if settings.get('scoreboard_visible', True) %}checked{% endif %}>
+                                    <label class="form-check-label" for="scoreboard_visible">
+                                        <strong>Show Scoreboard to Users</strong>
+                                    </label>
+                                </div>
+                                <div class="form-text">
+                                    <i class="bi bi-info-circle"></i> When <strong>enabled</strong>: Scoreboard is visible to all users.<br>
+                                    <i class="bi bi-info-circle"></i> When <strong>disabled</strong>: Scoreboard is hidden. Only admins can view it.
+                                </div>
+                            </div>
+                        </div>
+                        
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-save"></i> Save Event Configuration
                         </button>

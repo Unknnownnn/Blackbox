@@ -50,11 +50,16 @@
                             <i class="bi bi-puzzle"></i> Challenges
                         </a>
                     </li>
+                    {% if scoreboard_visible or current_user.is_admin %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('scoreboard.view_scoreboard') }}">
                             <i class="bi bi-trophy"></i> Scoreboard
+                            {% if not scoreboard_visible and current_user.is_admin %}
+                            <span class="badge bg-warning text-dark" style="font-size: 0.65rem;">Hidden</span>
+                            {% endif %}
                         </a>
                     </li>
+                    {% endif %}
                     {% if teams_enabled %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('teams.list_teams') }}">

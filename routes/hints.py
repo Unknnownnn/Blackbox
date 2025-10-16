@@ -100,11 +100,7 @@ def unlock_hint(hint_id):
                        f"unlocked hint #{hint.order} for Challenge '{challenge.name}' (ID: {challenge.id}). "
                        f"Cost: {hint.cost} points. New score: {new_score}")
         
-        # Deduct points from user or team
-        # Points are tracked through solves, so we need to adjust the score
-        # We'll create a negative solve entry or adjust existing scores
-        # For simplicity, we'll track this through the hint_unlocks table
-        # and calculate final score as: (solves total) - (hints cost total)
+
         
         db.session.commit()
         

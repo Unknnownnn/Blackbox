@@ -1,5 +1,5 @@
-from flask import Blueprint, render_template, jsonify
-from flask_login import login_required
+from flask import Blueprint, render_template, jsonify, flash, redirect, url_for
+from flask_login import login_required, current_user
 from services.scoring import ScoringService
 from services.cache import cache_service
 
@@ -10,16 +10,45 @@ def view_scoreboard():
     """View scoreboard page"""
     from models.settings import Settings
     
+    # Check if CTF has started (admins bypass this check)
+    is_admin = current_user.is_authenticated and current_user.is_admin
+    if not is_admin and not Settings.is_ctf_started():
+        start_time = Settings.get('ctf_start_time', type='datetime')
+        return render_template('countdown.html', 
+                             start_time=start_time,
+                             page_title='Scoreboard',
+                             return_url=url_for('scoreboard.view_scoreboard'))
+    
+    # Check if scoreboard is visible to users
+    scoreboard_visible = Settings.get('scoreboard_visible', default=True, type='bool')
+    
+    # If scoreboard is hidden and user is not admin, redirect
+    if not scoreboard_visible and (not current_user.is_authenticated or not current_user.is_admin):
+        flash('The scoreboard is currently hidden by the admins.', 'info')
+        return redirect(url_for('index'))
+    
     # Check if teams are enabled
     teams_enabled = Settings.get('teams_enabled', default=True, type='bool')
     
-    return render_template('scoreboard.html', teams_enabled=teams_enabled)
+    return render_template('scoreboard.html', teams_enabled=teams_enabled, scoreboard_visible=scoreboard_visible)
 
 
 @scoreboard_bp.route('/api/data')
 def get_scoreboard_data():
     """Get scoreboard data (API endpoint)"""
     from models.settings import Settings
+    
+    # Check if CTF has started (admins bypass this check)
+    is_admin = current_user.is_authenticated and current_user.is_admin
+    if not is_admin and not Settings.is_ctf_started():
+        return jsonify([])
+    
+    # Check if scoreboard is visible to users
+    scoreboard_visible = Settings.get('scoreboard_visible', default=True, type='bool')
+    
+    # If scoreboard is hidden and user is not admin, return empty
+    if not scoreboard_visible and (not current_user.is_authenticated or not current_user.is_admin):
+        return jsonify([])
     
     # Check if teams are enabled
     teams_enabled = Settings.get('teams_enabled', default=True, type='bool')
