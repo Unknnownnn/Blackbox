@@ -200,6 +200,32 @@ code {
     font-size: 0.9em;
 }
 
+/* Connection Info - Simple pink code style */
+code.connection-info {
+    color: #e83e8c;
+    background-color: transparent;
+    font-size: 1rem;
+    padding: 0;
+    border: none;
+}
+
+code.connection-info a {
+    color: #e83e8c;
+    text-decoration: none;
+}
+
+code.connection-info a:hover {
+    text-decoration: underline;
+}
+
+[data-bs-theme="dark"] code.connection-info {
+    color: #ff6ec7;
+}
+
+[data-bs-theme="dark"] code.connection-info a {
+    color: #ff6ec7;
+}
+
 /* Footer */
 footer {
     background-color: transparent;

@@ -41,6 +41,15 @@
                 <div class="challenge-description mb-4">
                     <h5>Description</h5>
                     <p style="white-space: pre-wrap;">{{ challenge.description }}</p>
+                    {% if challenge.connection_info %}
+                    <p class="mt-2">
+                        {% if challenge.connection_info.startswith('http://') or challenge.connection_info.startswith('https://') %}
+                            <code class="connection-info"><a href="{{ challenge.connection_info }}" target="_blank" rel="noopener noreferrer">{{ challenge.connection_info }}</a></code>
+                        {% else %}
+                            <code class="connection-info">{{ challenge.connection_info }}</code>
+                        {% endif %}
+                    </p>
+                    {% endif %}
                 </div>
                 
                 {% if files and files|length > 0 %}

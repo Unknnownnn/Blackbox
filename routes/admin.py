@@ -72,6 +72,7 @@ def create_challenge():
             category=data.get('category'),
             flag=data.get('flag'),
             flag_case_sensitive=data.get('flag_case_sensitive') == 'true',
+            connection_info=data.get('connection_info'),
             initial_points=int(data.get('initial_points', 500)),
             minimum_points=int(data.get('minimum_points', 50)),
             decay_solves=int(data.get('decay_solves', 30)),
@@ -189,6 +190,7 @@ def edit_challenge(challenge_id):
         challenge.category = data.get('category')
         challenge.flag = data.get('flag')
         challenge.flag_case_sensitive = data.get('flag_case_sensitive') == 'true'
+        challenge.connection_info = data.get('connection_info')
         challenge.initial_points = int(data.get('initial_points', 500))
         challenge.minimum_points = int(data.get('minimum_points', 50))
         challenge.decay_solves = int(data.get('decay_solves', 30))

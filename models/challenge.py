@@ -17,6 +17,7 @@ class Challenge(db.Model):
     # Files and resources
     files = db.Column(db.Text)  # JSON array of file URLs
     hints = db.Column(db.Text)  # JSON array of hints
+    connection_info = db.Column(db.String(500))  # Connection info (nc host:port, URLs, etc.)
     
     # Scoring
     initial_points = db.Column(db.Integer, nullable=False, default=500)
@@ -178,6 +179,7 @@ class Challenge(db.Model):
             'is_dynamic': self.is_dynamic,
             'author': self.author,
             'difficulty': self.difficulty,
+            'connection_info': self.connection_info,
             'files': self.files,
             'hints': self.hints,
             'created_at': self.created_at.isoformat() if self.created_at else None

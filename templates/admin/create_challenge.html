@@ -42,6 +42,18 @@
                         <div class="form-text">Supports plain text (line breaks preserved)</div>
                     </div>
                     
+                    <div class="mb-3">
+                        <label for="connection_info" class="form-label">
+                            <i class="bi bi-link-45deg"></i> Connection Info (Optional)
+                        </label>
+                        <input type="text" class="form-control" id="connection_info" name="connection_info" 
+                               placeholder="nc challenges.example.com:1337 or https://challenge-site.com">
+                        <div class="form-text">
+                            Enter connection details (e.g., <code>nc x.x.x.x:2023</code>) or a URL. 
+                            URLs will automatically become clickable links.
+                        </div>
+                    </div>
+                    
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="flag" class="form-label">Primary Flag *</label>
