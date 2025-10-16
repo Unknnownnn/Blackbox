@@ -286,18 +286,23 @@ def delete_challenge(challenge_id):
     """Delete a challenge"""
     challenge = Challenge.query.get_or_404(challenge_id)
     
-    # Delete associated branching data first
+    # Delete associated data in correct order (respecting foreign key constraints)
     from models.branching import ChallengeFlag, ChallengePrerequisite, ChallengeUnlock
+    from models.hint import HintUnlock
     
-    # Delete all flags for this challenge
-    ChallengeFlag.query.filter_by(challenge_id=challenge_id).delete()
+    # Step 1: Delete solves (references challenge_flags.id)
+    Solve.query.filter_by(challenge_id=challenge_id).delete()
     
-    # Delete all flags that unlock this challenge
-    ChallengeFlag.query.filter_by(unlocks_challenge_id=challenge_id).update(
-        {'unlocks_challenge_id': None}
-    )
+    # Step 2: Delete submissions
+    Submission.query.filter_by(challenge_id=challenge_id).delete()
     
-    # Delete prerequisites where this challenge is required or is the dependent
+    # Step 3: Delete hint unlocks (references hints.id)
+    Hint.query.filter_by(challenge_id=challenge_id).delete()
+    
+    # Step 4: Delete unlock records
+    ChallengeUnlock.query.filter_by(challenge_id=challenge_id).delete()
+    
+    # Step 5: Delete prerequisites where this challenge is required or is the dependent
     ChallengePrerequisite.query.filter(
         db.or_(
             ChallengePrerequisite.challenge_id == challenge_id,
@@ -305,13 +310,21 @@ def delete_challenge(challenge_id):
         )
     ).delete()
     
-    # Delete unlock records
-    ChallengeUnlock.query.filter_by(challenge_id=challenge_id).delete()
+    # Step 6: Delete flags that unlock this challenge (set to NULL)
+    ChallengeFlag.query.filter_by(unlocks_challenge_id=challenge_id).update(
+        {'unlocks_challenge_id': None}
+    )
     
-    # Delete associated files
+    # Step 7: Delete all flags for this challenge
+    ChallengeFlag.query.filter_by(challenge_id=challenge_id).delete()
+    
+    # Step 8: Delete associated files from filesystem
     file_storage.delete_challenge_files(challenge_id)
     
-    # Now delete the challenge itself
+    # Step 9: Delete file records from database
+    ChallengeFile.query.filter_by(challenge_id=challenge_id).delete()
+    
+    # Step 10: Finally delete the challenge itself
     db.session.delete(challenge)
     db.session.commit()
     
