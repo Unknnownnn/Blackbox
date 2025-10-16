@@ -205,29 +205,44 @@ code {
 }
 
 /* Connection Info - Simple pink code style */
-code.connection-info {
+code.connection-info,
+p code.connection-info,
+.challenge-description code.connection-info {
     color: #e83e8c !important;
     background-color: transparent !important;
-    font-size: 1rem;
-    padding: 0;
-    border: none;
+    background: none !important;
+    font-size: 1rem !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
 }
 
-code.connection-info a {
+code.connection-info a,
+p code.connection-info a,
+.challenge-description code.connection-info a {
     color: #e83e8c !important;
-    text-decoration: none;
+    text-decoration: none !important;
+    background-color: transparent !important;
+    background: none !important;
 }
 
-code.connection-info a:hover {
-    text-decoration: underline;
+code.connection-info a:hover,
+p code.connection-info a:hover,
+.challenge-description code.connection-info a:hover {
+    text-decoration: underline !important;
 }
 
-[data-bs-theme="dark"] code.connection-info {
+[data-bs-theme="dark"] code.connection-info,
+[data-bs-theme="dark"] p code.connection-info,
+[data-bs-theme="dark"] .challenge-description code.connection-info {
     color: #ff6ec7 !important;
     background-color: transparent !important;
+    background: none !important;
 }
 
-[data-bs-theme="dark"] code.connection-info a {
+[data-bs-theme="dark"] code.connection-info a,
+[data-bs-theme="dark"] p code.connection-info a,
+[data-bs-theme="dark"] .challenge-description code.connection-info a {
     color: #ff6ec7 !important;
 }
 

@@ -1176,3 +1176,217 @@ def hint_logs_api():
         'pages': hint_unlocks.pages,
         'current_page': hint_unlocks.page
     })
+
+
+# ==================== Backup Management ====================
+
+@admin_bp.route('/backups')
+@login_required
+@admin_required
+def backups():
+    """Backup management page"""
+    return render_template('admin/backups.html')
+
+
+@admin_bp.route('/backups/api/list')
+@login_required
+@admin_required
+def list_backups():
+    """List all available backups"""
+    import subprocess
+    import json
+    import os
+    
+    try:
+        # List backup directories
+        result = subprocess.run(
+            ['docker', 'exec', 'blackbox-backup', 'find', '/var/backups/ctf', 
+             '-maxdepth', '1', '-type', 'd', '-name', 'backup_*'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if result.returncode != 0:
+            return jsonify({'success': False, 'error': 'Failed to list backups'})
+        
+        backup_dirs = [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
+        backups = []
+        
+        for backup_dir in sorted(backup_dirs, reverse=True):
+            backup_name = os.path.basename(backup_dir)
+            
+            # Try to read metadata
+            metadata_result = subprocess.run(
+                ['docker', 'exec', 'blackbox-backup', 'cat', f'{backup_dir}/metadata.json'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if metadata_result.returncode == 0:
+                try:
+                    metadata = json.loads(metadata_result.stdout)
+                    backups.append(metadata)
+                except json.JSONDecodeError:
+                    # Fallback if metadata is invalid
+                    backups.append({'backup_name': backup_name, 'timestamp': 'Unknown'})
+            else:
+                backups.append({'backup_name': backup_name, 'timestamp': 'Unknown'})
+        
+        return jsonify({'success': True, 'backups': backups})
+        
+    except subprocess.TimeoutExpired:
+        return jsonify({'success': False, 'error': 'Command timed out'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@admin_bp.route('/backups/api/create', methods=['POST'])
+@login_required
+@admin_required
+def create_backup():
+    """Create a manual backup"""
+    import subprocess
+    
+    try:
+        # Run backup script
+        result = subprocess.run(
+            ['docker', 'exec', 'blackbox-backup', '/usr/local/bin/backup.sh'],
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minutes timeout
+        )
+        
+        if result.returncode == 0:
+            return jsonify({
+                'success': True,
+                'message': 'Backup created successfully',
+                'output': result.stdout
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Backup failed',
+                'output': result.stderr
+            })
+            
+    except subprocess.TimeoutExpired:
+        return jsonify({'success': False, 'error': 'Backup timed out (>5 minutes)'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@admin_bp.route('/backups/api/restore', methods=['POST'])
+@login_required
+@admin_required
+def restore_backup():
+    """Restore from a backup"""
+    import subprocess
+    
+    data = request.get_json()
+    backup_name = data.get('backup_name')
+    
+    if not backup_name:
+        return jsonify({'success': False, 'error': 'Backup name required'})
+    
+    try:
+        # Run restore script with FORCE_RESTORE=1 to skip confirmation
+        result = subprocess.run(
+            ['docker', 'exec', '-e', 'FORCE_RESTORE=1', 'blackbox-backup', 
+             '/usr/local/bin/restore.sh', backup_name],
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minutes timeout
+        )
+        
+        if result.returncode == 0:
+            # Restart application containers
+            subprocess.run(['docker', 'compose', 'restart', 'blackbox', 'cache'], 
+                         capture_output=True, timeout=60)
+            
+            return jsonify({
+                'success': True,
+                'message': 'Backup restored successfully. Application restarted.',
+                'output': result.stdout
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Restore failed',
+                'output': result.stderr
+            })
+            
+    except subprocess.TimeoutExpired:
+        return jsonify({'success': False, 'error': 'Restore timed out (>5 minutes)'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@admin_bp.route('/backups/api/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_backup():
+    """Delete a backup"""
+    import subprocess
+    
+    data = request.get_json()
+    backup_name = data.get('backup_name')
+    
+    if not backup_name or not backup_name.startswith('backup_'):
+        return jsonify({'success': False, 'error': 'Invalid backup name'})
+    
+    try:
+        result = subprocess.run(
+            ['docker', 'exec', 'blackbox-backup', 'rm', '-rf', f'/var/backups/ctf/{backup_name}'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        if result.returncode == 0:
+            return jsonify({'success': True, 'message': 'Backup deleted successfully'})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to delete backup'})
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@admin_bp.route('/backups/api/download/<backup_name>')
+@login_required
+@admin_required
+def download_backup(backup_name):
+    """Download a backup as tar.gz"""
+    import subprocess
+    from flask import send_file
+    import tempfile
+    import os
+    
+    if not backup_name.startswith('backup_'):
+        flash('Invalid backup name', 'error')
+        return redirect(url_for('admin.backups'))
+    
+    try:
+        # Create temporary file
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.tar.gz')
+        temp_file.close()
+        
+        # Export backup directory as tar.gz
+        subprocess.run(
+            ['docker', 'exec', 'blackbox-backup', 'tar', '-czf', '-', '-C', 
+             '/var/backups/ctf', backup_name],
+            stdout=open(temp_file.name, 'wb'),
+            timeout=300
+        )
+        
+        return send_file(
+            temp_file.name,
+            as_attachment=True,
+            download_name=f'{backup_name}.tar.gz',
+            mimetype='application/gzip'
+        )
+        
+    except Exception as e:
+        flash(f'Download failed: {str(e)}', 'error')
+        return redirect(url_for('admin.backups'))

@@ -97,6 +97,40 @@ services:
       timeout: 3s
       retries: 5
 
+  backup:
+    container_name: blackbox-backup
+    image: mariadb:10.11
+    restart: unless-stopped
+    environment:
+      - DATABASE_USER=${DATABASE_USER:-blackbox_user}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-blackbox_password}
+      - DATABASE_NAME=${DATABASE_NAME:-blackbox_ctf}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root_password}
+      - DB_HOST=db
+      - MAX_BACKUPS=${MAX_BACKUPS:-168}
+    volumes:
+      - ./backup.sh:/usr/local/bin/backup.sh:ro
+      - ./restore.sh:/usr/local/bin/restore.sh:ro
+      - backups:/var/backups/ctf
+      - uploads:/var/uploads:ro
+      - redis_data:/var/redis:ro
+    networks:
+      internal:
+    depends_on:
+      - db
+      - cache
+    entrypoint: /bin/bash
+    command: |
+      -c "
+      apt-get update -qq && apt-get install -y -qq redis-tools cron > /dev/null 2>&1;
+      chmod +x /usr/local/bin/backup.sh /usr/local/bin/restore.sh;
+      echo '0 * * * * /usr/local/bin/backup.sh >> /var/backups/ctf/cron.log 2>&1' | crontab -;
+      echo 'Backup service started. Automatic backups every hour.';
+      echo 'Manual backup: docker exec blackbox-backup /usr/local/bin/backup.sh';
+      echo 'Restore: docker exec blackbox-backup /usr/local/bin/restore.sh <backup_name>';
+      cron && tail -f /var/backups/ctf/backup.log /var/backups/ctf/cron.log 2>/dev/null || sleep infinity
+      "
+
 volumes:
   mysql_data:
     driver: local
@@ -107,6 +141,8 @@ volumes:
   logs:
     driver: local
   nginx_cache:
+    driver: local
+  backups:
     driver: local
 
 networks:

@@ -126,23 +126,31 @@ def create_app(config_name=None):
     def serve_file(filename):
         """Serve uploaded files with original filename"""
         from models.file import ChallengeFile
+        from flask import send_file
+        import os
         
         upload_folder = app.config.get('UPLOAD_FOLDER', 'uploads')
         
-        file_record = ChallengeFile.query.filter_by(relative_path=filename.replace('/', os.sep)).first()
+        # Normalize the path for database lookup
+        normalized_path = filename.replace('/', os.sep)
+        file_record = ChallengeFile.query.filter_by(relative_path=normalized_path).first()
         
-        try:
-            if file_record:
-                return send_from_directory(
-                    upload_folder, 
-                    filename,
-                    as_attachment=True,
-                    download_name=file_record.original_filename
-                )
-            else:
-                return send_from_directory(upload_folder, filename, as_attachment=True)
-        except FileNotFoundError:
+        # Build full file path
+        file_path = os.path.join(upload_folder, normalized_path)
+        
+        if not os.path.exists(file_path):
             abort(404)
+        
+        # Use original filename if we have a database record
+        if file_record and file_record.original_filename:
+            return send_file(
+                file_path,
+                as_attachment=True,
+                download_name=file_record.original_filename
+            )
+        else:
+            # Fallback: use the stored filename
+            return send_file(file_path, as_attachment=True)
     
     @app.route('/favicon.ico')
     def favicon():

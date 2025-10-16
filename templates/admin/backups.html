@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+
+{% block title %}Backup Management - Admin - {{ ctf_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        {% include 'admin/_sidebar.html' %}
+    </div>
+    
+    <div class="col-md-9">
+        <h2 class="mb-4">
+            <i class="bi bi-cloud-arrow-down"></i> Backup Management
+        </h2>
+        
+        <!-- Stats Cards -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Total Backups</h5>
+                        <h2 id="total-backups" class="text-primary">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Latest Backup</h5>
+                        <h6 id="latest-backup" class="text-muted">-</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Auto Backup</h5>
+                        <h6 class="text-success"><i class="bi bi-check-circle-fill"></i> Every Hour</h6>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Actions -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-primary" onclick="createBackup()">
+                    <i class="bi bi-plus-circle"></i> Create Manual Backup
+                </button>
+                <button class="btn btn-secondary ms-2" onclick="loadBackups()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh List
+                </button>
+                
+                <div class="alert alert-info mt-3 mb-0">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Automatic Backups:</strong> System automatically creates backups every hour.
+                    Backups are kept for 7 days (168 backups). Manual backups can be created anytime.
+                </div>
+            </div>
+        </div>
+        
+        <!-- Backups List -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Available Backups</h5>
+            </div>
+            <div class="card-body">
+                <div id="loading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading backups...</p>
+                </div>
+                
+                <div id="backups-container" style="display: none;">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Backup Name</th>
+                                    <th>Timestamp</th>
+                                    <th>Components</th>
+                                    <th>Size (MB)</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="backups-list">
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div id="no-backups" class="alert alert-warning" style="display: none;">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        No backups found. Create your first backup now!
+                    </div>
+                </div>
+                
+                <div id="error-message" class="alert alert-danger" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let backupsData = [];
+
+// Load backups on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadBackups();
+});
+
+function loadBackups() {
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('backups-container').style.display = 'none';
+    document.getElementById('error-message').style.display = 'none';
+    
+    fetch('/admin/backups/api/list')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                backupsData = data.backups;
+                displayBackups(backupsData);
+                updateStats(backupsData);
+            } else {
+                showError(data.error || 'Failed to load backups');
+            }
+        })
+        .catch(error => {
+            showError('Network error: ' + error.message);
+        })
+        .finally(() => {
+            document.getElementById('loading').style.display = 'none';
+        });
+}
+
+function displayBackups(backups) {
+    const container = document.getElementById('backups-container');
+    const list = document.getElementById('backups-list');
+    const noBackups = document.getElementById('no-backups');
+    
+    list.innerHTML = '';
+    
+    if (backups.length === 0) {
+        noBackups.style.display = 'block';
+        container.style.display = 'block';
+        return;
+    }
+    
+    noBackups.style.display = 'none';
+    
+    backups.forEach(backup => {
+        const row = document.createElement('tr');
+        
+        const components = backup.components || {};
+        const sizes = backup.sizes || {};
+        const totalSize = (parseInt(sizes.database_mb || 0) + 
+                          parseInt(sizes.uploads_mb || 0) + 
+                          parseInt(sizes.redis_mb || 0));
+        
+        let componentBadges = '';
+        if (components.database) componentBadges += '<span class="badge bg-primary me-1">DB</span>';
+        if (components.uploads) componentBadges += '<span class="badge bg-success me-1">Files</span>';
+        if (components.redis) componentBadges += '<span class="badge bg-info me-1">Cache</span>';
+        
+        const timestamp = backup.timestamp ? new Date(backup.timestamp).toLocaleString() : 'Unknown';
+        
+        row.innerHTML = `
+            <td><code>${backup.backup_name}</code></td>
+            <td><small>${timestamp}</small></td>
+            <td>${componentBadges || '-'}</td>
+            <td>${totalSize > 0 ? totalSize : '-'}</td>
+            <td>
+                <button class="btn btn-sm btn-success" onclick="restoreBackup('${backup.backup_name}')" 
+                        title="Restore this backup">
+                    <i class="bi bi-arrow-counterclockwise"></i> Restore
+                </button>
+                <button class="btn btn-sm btn-primary" onclick="downloadBackup('${backup.backup_name}')" 
+                        title="Download backup">
+                    <i class="bi bi-download"></i>
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="deleteBackup('${backup.backup_name}')" 
+                        title="Delete backup">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+        
+        list.appendChild(row);
+    });
+    
+    container.style.display = 'block';
+}
+
+function updateStats(backups) {
+    document.getElementById('total-backups').textContent = backups.length;
+    
+    if (backups.length > 0) {
+        const latest = backups[0];
+        const timestamp = latest.timestamp ? new Date(latest.timestamp).toLocaleString() : 'Unknown';
+        document.getElementById('latest-backup').textContent = timestamp;
+    } else {
+        document.getElementById('latest-backup').textContent = 'None';
+    }
+}
+
+function createBackup() {
+    if (!confirm('Create a manual backup now? This may take a few minutes.')) {
+        return;
+    }
+    
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating...';
+    
+    fetch('/admin/backups/api/create', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✓ Backup created successfully!');
+            loadBackups();
+        } else {
+            alert('✗ Backup failed: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        alert('✗ Network error: ' + error.message);
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
+}
+
+function restoreBackup(backupName) {
+    if (!confirm(`⚠️ WARNING: This will OVERWRITE ALL CURRENT DATA!\n\nRestore from backup: ${backupName}?\n\nType "YES" to continue.`)) {
+        return;
+    }
+    
+    const confirmation = prompt('Type YES in capital letters to confirm restore:');
+    if (confirmation !== 'YES') {
+        alert('Restore cancelled.');
+        return;
+    }
+    
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Restoring...';
+    
+    fetch('/admin/backups/api/restore', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({backup_name: backupName})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✓ Backup restored successfully!\n\nThe application has been restarted. Please reload the page.');
+            window.location.reload();
+        } else {
+            alert('✗ Restore failed: ' + (data.error || 'Unknown error'));
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        alert('✗ Network error: ' + error.message);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
+}
+
+function deleteBackup(backupName) {
+    if (!confirm(`Delete backup: ${backupName}?\n\nThis cannot be undone!`)) {
+        return;
+    }
+    
+    fetch('/admin/backups/api/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({backup_name: backupName})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✓ Backup deleted successfully!');
+            loadBackups();
+        } else {
+            alert('✗ Delete failed: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        alert('✗ Network error: ' + error.message);
+    });
+}
+
+function downloadBackup(backupName) {
+    window.location.href = `/admin/backups/api/download/${backupName}`;
+}
+
+function showError(message) {
+    const errorDiv = document.getElementById('error-message');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+}
+</script>
+{% endblock %}
