@@ -27,7 +27,10 @@ def create_app(config_name=None):
     if config_name is None:
         config_name = os.getenv('FLASK_ENV', 'development')
     
-    app = Flask(__name__)
+    # Explicitly set static folder path
+    static_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
+    
+    app = Flask(__name__, static_folder=static_folder, static_url_path='/static')
     app.config.from_object(config[config_name])
     
     # Set custom JSON provider
