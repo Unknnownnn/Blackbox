@@ -9,12 +9,7 @@ import shutil
 class FileStorageService:
     """Service for managing file uploads and storage (similar to CTFd)"""
     
-    ALLOWED_EXTENSIONS = {
-        'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'zip', 
-        'tar', 'gz', 'bz2', '7z', 'rar', 'exe', 'bin', 
-        'pcap', 'pcapng', 'cap', 'py', 'c', 'cpp', 'java',
-        'js', 'html', 'css', 'json', 'xml', 'yaml', 'yml'
-    }
+    # No file type restrictions - allow all file types
     
     def __init__(self, app=None):
         self.upload_folder = None
@@ -37,16 +32,15 @@ class FileStorageService:
                 os.makedirs(path)
     
     def allowed_file(self, filename):
-        """Check if file extension is allowed"""
-        return '.' in filename and \
-               filename.rsplit('.', 1)[1].lower() in self.ALLOWED_EXTENSIONS
+        """Check if file has a filename (always returns True - no restrictions)"""
+        return filename and filename != ''
     
     def generate_unique_filename(self, original_filename):
         """Generate a unique filename while preserving extension"""
-        # Get file extension
+        # Get file extension (if any)
         ext = ''
         if '.' in original_filename:
-            ext = '.' + original_filename.rsplit('.', 1)[1].lower()
+            ext = '.' + original_filename.rsplit('.', 1)[1]
         
         # Generate unique ID
         unique_id = str(uuid.uuid4())
@@ -80,7 +74,7 @@ class FileStorageService:
             return None
         
         if not self.allowed_file(file.filename):
-            raise ValueError(f"File type not allowed. Allowed types: {', '.join(self.ALLOWED_EXTENSIONS)}")
+            raise ValueError("Invalid filename")
         
         # Secure the original filename
         original_filename = secure_filename(file.filename)
