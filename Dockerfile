@@ -1,9 +1,9 @@
-# Multi-stage build for CTFd clone
+# Multi-stage build for BlackBox CTF Platform
 # Stage 1: Build stage with all build dependencies
 FROM python:3.11-slim-bookworm AS build
 
 # Set working directory
-WORKDIR /opt/ctf
+WORKDIR /opt/blackbox
 
 # Install build dependencies
 RUN apt-get update && \
@@ -41,42 +41,38 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
-WORKDIR /opt/ctf
+WORKDIR /opt/blackbox
 
 # Copy virtual environment from build stage
 COPY --from=build /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy application code
+# Copy application code (including static/uploads directory)
 COPY . .
 
+# Create non-root user
+RUN useradd -m -u 1001 blackbox
+
 # Create necessary directories with proper permissions
-RUN mkdir -p /var/uploads /var/log/CTFd /opt/ctf/logs && \
+# Note: /var/uploads is for writable content (logos, challenge files)
+# Note: /opt/blackbox is read-only application code
+RUN mkdir -p /var/uploads/logos /var/uploads/challenges /var/uploads/temp /var/log/blackbox /opt/blackbox/logs && \
     chmod -R 777 /var/uploads && \
-    chmod -R 755 /var/log/CTFd /opt/ctf/logs
+    chmod -R 755 /var/log/blackbox /opt/blackbox/logs
 
-# Create non-root user (matching CTFd's user ID)
-RUN useradd -m -u 1001 ctf
+# Make entrypoint script executable
+RUN chmod +x /opt/blackbox/docker-entrypoint.sh
 
-# Make entrypoint script executable BEFORE changing ownership
-RUN chmod +x /opt/ctf/docker-entrypoint.sh
-
-# Change ownership AFTER all files are in place
-RUN chown -R ctf:ctf /opt/ctf /var/log/CTFd
-
-# IMPORTANT: Don't set ownership of /var/uploads here
-# Docker volumes will be mounted on top and inherit host permissions
-# We'll handle this in entrypoint script
+# Change ownership of all directories to blackbox user
+RUN chown -R blackbox:blackbox /opt/blackbox /var/uploads /var/log/blackbox
 
 # Switch to non-root user
-USER ctf
+USER blackbox
 
 # Expose port 8000 (Gunicorn will listen here)
 EXPOSE 8000
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Set entrypoint
-ENTRYPOINT ["/opt/ctf/docker-entrypoint.sh"]
+ENTRYPOINT ["/opt/blackbox/docker-entrypoint.sh"]

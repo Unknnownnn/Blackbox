@@ -51,10 +51,12 @@ def register():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
     
-    # Check if registration is enabled
-    from flask import current_app
-    if not current_app.config.get('REGISTRATION_ENABLED', True):
-        flash('Registration is currently disabled', 'error')
+    # Check if registration is enabled (check database settings first, then config)
+    from models.settings import Settings
+    registration_enabled = Settings.get('allow_registration', True)
+    
+    if not registration_enabled:
+        flash('Registration is currently disabled. Please contact an administrator.', 'error')
         return redirect(url_for('auth.login'))
     
     if request.method == 'POST':
@@ -73,8 +75,8 @@ def register():
             flash('Passwords do not match', 'error')
             return render_template('register.html')
         
-        if len(password) < 8:
-            flash('Password must be at least 8 characters long', 'error')
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long', 'error')
             return render_template('register.html')
         
         # Check if user already exists

@@ -6,7 +6,11 @@
 <div class="row">
     <div class="col-lg-8 mx-auto text-center">
         <h1 class="display-3 mb-4">
-            <i class="bi bi-flag-fill text-primary"></i>
+            {% if ctf_logo %}
+                <img src="/uploads/{{ ctf_logo }}" alt="{{ ctf_name }} Logo" style="height: 60px; width: auto; margin-right: 15px;">
+            {% else %}
+                <i class="bi bi-flag-fill text-primary"></i>
+            {% endif %}
             Welcome to {{ ctf_name }}
         </h1>
         <p class="lead mb-4">{{ ctf_description }}</p>

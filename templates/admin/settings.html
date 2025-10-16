@@ -3,108 +3,135 @@
 {% block title %}Settings - Admin - {{ ctf_name }}{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-3">
-        <div class="admin-sidebar p-3">
-            <h5 class="mb-3">Admin Menu</h5>
-            <nav class="nav flex-column">
-                <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-link">
-                    <i class="bi bi-speedometer2"></i> Dashboard
-                </a>
-                <a href="{{ url_for('admin.manage_challenges') }}" class="admin-nav-link">
-                    <i class="bi bi-puzzle"></i> Challenges
-                </a>
-                <a href="{{ url_for('admin.manage_users') }}" class="admin-nav-link">
-                    <i class="bi bi-people"></i> Users
-                </a>
-                <a href="{{ url_for('admin.manage_teams') }}" class="admin-nav-link">
-                    <i class="bi bi-people-fill"></i> Teams
-                </a>
-                <a href="{{ url_for('admin.ctf_control') }}" class="admin-nav-link">
-                    <i class="bi bi-clock-history"></i> CTF Control
-                </a>
-                <a href="{{ url_for('admin.settings') }}" class="admin-nav-link active">
-                    <i class="bi bi-gear"></i> Settings
-                </a>
-            </nav>
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-2">
+            {% include 'admin/_sidebar.html' %}
         </div>
-    </div>
-    
-    <div class="col-md-9">
-        <h2 class="mb-4">
-            <i class="bi bi-gear"></i> Settings
-        </h2>
         
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">Platform Information</h5>
-            </div>
-            <div class="card-body">
-                <form method="POST">
-                    <div class="mb-3">
-                        <label for="ctf_name" class="form-label">CTF Name</label>
-                        <input type="text" class="form-control" id="ctf_name" name="ctf_name" 
-                               value="{{ ctf_name }}" readonly>
-                        <div class="form-text">Set via CTF_NAME environment variable</div>
-                    </div>
+        <!-- Main Content -->
+        <div class="col-md-10">
+            <h2 class="mb-4">
+                <i class="bi bi-gear"></i> Settings
+            </h2>
+            
+            <!-- Event Configuration -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-trophy"></i> Event Configuration</h5>
+                </div>
+                <div class="card-body">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
                     
-                    <div class="mb-3">
-                        <label for="ctf_description" class="form-label">CTF Description</label>
-                        <textarea class="form-control" id="ctf_description" name="ctf_description" 
-                                  rows="3" readonly>{{ ctf_description }}</textarea>
-                        <div class="form-text">Set via CTF_DESCRIPTION environment variable</div>
-                    </div>
-                    
-                    <div class="alert alert-info mb-0">
-                        <i class="bi bi-info-circle"></i>
-                        <strong>Note:</strong> These settings are configured via environment variables in docker-compose.yml or .env file. 
-                        Restart the application after making changes.
-                    </div>
-                </form>
+                    <form method="POST" action="{{ url_for('admin.update_event_config') }}" enctype="multipart/form-data">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="ctf_name" class="form-label"><strong>CTF Name</strong></label>
+                                <input type="text" class="form-control" id="ctf_name" name="ctf_name" 
+                                       value="{{ settings.get('ctf_name', 'Capture The Flag') }}" required>
+                                <div class="form-text">The name of your CTF event</div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="ctf_logo" class="form-label"><strong>CTF Logo</strong></label>
+                                <input type="file" class="form-control" id="ctf_logo" name="ctf_logo" accept="image/*">
+                                <div class="form-text">
+                                    {% if settings.get('ctf_logo') %}
+                                        Current: <a href="{{ url_for('serve_logo', filename=settings.get('ctf_logo')) }}" target="_blank">View Logo</a>
+                                    {% else %}
+                                        No logo uploaded yet
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="ctf_description" class="form-label"><strong>CTF Description</strong></label>
+                            <textarea class="form-control" id="ctf_description" name="ctf_description" 
+                                      rows="3">{{ settings.get('ctf_description', 'Welcome to our CTF platform!') }}</textarea>
+                            <div class="form-text">A brief description displayed on the homepage</div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="allow_registration" name="allow_registration" 
+                                           {% if settings.get('allow_registration', True) %}checked{% endif %}>
+                                    <label class="form-check-label" for="allow_registration">
+                                        <strong>Allow User Registration</strong>
+                                    </label>
+                                </div>
+                                <div class="form-text">
+                                    <i class="bi bi-info-circle"></i> When <strong>enabled</strong>: Users can create new accounts via the Register page.<br>
+                                    <i class="bi bi-info-circle"></i> When <strong>disabled</strong>: Only admins can create user accounts. Registration page will be hidden.
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="team_mode" name="team_mode" 
+                                           {% if settings.get('team_mode', True) %}checked{% endif %}>
+                                    <label class="form-check-label" for="team_mode">
+                                        <strong>Team Mode</strong>
+                                    </label>
+                                </div>
+                                <div class="form-text">
+                                    <i class="bi bi-info-circle"></i> When <strong>enabled</strong>: Users compete as teams, shared scores and challenges.<br>
+                                    <i class="bi bi-info-circle"></i> When <strong>disabled</strong>: Individual competition mode, each user competes alone.
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Save Event Configuration
+                        </button>
+                    </form>
+                </div>
             </div>
-        </div>
+            
+            <!-- System Features -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-toggles"></i> System Features</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" checked disabled>
+                                <label class="form-check-label">
+                                    <strong>Redis Caching</strong>
+                                </label>
+                                <div class="form-text">Active - Configured in docker-compose.yml</div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" checked disabled>
+                                <label class="form-check-label">
+                                    <strong>Real-time Updates (Socket.IO)</strong>
+                                </label>
+                                <div class="form-text">Active - Live scoreboard enabled</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0">Features</h5>
-            </div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="registration_enabled" 
-                               {% if registration_enabled %}checked{% endif %} disabled>
-                        <label class="form-check-label" for="registration_enabled">
-                            Registration Enabled
-                        </label>
-                        <div class="form-text">Set via REGISTRATION_ENABLED environment variable</div>
-                    </div>
-                </div>
-                
-                <div class="mb-3">
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="redis_enabled" checked disabled>
-                        <label class="form-check-label" for="redis_enabled">
-                            Redis Caching
-                        </label>
-                        <div class="form-text">Configured in docker-compose.yml</div>
-                    </div>
-                </div>
-                
-                <div class="mb-3">
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="realtime_enabled" checked disabled>
-                        <label class="form-check-label" for="realtime_enabled">
-                            Real-time Updates (Socket.IO)
-                        </label>
-                        <div class="form-text">Enabled by default</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">System Information</h5>
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> System Information</h5>
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
@@ -125,15 +152,14 @@
         
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Documentation</h5>
+                <h5 class="mb-0"><i class="bi bi-book"></i> Documentation</h5>
             </div>
             <div class="card-body">
                 <h6>Available Documentation Files:</h6>
                 <ul>
                     <li><code>README.md</code> - Main project documentation</li>
                     <li><code>DEPLOYMENT.md</code> - Deployment guide</li>
-                    <li><code>SETUP_COMPLETE.md</code> - Initial setup information</li>
-                    <li><code>FIXES_APPLIED.md</code> - Applied fixes and solutions</li>
+                    <li><code>SECURITY.md</code> - Security features and best practices</li>
                     <li><code>TROUBLESHOOTING.md</code> - Common issues and solutions</li>
                 </ul>
                 
@@ -146,6 +172,7 @@
                     <li>Use Redis for better performance with many users</li>
                 </ul>
             </div>
+        </div>
         </div>
     </div>
 </div>

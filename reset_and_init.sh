@@ -1,70 +1,83 @@
 #!/bin/bash
-# Complete reset and fresh install script
 
 echo "============================================"
-echo "CTF Platform - Complete Reset & Fresh Install"
+echo "BlackBox CTF Platform - Complete Reset"
 echo "============================================"
 echo ""
-echo "⚠️  WARNING: This will DELETE ALL DATA!"
+echo "WARNING: This will DELETE ALL DATA!"
+echo "This includes:"
+echo "  - All database data (users, teams, challenges, submissions)"
+echo "  - All uploaded files"
+echo "  - All logs"
+echo "  - Redis cache"
+echo ""
 echo "Press Ctrl+C to cancel, or Enter to continue..."
 read
 
 echo ""
-echo "🛑 Stopping containers..."
+echo "Stopping containers..."
 docker-compose down -v
 
 echo ""
-echo "🗑️  Removing old data..."
+echo "Removing old data..."
 rm -rf .data/mysql/*
 rm -rf .data/uploads/*
 rm -rf .data/logs/*
 rm -rf .data/redis/*
 
 echo ""
-echo "🏗️  Building fresh containers..."
+echo "Building fresh containers (no cache)..."
 docker-compose build --no-cache
 
 echo ""
-echo "🚀 Starting containers..."
+echo "Starting containers..."
 docker-compose up -d
 
 echo ""
-echo "⏳ Waiting for database to be ready (30 seconds)..."
-sleep 30
+echo "Waiting for services to initialize..."
+echo "  - Database (MySQL)"
+echo "  - Cache (Redis)"
+echo "  - Application (CTF Platform)"
+sleep 25
 
 echo ""
-echo "🔍 Checking database health..."
-docker-compose exec db mysql -u root -proot_password -e "SELECT 1;" > /dev/null 2>&1
-if [ $? -eq 0 ]; then
-    echo "✓ Database is ready"
-else
-    echo "❌ Database is not ready. Waiting another 15 seconds..."
-    sleep 15
-fi
+echo "Checking database connection..."
+for i in {1..5}; do
+    docker-compose exec -T db mysql -u root -proot_password -e "SELECT 1;" > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        echo "✓ Database is ready"
+        break
+    else
+        echo "  Waiting for database... (attempt $i/5)"
+        sleep 10
+    fi
+done
 
 echo ""
-echo "📊 Initializing database..."
-docker-compose exec -T ctf python init_db.py
+echo "Creating database tables..."
+docker-compose exec -T blackbox python -c "from app import create_app; from models import db; app = create_app(); app.app_context().push(); db.create_all(); print('✓ Tables created')"
 
 echo ""
-echo "✅ Fresh installation complete!"
+echo "Running database migrations..."
+docker-compose exec -T blackbox bash -c "
+    mysql -h db -u blackbox_user -pblackbox_password blackbox_ctf < migrations/add_hints_and_team_requirements.sql 2>/dev/null || true
+    mysql -h db -u blackbox_user -pblackbox_password blackbox_ctf < migrations/add_team_invites_and_attempts.sql 2>/dev/null || true
+    mysql -h db -u blackbox_user -pblackbox_password blackbox_ctf < migrations/add_challenge_branching.sql 2>/dev/null || true
+    mysql -h db -u blackbox_user -pblackbox_password blackbox_ctf < migrations/add_ctf_control.sql 2>/dev/null || true
+    mysql -h db -u blackbox_user -pblackbox_password blackbox_ctf < migrations/add_event_config.sql 2>/dev/null || true
+"
+
+echo ""
+echo "Reset complete!"
 echo ""
 echo "============================================"
-echo "Default Admin Credentials:"
-echo "============================================"
-echo "Username: admin"
-echo "Password: admin123"
-echo ""
-echo "Sample User Credentials:"
-echo "Username: alice, bob, charlie, dave, eve, frank"
-echo "Password: password123"
-echo ""
-echo "============================================"
-echo "Access your CTF platform at:"
-echo "http://localhost:8000"
-echo "or"
-echo "http://0.0.0.0:8000"
+echo "Initial Setup Required"
 echo "============================================"
 echo ""
-echo "📝 Note: All tables including hints, settings, and team requirements are created automatically!"
+echo "Your BlackBox platform is ready for initial setup."
 echo ""
+echo "http://localhost:8000/setup"
+echo ""
+echo echo "============================================"
+echo ""
+

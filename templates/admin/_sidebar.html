@@ -1,0 +1,27 @@
+<!-- Admin Sidebar Component -->
+<div class="admin-sidebar p-3">
+    <h5 class="mb-3">Admin Menu</h5>
+    <nav class="nav flex-column">
+        <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-link {% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
+            <i class="bi bi-speedometer2"></i> Dashboard
+        </a>
+        <a href="{{ url_for('admin.manage_challenges') }}" class="admin-nav-link {% if request.endpoint in ['admin.manage_challenges', 'admin.create_challenge', 'admin.edit_challenge'] %}active{% endif %}">
+            <i class="bi bi-puzzle"></i> Challenges
+        </a>
+        <a href="{{ url_for('admin.manage_branching') }}" class="admin-nav-link {% if request.endpoint == 'admin.manage_branching' %}active{% endif %}">
+            <i class="bi bi-diagram-3"></i> Challenge Branching
+        </a>
+        <a href="{{ url_for('admin.manage_users') }}" class="admin-nav-link {% if request.endpoint == 'admin.manage_users' %}active{% endif %}">
+            <i class="bi bi-people"></i> Users
+        </a>
+        <a href="{{ url_for('admin.manage_teams') }}" class="admin-nav-link {% if request.endpoint == 'admin.manage_teams' %}active{% endif %}">
+            <i class="bi bi-people-fill"></i> Teams
+        </a>
+        <a href="{{ url_for('admin.ctf_control') }}" class="admin-nav-link {% if request.endpoint == 'admin.ctf_control' %}active{% endif %}">
+            <i class="bi bi-clock-history"></i> CTF Control
+        </a>
+        <a href="{{ url_for('admin.settings') }}" class="admin-nav-link {% if request.endpoint == 'admin.settings' %}active{% endif %}">
+            <i class="bi bi-gear"></i> Settings
+        </a>
+    </nav>
+</div>

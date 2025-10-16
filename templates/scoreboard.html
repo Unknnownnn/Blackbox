@@ -4,62 +4,147 @@
 
 {% block extra_css %}
 <style>
-    .scoreboard-table { font-size: 0.95rem; }
-    .rank-badge { 
-        width: 40px; 
-        height: 40px; 
-        display: inline-flex; 
-        align-items: center; 
-        justify-content: center;
-        border-radius: 50%;
+    .scoreboard-table { 
+        font-size: 0.95rem;
+        border-collapse: separate;
+        border-spacing: 0;
     }
-    .gold { background: linear-gradient(135deg, #FFD700, #FFA500); }
-    .silver { background: linear-gradient(135deg, #C0C0C0, #A8A8A8); }
-    .bronze { background: linear-gradient(135deg, #CD7F32, #B8860B); }
-    .pulse { animation: pulse 2s infinite; }
+    .scoreboard-table thead th {
+        background-color: var(--bs-secondary-bg);
+        border-bottom: 2px solid var(--bs-border-color);
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        color: var(--bs-secondary);
+        padding: 12px 16px;
+    }
+    .scoreboard-table tbody tr {
+        border-bottom: 1px solid var(--bs-border-color);
+        transition: background-color 0.2s;
+    }
+    .scoreboard-table tbody tr:hover {
+        background-color: var(--bs-secondary-bg);
+    }
+    .scoreboard-table tbody td {
+        padding: 12px 16px;
+        vertical-align: middle;
+        color: var(--bs-body-color);
+    }
+    .rank-cell {
+        font-weight: 600;
+        color: var(--bs-secondary);
+        width: 60px;
+        text-align: center;
+    }
+    .rank-1 { color: #FFD700 !important; }
+    .rank-2 { color: #C0C0C0 !important; }
+    .rank-3 { color: #CD7F32 !important; }
+    .team-name {
+        font-weight: 500;
+        color: var(--bs-body-color);
+    }
+    .team-affiliation {
+        font-size: 0.85rem;
+        color: var(--bs-secondary);
+        margin-top: 2px;
+    }
+    .score-cell {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: var(--bs-primary);
+        width: 100px;
+        text-align: right;
+    }
+    .score-negative {
+        color: var(--bs-danger) !important;
+    }
+    .solves-cell {
+        width: 80px;
+        text-align: center;
+        color: var(--bs-secondary);
+    }
+    .time-cell {
+        width: 140px;
+        font-size: 0.85rem;
+        color: var(--bs-secondary);
+    }
+    .live-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        background-color: var(--bs-success);
+        color: white;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    .live-dot {
+        width: 8px;
+        height: 8px;
+        background-color: white;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
     @keyframes pulse {
         0%, 100% { opacity: 1; }
-        50% { opacity: 0.7; }
+        50% { opacity: 0.5; }
+    }
+    .card {
+        border: 1px solid var(--bs-border-color);
+        background-color: var(--bs-body-bg);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    /* Dark theme specific adjustments */
+    [data-bs-theme="dark"] .scoreboard-table thead th {
+        background-color: var(--bs-dark);
+        color: var(--bs-light);
+    }
+    [data-bs-theme="dark"] .scoreboard-table tbody tr:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+    [data-bs-theme="dark"] .team-name {
+        color: var(--bs-light);
+    }
+    [data-bs-theme="dark"] .card {
+        background-color: var(--bs-dark);
+        border-color: var(--bs-border-color);
     }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>
-        <i class="bi bi-trophy-fill text-warning"></i> Live Scoreboard
-    </h2>
-    <div>
-        <span class="badge bg-success pulse">
-            <i class="bi bi-circle-fill"></i> LIVE
-        </span>
+    <h2 class="mb-0">Scoreboard</h2>
+    <div class="live-indicator">
+        <span class="live-dot"></span>
+        <span>LIVE</span>
     </div>
 </div>
 
 <div class="card">
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-hover scoreboard-table" id="scoreboardTable">
-                <thead>
-                    <tr>
-                        <th width="80">Rank</th>
-                        <th>Team</th>
-                        <th width="100">Score</th>
-                        <th width="100">Solves</th>
-                        <th width="180">Last Solve</th>
-                    </tr>
-                </thead>
-                <tbody id="scoreboardBody">
-                    <tr>
-                        <td colspan="5" class="text-center">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+    <div class="table-responsive">
+        <table class="table scoreboard-table mb-0" id="scoreboardTable">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Team</th>
+                    <th class="text-end">Score</th>
+                    <th class="text-center">Solves</th>
+                    <th>Last Solve</th>
+                </tr>
+            </thead>
+            <tbody id="scoreboardBody">
+                <tr>
+                    <td colspan="5" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 </div>
 
@@ -67,12 +152,10 @@
 <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
     <div id="solveToast" class="toast hide" role="alert" aria-live="assertive" aria-atomic="true">
         <div class="toast-header bg-success text-white">
-            <i class="bi bi-trophy-fill me-2"></i>
             <strong class="me-auto">New Solve!</strong>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
         </div>
-        <div class="toast-body" id="solveToastBody">
-        </div>
+        <div class="toast-body" id="solveToastBody"></div>
     </div>
 </div>
 {% endblock %}
@@ -103,12 +186,7 @@ function connectWebSocket() {
     socket.on('new_solve', function(data) {
         console.log('New solve:', data);
         showSolveToast(data);
-        // Request fresh scoreboard
         socket.emit('request_scoreboard');
-    });
-    
-    socket.on('challenge_update', function(data) {
-        console.log('Challenge points updated:', data);
     });
     
     socket.on('disconnect', function() {
@@ -116,51 +194,56 @@ function connectWebSocket() {
     });
 }
 
-// Update scoreboard table
+// Update scoreboard table - Clean CTFd-style
 function updateScoreboardTable() {
     const tbody = document.getElementById('scoreboardBody');
     tbody.innerHTML = '';
     
     if (scoreboardData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No teams yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No teams yet</td></tr>';
         return;
     }
     
     scoreboardData.forEach((team, index) => {
         const tr = document.createElement('tr');
         
-        // Rank
+        // Rank - Simple number with color for top 3
         const rankTd = document.createElement('td');
+        rankTd.className = 'rank-cell';
         if (team.rank <= 3) {
-            const badgeClass = team.rank === 1 ? 'gold' : (team.rank === 2 ? 'silver' : 'bronze');
-            rankTd.innerHTML = `<span class="rank-badge ${badgeClass} fw-bold text-white">${team.rank}</span>`;
-        } else {
-            rankTd.innerHTML = `<span class="fs-5">#${team.rank}</span>`;
+            rankTd.classList.add(`rank-${team.rank}`);
         }
+        rankTd.textContent = team.rank;
         
         // Team name
         const nameTd = document.createElement('td');
-        let nameHtml = `<strong>${escapeHtml(team.name)}</strong>`;
+        let nameHtml = `<div class="team-name">${escapeHtml(team.name)}</div>`;
         if (team.affiliation) {
-            nameHtml += `<br><small class="text-muted">${escapeHtml(team.affiliation)}</small>`;
+            nameHtml += `<div class="team-affiliation">${escapeHtml(team.affiliation)}</div>`;
         }
         nameTd.innerHTML = nameHtml;
         
-        // Score
+        // Score - Simple number
         const scoreTd = document.createElement('td');
-        scoreTd.innerHTML = `<span class="badge bg-primary fs-6">${team.score}</span>`;
+        scoreTd.className = 'score-cell';
+        if (team.score < 0) {
+            scoreTd.classList.add('score-negative');
+        }
+        scoreTd.textContent = team.score;
         
-        // Solves
+        // Solves - Simple number
         const solvesTd = document.createElement('td');
-        solvesTd.innerHTML = `<i class="bi bi-trophy"></i> ${team.solves}`;
+        solvesTd.className = 'solves-cell';
+        solvesTd.textContent = team.solves;
         
-        // Last solve
+        // Last solve - Simple time
         const lastSolveTd = document.createElement('td');
+        lastSolveTd.className = 'time-cell';
         if (team.last_solve) {
             const date = new Date(team.last_solve);
-            lastSolveTd.innerHTML = `<small class="text-muted">${formatDate(date)}</small>`;
+            lastSolveTd.textContent = formatDate(date);
         } else {
-            lastSolveTd.innerHTML = '<small class="text-muted">-</small>';
+            lastSolveTd.textContent = '-';
         }
         
         tr.appendChild(rankTd);
@@ -176,11 +259,7 @@ function updateScoreboardTable() {
 // Show toast notification for new solve
 function showSolveToast(data) {
     const toastBody = document.getElementById('solveToastBody');
-    toastBody.innerHTML = `
-        <strong>${escapeHtml(data.team || data.user)}</strong> solved 
-        <strong>${escapeHtml(data.challenge)}</strong> 
-        for <span class="badge bg-warning text-dark">${data.points}</span> points!
-    `;
+    toastBody.innerHTML = `<strong>${escapeHtml(data.team || data.user)}</strong> solved <strong>${escapeHtml(data.challenge)}</strong> for ${data.points} points`;
     
     const toast = new bootstrap.Toast(document.getElementById('solveToast'));
     toast.show();
@@ -188,13 +267,7 @@ function showSolveToast(data) {
 
 // Utility functions
 function escapeHtml(text) {
-    const map = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;'
-    };
+    const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'};
     return text.replace(/[&<>"']/g, m => map[m]);
 }
 
@@ -212,7 +285,7 @@ function formatDate(date) {
 document.addEventListener('DOMContentLoaded', function() {
     connectWebSocket();
     
-    // Fallback: Load scoreboard via API if WebSocket fails
+    // Fallback: Load via API if WebSocket fails
     setTimeout(function() {
         if (scoreboardData.length === 0) {
             fetch('/scoreboard/api/data')

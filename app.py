@@ -10,6 +10,7 @@ from models.user import User
 from services.cache import cache_service
 from services.websocket import WebSocketService, socketio
 from services.file_storage import file_storage
+from security_utils import init_security
 import os
 from decimal import Decimal
 
@@ -37,6 +38,9 @@ def create_app(config_name=None):
     cache_service.init_app(app)
     WebSocketService.init_app(app)
     file_storage.init_app(app)
+    
+    # Initialize security features (CSRF, security headers, etc.)
+    init_security(app)
     
     # Initialize Flask-Login
     login_manager = LoginManager()
@@ -104,9 +108,17 @@ def create_app(config_name=None):
     @app.route('/health')
     def health():
         """Health check endpoint"""
-        return {'status': 'healthy', 'service': 'ctf-platform'}, 200
+        return {'status': 'healthy', 'service': 'blackbox-ctf'}, 200
     
-    # File serving route
+    @app.route('/uploads/<path:filename>')
+    def serve_logo(filename):
+        """Serve uploaded logo files from /var/uploads/logos"""
+        logos_folder = '/var/uploads/logos'
+        try:
+            return send_from_directory(logos_folder, filename)
+        except FileNotFoundError:
+            abort(404)
+    
     @app.route('/files/<path:filename>')
     def serve_file(filename):
         """Serve uploaded files with original filename"""
@@ -114,12 +126,10 @@ def create_app(config_name=None):
         
         upload_folder = app.config.get('UPLOAD_FOLDER', 'uploads')
         
-        # Try to find the file in the database to get original filename
         file_record = ChallengeFile.query.filter_by(relative_path=filename.replace('/', os.sep)).first()
         
         try:
             if file_record:
-                # Serve with original filename
                 return send_from_directory(
                     upload_folder, 
                     filename,
@@ -127,12 +137,10 @@ def create_app(config_name=None):
                     download_name=file_record.original_filename
                 )
             else:
-                # Fallback: serve file as-is
                 return send_from_directory(upload_folder, filename, as_attachment=True)
         except FileNotFoundError:
             abort(404)
     
-    # Error handlers
     @app.errorhandler(404)
     def not_found(error):
         return render_template('errors/404.html'), 404
@@ -142,14 +150,60 @@ def create_app(config_name=None):
         db.session.rollback()
         return render_template('errors/500.html'), 500
     
-    # Template context processors
+    @app.route('/health')
+    def health_check():
+        """Health check endpoint for load balancers and monitoring"""
+        from datetime import datetime
+        try:
+            # Check database connectivity
+            db.session.execute(db.text('SELECT 1'))
+            db_status = 'healthy'
+        except Exception as e:
+            db_status = f'unhealthy: {str(e)}'
+        
+        try:
+            # Check Redis connectivity
+            cache_service.redis_client.ping()
+            redis_status = 'healthy'
+        except Exception as e:
+            redis_status = f'unhealthy: {str(e)}'
+        
+        # Overall health
+        is_healthy = db_status == 'healthy' and redis_status == 'healthy'
+        
+        health_data = {
+            'status': 'healthy' if is_healthy else 'unhealthy',
+            'timestamp': datetime.utcnow().isoformat(),
+            'checks': {
+                'database': db_status,
+                'redis': redis_status
+            },
+            'config': {
+                'workers': os.getenv('WORKERS', '1'),
+                'worker_class': os.getenv('WORKER_CLASS', 'eventlet')
+            }
+        }
+        
+        status_code = 200 if is_healthy else 503
+        return app.json.response(**health_data), status_code
+    
     @app.context_processor
     def inject_config():
         """Inject configuration into all templates"""
+        from models.settings import Settings
+        
+        # Load from database settings (with fallback to config)
+        ctf_name = Settings.get('ctf_name', app.config.get('CTF_NAME', 'BlackBox CTF'))
+        ctf_description = Settings.get('ctf_description', app.config.get('CTF_DESCRIPTION', ''))
+        allow_registration = Settings.get('allow_registration', True)
+        ctf_logo = Settings.get('ctf_logo', '')
+        
         return {
-            'ctf_name': app.config.get('CTF_NAME', 'CTF Platform'),
-            'ctf_description': app.config.get('CTF_DESCRIPTION', ''),
-            'registration_enabled': app.config.get('REGISTRATION_ENABLED', True)
+            'ctf_name': ctf_name,
+            'ctf_description': ctf_description,
+            'registration_enabled': allow_registration,
+            'ctf_logo': ctf_logo,  # Add logo to context
+            'settings': Settings  # Add Settings class for template access
         }
     
     return app
@@ -159,7 +213,6 @@ def main():
     """Main entry point"""
     app = create_app()
     
-    # Run with SocketIO
     socketio.run(
         app,
         host=app.config.get('HOST', '0.0.0.0'),
@@ -169,7 +222,6 @@ def main():
     )
 
 
-# For Gunicorn with eventlet worker
 app = create_app()
 
 

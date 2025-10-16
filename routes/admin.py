@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required, current_user
 from functools import wraps
+from datetime import datetime
 from models import db
 from models.user import User
 from models.team import Team
@@ -447,23 +448,41 @@ def delete_team(team_id):
 @login_required
 @admin_required
 def adjust_user_points(user_id):
-    """Manually adjust user points"""
+    """Manually adjust user points by creating a solve adjustment"""
+    from models.submission import Solve
+    from models.challenge import Challenge
+    
     user = User.query.get_or_404(user_id)
     data = request.get_json()
     
     points_delta = int(data.get('points', 0))
     reason = data.get('reason', 'Manual adjustment by admin')
     
-    # Update user score
-    user.score = max(0, user.score + points_delta)
+    if points_delta == 0:
+        return jsonify({'success': False, 'message': 'Points delta cannot be zero'}), 400
+    
+    # Create a "virtual" solve record for tracking score adjustments
+    # We'll create a challenge with ID 0 that represents manual adjustments
+    adjustment = Solve(
+        user_id=user_id,
+        team_id=user.team_id,
+        challenge_id=None,  # None indicates manual adjustment
+        points_earned=points_delta,
+        solved_at=datetime.utcnow()
+    )
+    
+    db.session.add(adjustment)
     db.session.commit()
     
     cache_service.invalidate_scoreboard()
+    if user.team_id:
+        cache_service.invalidate_team(user.team_id)
+    cache_service.invalidate_user(user_id)
     
     return jsonify({
         'success': True,
-        'new_score': user.score,
-        'message': f'Adjusted {user.username} points by {points_delta:+d}'
+        'new_score': user.get_score(),
+        'message': f'Adjusted {user.username} points by {points_delta:+d}. Reason: {reason}'
     })
 
 
@@ -471,23 +490,40 @@ def adjust_user_points(user_id):
 @login_required
 @admin_required
 def adjust_team_points(team_id):
-    """Manually adjust team points"""
+    """Manually adjust team points by creating a solve adjustment"""
+    from models.submission import Solve
+    
     team = Team.query.get_or_404(team_id)
     data = request.get_json()
     
     points_delta = int(data.get('points', 0))
     reason = data.get('reason', 'Manual adjustment by admin')
     
-    # Update team score
-    team.score = max(0, team.score + points_delta)
+    if points_delta == 0:
+        return jsonify({'success': False, 'message': 'Points delta cannot be zero'}), 400
+    
+    # Create a "virtual" solve record for the team
+    # Use the first team member as the user, or None if no members
+    first_member = team.members.first()
+    
+    adjustment = Solve(
+        user_id=first_member.id if first_member else None,
+        team_id=team_id,
+        challenge_id=None,  # None indicates manual adjustment
+        points_earned=points_delta,
+        solved_at=datetime.utcnow()
+    )
+    
+    db.session.add(adjustment)
     db.session.commit()
     
     cache_service.invalidate_scoreboard()
+    cache_service.invalidate_team(team_id)
     
     return jsonify({
         'success': True,
-        'new_score': team.score,
-        'message': f'Adjusted {team.name} points by {points_delta:+d}'
+        'new_score': team.get_score(),
+        'message': f'Adjusted {team.name} points by {points_delta:+d}. Reason: {reason}'
     })
 
 
@@ -515,10 +551,76 @@ def settings():
         'status': Settings.get_ctf_status()
     }
     
+    # Get all settings
+    all_settings = Settings.get_all()
+    
     return render_template('admin/settings.html', 
                          flask_version=flask.__version__,
                          get_flask_version=lambda: flask.__version__,
-                         ctf_settings=ctf_settings)
+                         ctf_settings=ctf_settings,
+                         settings=all_settings)
+
+
+@admin_bp.route('/settings/event-config', methods=['POST'])
+@login_required
+@admin_required
+def update_event_config():
+    """Update event configuration (name, logo, description)"""
+    from models.settings import Settings
+    import os
+    from werkzeug.utils import secure_filename
+    
+    try:
+        # Update CTF name
+        ctf_name = request.form.get('ctf_name', '').strip()
+        if ctf_name:
+            Settings.set('ctf_name', ctf_name, 'string', 'Name of the CTF event')
+        
+        # Update CTF description
+        ctf_description = request.form.get('ctf_description', '').strip()
+        if ctf_description:
+            Settings.set('ctf_description', ctf_description, 'string', 'Description of the CTF event')
+        
+        # Update registration and team mode settings
+        allow_registration = 'allow_registration' in request.form
+        Settings.set('allow_registration', allow_registration, 'bool', 'Allow new user registrations')
+        
+        team_mode = 'team_mode' in request.form
+        Settings.set('team_mode', team_mode, 'bool', 'Enable team-based CTF mode')
+        
+        # Handle logo upload
+        if 'ctf_logo' in request.files:
+            logo_file = request.files['ctf_logo']
+            if logo_file and logo_file.filename:
+                from flask import current_app
+                
+                # Use /var/uploads/logos (volume-mounted writable directory)
+                uploads_dir = '/var/uploads/logos'
+                
+                # Create uploads directory if it doesn't exist
+                os.makedirs(uploads_dir, exist_ok=True)
+                
+                # Secure the filename
+                filename = secure_filename(logo_file.filename)
+                
+                # Add timestamp to avoid conflicts
+                from datetime import datetime
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                name, ext = os.path.splitext(filename)
+                filename = f'ctf_logo_{timestamp}{ext}'
+                
+                # Save the file
+                filepath = os.path.join(uploads_dir, filename)
+                logo_file.save(filepath)
+                
+                # Store relative path in settings
+                Settings.set('ctf_logo', filename, 'string', 'Path to CTF logo image')
+        
+        flash('Event configuration updated successfully!', 'success')
+    except Exception as e:
+        flash(f'Error updating configuration: {str(e)}', 'error')
+    
+    return redirect(url_for('admin.settings'))
 
 
 # CTF Control

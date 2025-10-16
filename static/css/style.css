@@ -84,18 +84,29 @@ main {
     border-right: 1px solid #dee2e6;
 }
 
+[data-bs-theme="dark"] .admin-sidebar {
+    background-color: #1a1d20;
+    border-right-color: #495057;
+}
+
 .admin-nav-link {
     color: #495057;
     padding: 0.75rem 1rem;
     border-radius: 0.25rem;
     margin-bottom: 0.25rem;
     transition: all 0.2s;
+    display: block;
+    text-decoration: none;
+}
+
+[data-bs-theme="dark"] .admin-nav-link {
+    color: #adb5bd;
 }
 
 .admin-nav-link:hover,
 .admin-nav-link.active {
     background-color: var(--primary-color);
-    color: white;
+    color: white !important;
 }
 
 /* Loading Spinner */

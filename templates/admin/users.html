@@ -5,29 +5,7 @@
 {% block content %}
 <div class="row">
     <div class="col-md-3">
-        <div class="admin-sidebar p-3">
-            <h5 class="mb-3">Admin Menu</h5>
-            <nav class="nav flex-column">
-                <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-link">
-                    <i class="bi bi-speedometer2"></i> Dashboard
-                </a>
-                <a href="{{ url_for('admin.manage_challenges') }}" class="admin-nav-link">
-                    <i class="bi bi-puzzle"></i> Challenges
-                </a>
-                <a href="{{ url_for('admin.manage_users') }}" class="admin-nav-link active">
-                    <i class="bi bi-people"></i> Users
-                </a>
-                <a href="{{ url_for('admin.manage_teams') }}" class="admin-nav-link">
-                    <i class="bi bi-people-fill"></i> Teams
-                </a>
-                <a href="{{ url_for('admin.ctf_control') }}" class="admin-nav-link">
-                    <i class="bi bi-clock-history"></i> CTF Control
-                </a>
-                <a href="{{ url_for('admin.settings') }}" class="admin-nav-link">
-                    <i class="bi bi-gear"></i> Settings
-                </a>
-            </nav>
-        </div>
+        {% include 'admin/_sidebar.html' %}
     </div>
     
     <div class="col-md-9">

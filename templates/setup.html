@@ -83,8 +83,8 @@
 
                     <div class="mb-3">
                         <label for="password" class="form-label">Password <span class="text-danger">*</span></label>
-                        <input type="password" class="form-control" id="password" name="password" 
-                               placeholder="Min. 8 characters" required>
+                        <input type="password" class="form-control" id="password" name="password"
+                               placeholder="Min. 6 characters" required>
                     </div>
 
                     <div class="mb-4">
@@ -142,9 +142,9 @@
                 return false;
             }
             
-            if (password.length < 8) {
+            if (password.length < 6) {
                 e.preventDefault();
-                alert('Password must be at least 8 characters long!');
+                alert('Password must be at least 6 characters long!');
                 return false;
             }
         });

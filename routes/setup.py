@@ -42,8 +42,8 @@ def initial_setup():
             flash('Passwords do not match', 'error')
             return render_template('setup.html')
         
-        if len(password) < 8:
-            flash('Password must be at least 8 characters long', 'error')
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long', 'error')
             return render_template('setup.html')
         
         try:

@@ -8,7 +8,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 echo -e "${GREEN}=================================================="
-echo "  CTF Platform - Docker Entrypoint"
+echo "  BlackBox CTF Platform - Docker Entrypoint"
 echo -e "==================================================${NC}"
 echo ""
 
@@ -92,7 +92,7 @@ fi
 
 echo ""
 echo -e "${GREEN}=================================================="
-echo "  Starting CTF Platform"
+echo "  Starting BlackBox CTF Platform"
 echo -e "==================================================${NC}"
 echo ""
 

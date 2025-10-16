@@ -1,5 +1,6 @@
 services:
-  ctf:
+  blackbox:
+    container_name: blackbox-ctf
     build: .
     restart: always
     ports:
@@ -7,18 +8,18 @@ services:
     environment:
       - FLASK_ENV=production
       - SECRET_KEY=${SECRET_KEY:-change-this-secret-key-in-production}
-      - DATABASE_URL=mysql+pymysql://${DATABASE_USER:-ctf_user}:${DATABASE_PASSWORD:-ctf_password}@db:3306/${DATABASE_NAME:-ctf_platform}
+      - DATABASE_URL=mysql+pymysql://${DATABASE_USER:-blackbox_user}:${DATABASE_PASSWORD:-blackbox_password}@db:3306/${DATABASE_NAME:-blackbox_ctf}
       - REDIS_URL=redis://cache:6379/0
       - UPLOAD_FOLDER=/var/uploads
-      - CTF_NAME=${CTF_NAME:-My CTF Event}
-      - WORKERS=1
-      - LOG_FOLDER=/var/log/CTFd
+      - CTF_NAME=${CTF_NAME:-BlackBox CTF}
+      - WORKERS=4
+      - LOG_FOLDER=/var/log/blackbox
       - REVERSE_PROXY=true
       - EVENTLET_NO_GREENDNS=yes
     volumes:
-      - .:/opt/ctf:ro
+      - .:/opt/blackbox:ro
       - uploads:/var/uploads
-      - logs:/var/log/CTFd
+      - logs:/var/log/blackbox
     depends_on:
       db:
         condition: service_healthy
@@ -35,6 +36,7 @@ services:
       start_period: 40s
 
   nginx:
+    container_name: blackbox-nginx
     image: nginx:stable-alpine
     restart: always
     ports:
@@ -46,18 +48,19 @@ services:
       - uploads:/var/uploads:ro
       - nginx_cache:/var/cache/nginx
     depends_on:
-      - ctf
+      - blackbox
     networks:
       default:
 
   db:
+    container_name: blackbox-db
     image: mariadb:10.11
     restart: always
     environment:
       - MARIADB_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root_password}
-      - MARIADB_USER=${DATABASE_USER:-ctf_user}
-      - MARIADB_PASSWORD=${DATABASE_PASSWORD:-ctf_password}
-      - MARIADB_DATABASE=${DATABASE_NAME:-ctf_platform}
+      - MARIADB_USER=${DATABASE_USER:-blackbox_user}
+      - MARIADB_PASSWORD=${DATABASE_PASSWORD:-blackbox_password}
+      - MARIADB_DATABASE=${DATABASE_NAME:-blackbox_ctf}
       - MARIADB_AUTO_UPGRADE=1
     volumes:
       - mysql_data:/var/lib/mysql
@@ -80,13 +83,14 @@ services:
       start_period: 30s
 
   cache:
+    container_name: blackbox-cache
     image: redis:7-alpine
     restart: always
     volumes:
       - redis_data:/data
     networks:
       internal:
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru --maxclients 10000
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s

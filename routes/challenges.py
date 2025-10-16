@@ -14,7 +14,6 @@ challenges_bp = Blueprint('challenges', __name__, url_prefix='/challenges')
 @challenges_bp.route('/')
 @login_required
 def list_challenges():
-    """List all visible challenges"""
     from models.settings import Settings
     
     # Check if team is required globally
@@ -26,7 +25,23 @@ def list_challenges():
         flash('You must join a team to view and solve challenges. Please join or create a team first.', 'warning')
         return redirect(url_for('teams.list_teams'))
     
+    # Load all visible challenges (single query)
+    # Note: solves relationship is lazy='dynamic', so we can't eager load it
     challenges = Challenge.query.filter_by(is_visible=True).all()
+    
+    # Batch check which challenges are solved (single query instead of N queries)
+    # This is the key optimization - replaces N individual queries with 1 batch query
+    challenge_ids = [c.id for c in challenges]
+    if team:
+        solved_ids = set(solve.challenge_id for solve in Solve.query.filter(
+            Solve.team_id == team.id,
+            Solve.challenge_id.in_(challenge_ids)
+        ).all())
+    else:
+        solved_ids = set(solve.challenge_id for solve in Solve.query.filter(
+            Solve.user_id == current_user.id,
+            Solve.challenge_id.in_(challenge_ids)
+        ).all())
     
     # Organize challenges by category
     categories = {}
@@ -43,11 +58,8 @@ def list_challenges():
         if challenge.category not in categories:
             categories[challenge.category] = []
         
-        # Check if solved
-        if team:
-            solved = challenge.is_solved_by_team(team.id)
-        else:
-            solved = challenge.is_solved_by_user(current_user.id)
+        # Check if solved (using pre-loaded data)
+        solved = challenge.id in solved_ids
         
         challenge_data = challenge.to_dict(include_flag=False)
         challenge_data['solved'] = solved
