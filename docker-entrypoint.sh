@@ -108,5 +108,5 @@ exec gunicorn \
     --log-level info \
     --max-requests 10000 \
     --max-requests-jitter 500 \
-    --preload-app \
+    --preload \
     "app:create_app()"
