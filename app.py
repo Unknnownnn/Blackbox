@@ -108,11 +108,6 @@ def create_app(config_name=None):
         """About page"""
         return render_template('about.html')
     
-    @app.route('/health')
-    def health():
-        """Health check endpoint"""
-        return {'status': 'healthy', 'service': 'blackbox-ctf'}, 200
-    
     @app.route('/uploads/<path:filename>')
     def serve_logo(filename):
         """Serve uploaded logo files from /var/uploads/logos"""
