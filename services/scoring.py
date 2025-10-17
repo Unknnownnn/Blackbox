@@ -145,6 +145,10 @@ class ScoringService:
         }
         
         for solve in solves:
+            # Skip if challenge has been deleted
+            if not solve.challenge:
+                continue
+                
             progress['solves'].append({
                 'challenge_id': solve.challenge_id,
                 'challenge_name': solve.challenge.name,
@@ -171,6 +175,10 @@ class ScoringService:
         }
         
         for solve in solves:
+            # Skip if challenge has been deleted
+            if not solve.challenge:
+                continue
+                
             solver = User.query.get(solve.user_id)
             progress['solves'].append({
                 'challenge_id': solve.challenge_id,
