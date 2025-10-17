@@ -24,6 +24,7 @@
                         <thead>
                             <tr>
                                 <th>Username</th>
+                                <th>Full Name</th>
                                 <th>Email</th>
                                 <th>Team</th>
                                 <th>Score</th>
@@ -41,6 +42,13 @@
                                     <i class="bi bi-shield-fill text-warning" title="Team Captain"></i>
                                     {% endif %}
                                 </td>
+                                <td>
+                                    {% if user.full_name %}
+                                    {{ user.full_name }}
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
                                 <td>{{ user.email }}</td>
                                 <td>
                                     {% if user.team %}
@@ -53,8 +61,14 @@
                                 </td>
                                 <td>
                                     <span class="badge bg-primary">{{ user.get_score() }}</span>
+                                    <a href="{{ url_for('admin.user_activity', user_id=user.id) }}" 
+                                       class="btn btn-sm btn-link p-0 ms-1" 
+                                       title="View Detailed Activity">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
                                     <button class="btn btn-sm btn-link p-0 ms-1" 
-                                            onclick="showScoreModal({{ user.id }}, '{{ user.username }}', {{ user.get_score() }}, 'user')">
+                                            onclick="showScoreModal({{ user.id }}, '{{ user.username }}', {{ user.get_score() }}, 'user')"
+                                            title="Quick Edit Score">
                                         <i class="bi bi-pencil-square"></i>
                                     </button>
                                 </td>

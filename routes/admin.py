@@ -571,6 +571,49 @@ def get_user_solves(user_id):
     })
 
 
+@admin_bp.route('/users/<int:user_id>/activity')
+@login_required
+@admin_required
+def user_activity(user_id):
+    """View detailed user activity with pagination"""
+    from models.submission import Solve, Submission
+    from models.challenge import Challenge
+    from models.hint import HintUnlock
+    from datetime import datetime
+    
+    user = User.query.get_or_404(user_id)
+    page = request.args.get('page', 1, type=int)
+    per_page = 10
+    
+    # Get all solves with challenges
+    solves_query = db.session.query(Solve, Challenge).outerjoin(
+        Challenge, Solve.challenge_id == Challenge.id
+    ).filter(
+        Solve.user_id == user_id
+    ).order_by(Solve.solved_at.desc())
+    
+    solves_pagination = solves_query.paginate(page=page, per_page=per_page, error_out=False)
+    
+    # Get hints unlocked by this user
+    hints_unlocked = HintUnlock.query.filter_by(user_id=user_id).order_by(HintUnlock.unlocked_at.desc()).all()
+    
+    # Get total stats
+    total_solves = Solve.query.filter_by(user_id=user_id).count()
+    total_submissions = Submission.query.filter_by(user_id=user_id).count()
+    total_hints = len(hints_unlocked)
+    total_score = user.get_score()
+    
+    return render_template('admin/user_activity.html', 
+                          user=user,
+                          solves_pagination=solves_pagination,
+                          hints_unlocked=hints_unlocked,
+                          total_solves=total_solves,
+                          total_submissions=total_submissions,
+                          total_hints=total_hints,
+                          total_score=total_score,
+                          now=datetime.utcnow())
+
+
 @admin_bp.route('/teams/<int:team_id>/solves', methods=['GET'])
 @login_required
 @admin_required

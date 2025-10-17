@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+
+{% block title %}{{ user.username }} - Activity - Admin - {{ ctf_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        {% include 'admin/_sidebar.html' %}
+    </div>
+    
+    <div class="col-md-9">
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="mb-1">
+                    <i class="bi bi-person-circle"></i> {{ user.username }}
+                </h2>
+                {% if user.full_name %}
+                <p class="text-muted mb-1">{{ user.full_name }}</p>
+                {% endif %}
+                <p class="text-muted mb-0">
+                    <a href="{{ url_for('admin.manage_users') }}" class="text-decoration-none">
+                        <i class="bi bi-arrow-left"></i> Back to Users
+                    </a>
+                </p>
+            </div>
+            <div class="text-end">
+                {% if user.team %}
+                <small class="text-muted d-block">Team: 
+                    <a href="{{ url_for('teams.view_team', team_id=user.team.id) }}">
+                        {{ user.team.name }}
+                    </a>
+                </small>
+                {% endif %}
+                <small class="text-muted">{{ user.email }}</small>
+            </div>
+        </div>
+        
+        <!-- Stats Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 opacity-75">Total Score</h6>
+                        <h3 class="card-title mb-0">{{ total_score }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 opacity-75">Challenges Solved</h6>
+                        <h3 class="card-title mb-0">{{ total_solves }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 opacity-75">Total Submissions</h6>
+                        <h3 class="card-title mb-0">{{ total_submissions }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card bg-warning text-dark">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 opacity-75">Hints Unlocked</h6>
+                        <h3 class="card-title mb-0">{{ total_hints }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Solved Challenges -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-flag-fill"></i> Solved Challenges
+                </h5>
+                <span class="badge bg-secondary">{{ total_solves }} total</span>
+            </div>
+            <div class="card-body">
+                {% if solves_pagination.items %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Challenge</th>
+                                <th>Category</th>
+                                <th>Points Earned</th>
+                                <th>Solved At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for solve, challenge in solves_pagination.items %}
+                            <tr>
+                                <td>
+                                    {% if challenge %}
+                                    <strong>{{ challenge.name }}</strong>
+                                    {% else %}
+                                    <span class="text-muted fst-italic">
+                                        <i class="bi bi-gear"></i> Manual Adjustment
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if challenge %}
+                                    <span class="badge bg-secondary">{{ challenge.category }}</span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge {% if solve.points_earned >= 0 %}bg-success{% else %}bg-danger{% endif %}">
+                                        {% if solve.points_earned >= 0 %}+{% endif %}{{ solve.points_earned }}
+                                    </span>
+                                    {% if challenge and challenge.is_dynamic %}
+                                    <small class="text-muted">(dynamic)</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">
+                                        {{ solve.solved_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                                    </small>
+                                    <br>
+                                    <small class="text-muted">
+                                        {{ (now - solve.solved_at).days }}d ago
+                                    </small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination -->
+                {% if solves_pagination.pages > 1 %}
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center mb-0">
+                        <!-- Previous Button -->
+                        <li class="page-item {% if not solves_pagination.has_prev %}disabled{% endif %}">
+                            <a class="page-link" 
+                               href="{% if solves_pagination.has_prev %}{{ url_for('admin.user_activity', user_id=user.id, page=solves_pagination.prev_num) }}{% else %}#{% endif %}">
+                                <i class="bi bi-chevron-left"></i> Previous
+                            </a>
+                        </li>
+                        
+                        <!-- Page Numbers -->
+                        {% set start_page = [1, solves_pagination.page - 2]|max %}
+                        {% set end_page = [solves_pagination.pages, solves_pagination.page + 2]|min %}
+                        
+                        {% if start_page > 1 %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('admin.user_activity', user_id=user.id, page=1) }}">1</a>
+                        </li>
+                        {% if start_page > 2 %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                        {% endif %}
+                        
+                        {% for page_num in range(start_page, end_page + 1) %}
+                        <li class="page-item {% if page_num == solves_pagination.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('admin.user_activity', user_id=user.id, page=page_num) }}">
+                                {{ page_num }}
+                            </a>
+                        </li>
+                        {% endfor %}
+                        
+                        {% if end_page < solves_pagination.pages %}
+                        {% if end_page < solves_pagination.pages - 1 %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('admin.user_activity', user_id=user.id, page=solves_pagination.pages) }}">
+                                {{ solves_pagination.pages }}
+                            </a>
+                        </li>
+                        {% endif %}
+                        
+                        <!-- Next Button -->
+                        <li class="page-item {% if not solves_pagination.has_next %}disabled{% endif %}">
+                            <a class="page-link" 
+                               href="{% if solves_pagination.has_next %}{{ url_for('admin.user_activity', user_id=user.id, page=solves_pagination.next_num) }}{% else %}#{% endif %}">
+                                Next <i class="bi bi-chevron-right"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+                <div class="text-center mt-2">
+                    <small class="text-muted">
+                        Page {{ solves_pagination.page }} of {{ solves_pagination.pages }} 
+                        (Showing {{ solves_pagination.items|length }} of {{ solves_pagination.total }} solves)
+                    </small>
+                </div>
+                {% endif %}
+                
+                {% else %}
+                <p class="text-muted text-center mb-0">
+                    <i class="bi bi-info-circle"></i> No challenges solved yet
+                </p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Hints Unlocked -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-lightbulb"></i> Hints Unlocked
+                </h5>
+                <span class="badge bg-secondary">{{ total_hints }} total</span>
+            </div>
+            <div class="card-body">
+                {% if hints_unlocked %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Challenge</th>
+                                <th>Hint #</th>
+                                <th>Cost</th>
+                                <th>Unlocked At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for hint_unlock in hints_unlocked %}
+                            <tr>
+                                <td>
+                                    {% if hint_unlock.hint and hint_unlock.hint.challenge %}
+                                    <strong>{{ hint_unlock.hint.challenge.name }}</strong>
+                                    {% else %}
+                                    <span class="text-muted">Unknown</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if hint_unlock.hint %}
+                                    <span class="badge bg-info">Hint {{ hint_unlock.hint.order }}</span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-warning text-dark">
+                                        -{{ hint_unlock.cost_paid }} pts
+                                    </span>
+                                </td>
+                                <td>
+                                    <small class="text-muted">
+                                        {{ hint_unlock.unlocked_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                                    </small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center mb-0">
+                    <i class="bi bi-info-circle"></i> No hints unlocked yet
+                </p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Score Adjustment -->
+        <div class="card mt-4 border-primary">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-pencil-square"></i> Manual Score Adjustment
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="points-delta" class="form-label">Points to Add/Subtract</label>
+                        <input type="number" class="form-control" id="points-delta" 
+                               placeholder="Enter positive or negative number" value="0">
+                        <div class="form-text">
+                            Positive numbers add points, negative subtract
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Quick Actions</label>
+                        <div class="btn-group d-flex" role="group">
+                            <button class="btn btn-outline-success btn-sm" onclick="setPointsDelta(100)">+100</button>
+                            <button class="btn btn-outline-success btn-sm" onclick="setPointsDelta(50)">+50</button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="setPointsDelta(-50)">-50</button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="setPointsDelta(-100)">-100</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="points-reason" class="form-label">Reason</label>
+                    <input type="text" class="form-control" id="points-reason" 
+                           placeholder="e.g., Bonus for participation, Penalty for rule violation">
+                </div>
+                <button class="btn btn-primary w-100" onclick="adjustPoints()">
+                    <i class="bi bi-check-circle"></i> Apply Point Adjustment
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const userId = {{ user.id }};
+
+function setPointsDelta(value) {
+    document.getElementById('points-delta').value = value;
+}
+
+function adjustPoints() {
+    const delta = parseInt(document.getElementById('points-delta').value);
+    const reason = document.getElementById('points-reason').value;
+    
+    if (isNaN(delta) || delta === 0) {
+        alert('Please enter a valid non-zero number');
+        return;
+    }
+    
+    if (!confirm(`Are you sure you want to ${delta > 0 ? 'add' : 'subtract'} ${Math.abs(delta)} points ${delta > 0 ? 'to' : 'from'} {{ user.username }}?`)) {
+        return;
+    }
+    
+    fetch(`/admin/users/${userId}/adjust-points`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            points: delta,
+            reason: reason || 'Manual adjustment by admin'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showFlash(data.message, 'success');
+            // Reload page after 2 seconds
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showFlash(data.message || 'Error adjusting points', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showFlash('Error adjusting points', 'danger');
+    });
+}
+
+function showFlash(message, type) {
+    const container = document.querySelector('.container');
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} alert-dismissible fade show mt-3`;
+    alert.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    container.insertBefore(alert, container.firstChild);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        alert.classList.remove('show');
+        setTimeout(() => alert.remove(), 150);
+    }, 5000);
+}
+</script>
+
+<style>
+.pagination {
+    margin-top: 1rem;
+}
+
+.page-link {
+    color: var(--bs-primary);
+}
+
+.page-item.active .page-link {
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
+}
+
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+</style>
+{% endblock %}
