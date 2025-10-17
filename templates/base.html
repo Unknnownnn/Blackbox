@@ -21,6 +21,15 @@
         })();
     </script>
     
+    <!-- Custom Background Theme -->
+    {% if settings.get('custom_background_enabled') and settings.get('custom_background_css') %}
+    <style>
+        body {
+            {{ settings.get('custom_background_css') | safe }}
+        }
+    </style>
+    {% endif %}
+    
     {% block extra_css %}{% endblock %}
 </head>
 <body>

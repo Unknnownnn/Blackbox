@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app
 from flask_login import login_required, current_user
 from functools import wraps
 from datetime import datetime
@@ -746,6 +746,56 @@ def update_event_config():
     return redirect(url_for('admin.settings'))
 
 
+@admin_bp.route('/settings/background-theme', methods=['POST'])
+@login_required
+@admin_required
+def update_background_theme():
+    """Update custom background theme"""
+    from models.settings import Settings
+    import re
+    
+    try:
+        enabled = 'custom_background_enabled' in request.form
+        Settings.set('custom_background_enabled', enabled, 'bool', 'Enable custom background theme')
+        
+        if enabled:
+            css = request.form.get('custom_background_css', '').strip()
+            
+            # Security: Only allow background-related CSS properties
+            allowed_properties = [
+                'background', 'background-color', 'background-image', 
+                'background-size', 'background-position', 'background-repeat',
+                'background-attachment', 'animation', '@keyframes'
+            ]
+            
+            # Very basic validation - check if it contains only allowed properties
+            # This is a simple check, not a full CSS parser
+            if css:
+                # Remove comments
+                css_clean = re.sub(r'/\*.*?\*/', '', css, flags=re.DOTALL)
+                
+                # Check for potentially dangerous content
+                dangerous_patterns = [
+                    r'<script', r'javascript:', r'onerror', r'onload',
+                    r'eval\(', r'expression\(', r'import\s+["\']'
+                ]
+                
+                for pattern in dangerous_patterns:
+                    if re.search(pattern, css_clean, re.IGNORECASE):
+                        flash('Invalid CSS: Potentially dangerous content detected', 'error')
+                        return redirect(url_for('admin.settings'))
+                
+                Settings.set('custom_background_css', css, 'string', 'Custom background CSS')
+            else:
+                Settings.set('custom_background_css', '', 'string', 'Custom background CSS')
+        
+        flash('Background theme updated successfully!', 'success')
+    except Exception as e:
+        flash(f'Error updating background theme: {str(e)}', 'error')
+    
+    return redirect(url_for('admin.settings'))
+
+
 # CTF Control
 @admin_bp.route('/ctf-control', methods=['GET', 'POST'])
 @login_required
@@ -1205,52 +1255,44 @@ def backups():
 @login_required
 @admin_required
 def list_backups():
-    """List all available backups"""
-    import subprocess
+    """List all available backups (stored in uploads directory)"""
     import json
     import os
+    from pathlib import Path
     
     try:
-        # List backup directories
-        result = subprocess.run(
-            ['docker', 'exec', 'blackbox-backup', 'find', '/var/backups/ctf', 
-             '-maxdepth', '1', '-type', 'd', '-name', 'backup_*'],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
+        # Store backups in the uploads directory under 'backups' folder
+        backup_dir = Path(current_app.config.get('UPLOAD_FOLDER', 'static/uploads')) / 'backups'
+        backup_dir.mkdir(parents=True, exist_ok=True)
         
-        if result.returncode != 0:
-            return jsonify({'success': False, 'error': 'Failed to list backups'})
-        
-        backup_dirs = [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
         backups = []
         
-        for backup_dir in sorted(backup_dirs, reverse=True):
-            backup_name = os.path.basename(backup_dir)
-            
-            # Try to read metadata
-            metadata_result = subprocess.run(
-                ['docker', 'exec', 'blackbox-backup', 'cat', f'{backup_dir}/metadata.json'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            
-            if metadata_result.returncode == 0:
-                try:
-                    metadata = json.loads(metadata_result.stdout)
-                    backups.append(metadata)
-                except json.JSONDecodeError:
-                    # Fallback if metadata is invalid
-                    backups.append({'backup_name': backup_name, 'timestamp': 'Unknown'})
-            else:
-                backups.append({'backup_name': backup_name, 'timestamp': 'Unknown'})
+        if backup_dir.exists():
+            for backup_file in sorted(backup_dir.glob('backup_*.sql.gz'), reverse=True):
+                backup_name = backup_file.stem.replace('.sql', '')  # Remove .sql from name
+                
+                # Try to read metadata if it exists
+                metadata_file = backup_file.with_suffix('.json')
+                if metadata_file.exists():
+                    try:
+                        with open(metadata_file, 'r') as f:
+                            metadata = json.load(f)
+                            backups.append(metadata)
+                    except json.JSONDecodeError:
+                        backups.append({
+                            'backup_name': backup_name,
+                            'timestamp': backup_file.stat().st_mtime,
+                            'size_mb': backup_file.stat().st_size / (1024 * 1024)
+                        })
+                else:
+                    backups.append({
+                        'backup_name': backup_name,
+                        'timestamp': backup_file.stat().st_mtime,
+                        'size_mb': backup_file.stat().st_size / (1024 * 1024)
+                    })
         
         return jsonify({'success': True, 'backups': backups})
         
-    except subprocess.TimeoutExpired:
-        return jsonify({'success': False, 'error': 'Command timed out'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
@@ -1259,33 +1301,109 @@ def list_backups():
 @login_required
 @admin_required
 def create_backup():
-    """Create a manual backup"""
-    import subprocess
+    """Create a manual database backup"""
+    import gzip
+    import json
+    from datetime import datetime
+    from pathlib import Path
     
     try:
-        # Run backup script
-        result = subprocess.run(
-            ['docker', 'exec', 'blackbox-backup', '/usr/local/bin/backup.sh'],
-            capture_output=True,
-            text=True,
-            timeout=300  # 5 minutes timeout
+        # Get database connection info
+        db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI')
+        
+        # Create backup directory
+        backup_dir = Path(current_app.config.get('UPLOAD_FOLDER', 'static/uploads')) / 'backups'
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate backup name
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_name = f'backup_{timestamp}'
+        backup_file = backup_dir / f'{backup_name}.sql.gz'
+        
+        # Export database to SQL dump
+        import pymysql
+        from urllib.parse import urlparse
+        
+        parsed = urlparse(db_uri)
+        conn = pymysql.connect(
+            host=parsed.hostname,
+            port=parsed.port or 3306,
+            user=parsed.username,
+            password=parsed.password,
+            database=parsed.path.lstrip('/')
         )
         
-        if result.returncode == 0:
-            return jsonify({
-                'success': True,
-                'message': 'Backup created successfully',
-                'output': result.stdout
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': 'Backup failed',
-                'output': result.stderr
-            })
+        cursor = conn.cursor()
+        
+        # Get all tables
+        cursor.execute("SHOW TABLES")
+        tables = [table[0] for table in cursor.fetchall()]
+        
+        # Create SQL dump
+        sql_dump = []
+        sql_dump.append(f"-- Database backup: {backup_name}")
+        sql_dump.append(f"-- Timestamp: {datetime.now().isoformat()}")
+        sql_dump.append("SET FOREIGN_KEY_CHECKS=0;")
+        
+        for table in tables:
+            # Get CREATE TABLE statement
+            cursor.execute(f"SHOW CREATE TABLE `{table}`")
+            create_table = cursor.fetchone()[1]
+            sql_dump.append(f"\n-- Table: {table}")
+            sql_dump.append(f"DROP TABLE IF EXISTS `{table}`;")
+            sql_dump.append(create_table + ";")
             
-    except subprocess.TimeoutExpired:
-        return jsonify({'success': False, 'error': 'Backup timed out (>5 minutes)'})
+            # Get table data
+            cursor.execute(f"SELECT * FROM `{table}`")
+            rows = cursor.fetchall()
+            
+            if rows:
+                cursor.execute(f"DESCRIBE `{table}`")
+                columns = [col[0] for col in cursor.fetchall()]
+                
+                for row in rows:
+                    values = []
+                    for value in row:
+                        if value is None:
+                            values.append('NULL')
+                        elif isinstance(value, (int, float)):
+                            values.append(str(value))
+                        elif isinstance(value, datetime):
+                            values.append(f"'{value.isoformat()}'")
+                        else:
+                            # Escape single quotes
+                            escaped = str(value).replace("'", "''")
+                            values.append(f"'{escaped}'")
+                    
+                    sql_dump.append(f"INSERT INTO `{table}` VALUES ({', '.join(values)});")
+        
+        sql_dump.append("SET FOREIGN_KEY_CHECKS=1;")
+        
+        conn.close()
+        
+        # Write compressed backup
+        with gzip.open(backup_file, 'wt', encoding='utf-8') as f:
+            f.write('\n'.join(sql_dump))
+        
+        # Create metadata
+        metadata = {
+            'backup_name': backup_name,
+            'timestamp': datetime.now().isoformat(),
+            'database': parsed.path.lstrip('/'),
+            'tables': len(tables),
+            'size_mb': backup_file.stat().st_size / (1024 * 1024)
+        }
+        
+        metadata_file = backup_dir / f'{backup_name}.json'
+        with open(metadata_file, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Backup created successfully',
+            'backup': metadata
+        })
+            
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
@@ -1295,43 +1413,143 @@ def create_backup():
 @admin_required
 def restore_backup():
     """Restore from a backup"""
-    import subprocess
+    import gzip
+    from pathlib import Path
     
     data = request.get_json()
     backup_name = data.get('backup_name')
     
-    if not backup_name:
-        return jsonify({'success': False, 'error': 'Backup name required'})
+    if not backup_name or not backup_name.startswith('backup_'):
+        return jsonify({'success': False, 'error': 'Invalid backup name'})
     
     try:
-        # Run restore script with FORCE_RESTORE=1 to skip confirmation
-        result = subprocess.run(
-            ['docker', 'exec', '-e', 'FORCE_RESTORE=1', 'blackbox-backup', 
-             '/usr/local/bin/restore.sh', backup_name],
-            capture_output=True,
-            text=True,
-            timeout=300  # 5 minutes timeout
+        backup_dir = Path(current_app.config.get('UPLOAD_FOLDER', 'static/uploads')) / 'backups'
+        backup_file = backup_dir / f'{backup_name}.sql.gz'
+        
+        if not backup_file.exists():
+            return jsonify({'success': False, 'error': 'Backup file not found'})
+        
+        # Read and execute SQL dump
+        import pymysql
+        from urllib.parse import urlparse
+        
+        db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI')
+        parsed = urlparse(db_uri)
+        
+        conn = pymysql.connect(
+            host=parsed.hostname,
+            port=parsed.port or 3306,
+            user=parsed.username,
+            password=parsed.password,
+            database=parsed.path.lstrip('/'),
+            charset='utf8mb4'
         )
         
-        if result.returncode == 0:
-            # Restart application containers
-            subprocess.run(['docker', 'compose', 'restart', 'blackbox', 'cache'], 
-                         capture_output=True, timeout=60)
+        cursor = conn.cursor()
+        
+        # Disable foreign key checks for restore
+        cursor.execute('SET FOREIGN_KEY_CHECKS=0')
+        
+        # Read backup file
+        with gzip.open(backup_file, 'rt', encoding='utf-8') as f:
+            sql_content = f.read()
+        
+        # Parse SQL to extract only INSERT statements (skip DROP/CREATE)
+        # We only want to restore DATA, not recreate table structures
+        statements = []
+        current_statement = []
+        
+        for line in sql_content.split('\n'):
+            line = line.strip()
             
+            # Skip comments and empty lines
+            if line.startswith('--') or not line:
+                continue
+            
+            # Skip DROP TABLE and CREATE TABLE statements
+            # We only want INSERT statements (data restoration)
+            if line.upper().startswith('DROP TABLE') or line.upper().startswith('CREATE TABLE'):
+                continue
+            
+            current_statement.append(line)
+            
+            # Check if statement is complete (ends with semicolon)
+            if line.endswith(';'):
+                full_statement = ' '.join(current_statement).strip()
+                if full_statement:
+                    statements.append(full_statement)
+                current_statement = []
+        
+        # Add any remaining statement
+        if current_statement:
+            full_statement = ' '.join(current_statement).strip()
+            if full_statement and full_statement.endswith(';'):
+                statements.append(full_statement)
+        
+        # Get list of tables to clear
+        cursor.execute("SHOW TABLES")
+        tables = [table[0] for table in cursor.fetchall()]
+        
+        # Clear all existing data from tables (DELETE, not DROP)
+        tables_cleared = 0
+        for table in tables:
+            try:
+                # Skip system/migration tables if any
+                if table in ['alembic_version', 'migrations']:
+                    continue
+                cursor.execute(f"DELETE FROM `{table}`")
+                tables_cleared += 1
+            except pymysql.err.Error as e:
+                # Some tables might fail, continue with others
+                pass
+        
+        # Execute INSERT statements with proper error handling
+        errors = []
+        success_count = 0
+        
+        for i, statement in enumerate(statements):
+            try:
+                # Only process SET and INSERT statements
+                if statement.upper().startswith('SET '):
+                    cursor.execute(statement)
+                    success_count += 1
+                elif statement.upper().startswith('INSERT '):
+                    cursor.execute(statement)
+                    success_count += 1
+                    
+            except pymysql.err.Error as e:
+                error_msg = f"Statement {i+1}: {str(e)[:100]}"
+                errors.append(error_msg)
+                # Continue with other statements instead of failing completely
+                continue
+        
+        # Re-enable foreign key checks
+        cursor.execute('SET FOREIGN_KEY_CHECKS=1')
+        
+        conn.commit()
+        conn.close()
+        
+        # Clear all caches
+        from services.cache import cache_service
+        cache_service.clear_all()
+        
+        if errors and success_count == 0:
+            return jsonify({
+                'success': False,
+                'error': f'Restore failed. No data could be restored. Errors: {"; ".join(errors[:3])}'
+            })
+        elif errors:
             return jsonify({
                 'success': True,
-                'message': 'Backup restored successfully. Application restarted.',
-                'output': result.stdout
+                'message': f'Backup restored! Cleared {tables_cleared} tables and inserted {success_count} records. Some minor errors occurred but restore succeeded. All caches cleared.',
+                'warnings': errors[:5]  # Show first 5 errors
             })
         else:
             return jsonify({
-                'success': False,
-                'error': 'Restore failed',
-                'output': result.stderr
+                'success': True,
+                'message': f'Backup restored successfully! Cleared {tables_cleared} tables and inserted {success_count} records. All caches cleared.'
             })
             
-    except subprocess.TimeoutExpired:
-        return jsonify({'success': False, 'error': 'Restore timed out (>5 minutes)'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
@@ -1341,7 +1559,7 @@ def restore_backup():
 @admin_required
 def delete_backup():
     """Delete a backup"""
-    import subprocess
+    from pathlib import Path
     
     data = request.get_json()
     backup_name = data.get('backup_name')
@@ -1350,17 +1568,17 @@ def delete_backup():
         return jsonify({'success': False, 'error': 'Invalid backup name'})
     
     try:
-        result = subprocess.run(
-            ['docker', 'exec', 'blackbox-backup', 'rm', '-rf', f'/var/backups/ctf/{backup_name}'],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
+        backup_dir = Path(current_app.config.get('UPLOAD_FOLDER', 'static/uploads')) / 'backups'
+        backup_file = backup_dir / f'{backup_name}.sql.gz'
+        metadata_file = backup_dir / f'{backup_name}.json'
         
-        if result.returncode == 0:
-            return jsonify({'success': True, 'message': 'Backup deleted successfully'})
-        else:
-            return jsonify({'success': False, 'error': 'Failed to delete backup'})
+        # Delete files
+        if backup_file.exists():
+            backup_file.unlink()
+        if metadata_file.exists():
+            metadata_file.unlink()
+        
+        return jsonify({'success': True, 'message': 'Backup deleted successfully'})
             
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -1370,36 +1588,87 @@ def delete_backup():
 @login_required
 @admin_required
 def download_backup(backup_name):
-    """Download a backup as tar.gz"""
-    import subprocess
+    """Download a backup file"""
     from flask import send_file
-    import tempfile
-    import os
+    from pathlib import Path
     
     if not backup_name.startswith('backup_'):
         flash('Invalid backup name', 'error')
         return redirect(url_for('admin.backups'))
     
     try:
-        # Create temporary file
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.tar.gz')
-        temp_file.close()
+        backup_dir = Path(current_app.config.get('UPLOAD_FOLDER', 'static/uploads')) / 'backups'
+        backup_file = backup_dir / f'{backup_name}.sql.gz'
         
-        # Export backup directory as tar.gz
-        subprocess.run(
-            ['docker', 'exec', 'blackbox-backup', 'tar', '-czf', '-', '-C', 
-             '/var/backups/ctf', backup_name],
-            stdout=open(temp_file.name, 'wb'),
-            timeout=300
-        )
+        if not backup_file.exists():
+            flash('Backup file not found', 'error')
+            return redirect(url_for('admin.backups'))
         
         return send_file(
-            temp_file.name,
+            backup_file,
             as_attachment=True,
-            download_name=f'{backup_name}.tar.gz',
+            download_name=f'{backup_name}.sql.gz',
             mimetype='application/gzip'
         )
         
     except Exception as e:
         flash(f'Download failed: {str(e)}', 'error')
         return redirect(url_for('admin.backups'))
+
+
+@admin_bp.route('/backups/api/upload', methods=['POST'])
+@login_required
+@admin_required
+def upload_backup():
+    """Upload a backup file for restoration"""
+    from pathlib import Path
+    from datetime import datetime
+    import json
+    
+    try:
+        if 'backup_file' not in request.files:
+            return jsonify({'success': False, 'error': 'No file uploaded'})
+        
+        file = request.files['backup_file']
+        
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'No file selected'})
+        
+        if not file.filename.endswith('.sql.gz'):
+            return jsonify({'success': False, 'error': 'Invalid file type. Must be .sql.gz'})
+        
+        # Save to backups directory
+        backup_dir = Path(current_app.config.get('UPLOAD_FOLDER', 'static/uploads')) / 'backups'
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate name if not already in backup format
+        if file.filename.startswith('backup_'):
+            backup_name = file.filename.replace('.sql.gz', '')
+        else:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            backup_name = f'backup_uploaded_{timestamp}'
+        
+        backup_file = backup_dir / f'{backup_name}.sql.gz'
+        file.save(backup_file)
+        
+        # Create metadata
+        metadata = {
+            'backup_name': backup_name,
+            'timestamp': datetime.now().isoformat(),
+            'uploaded': True,
+            'original_filename': file.filename,
+            'size_mb': backup_file.stat().st_size / (1024 * 1024)
+        }
+        
+        metadata_file = backup_dir / f'{backup_name}.json'
+        with open(metadata_file, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Backup uploaded successfully',
+            'backup': metadata
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})

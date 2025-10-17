@@ -50,14 +50,19 @@
                 <button class="btn btn-primary" onclick="createBackup()">
                     <i class="bi bi-plus-circle"></i> Create Manual Backup
                 </button>
+                <button class="btn btn-success ms-2" onclick="document.getElementById('uploadInput').click()">
+                    <i class="bi bi-upload"></i> Upload Backup
+                </button>
                 <button class="btn btn-secondary ms-2" onclick="loadBackups()">
                     <i class="bi bi-arrow-clockwise"></i> Refresh List
                 </button>
                 
+                <input type="file" id="uploadInput" accept=".sql.gz" style="display: none;" onchange="uploadBackup(event)">
+                
                 <div class="alert alert-info mt-3 mb-0">
                     <i class="bi bi-info-circle"></i>
-                    <strong>Automatic Backups:</strong> System automatically creates backups every hour.
-                    Backups are kept for 7 days (168 backups). Manual backups can be created anytime.
+                    <strong>Note:</strong> Backups contain database snapshots (SQL dumps). 
+                    You can download, upload, and restore backups. Uploads must be .sql.gz format.
                 </div>
             </div>
         </div>
@@ -308,6 +313,54 @@ function showError(message) {
     const errorDiv = document.getElementById('error-message');
     errorDiv.textContent = message;
     errorDiv.style.display = 'block';
+}
+
+function uploadBackup(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    if (!file.name.endsWith('.sql.gz')) {
+        alert('✗ Invalid file type. Please upload a .sql.gz file.');
+        return;
+    }
+    
+    if (!confirm(`Upload backup file: ${file.name}?\n\nThis will make it available for restoration.`)) {
+        event.target.value = '';
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('backup_file', file);
+    
+    // Show loading
+    const loadingDiv = document.getElementById('loading');
+    loadingDiv.innerHTML = '<div class="spinner-border text-primary" role="status"></div><p class="mt-2">Uploading backup...</p>';
+    loadingDiv.style.display = 'block';
+    document.getElementById('backups-container').style.display = 'none';
+    
+    fetch('/admin/backups/api/upload', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✓ Backup uploaded successfully!');
+            loadBackups();
+        } else {
+            alert('✗ Upload failed: ' + (data.error || 'Unknown error'));
+            loadingDiv.style.display = 'none';
+            document.getElementById('backups-container').style.display = 'block';
+        }
+    })
+    .catch(error => {
+        alert('✗ Network error: ' + error.message);
+        loadingDiv.style.display = 'none';
+        document.getElementById('backups-container').style.display = 'block';
+    })
+    .finally(() => {
+        event.target.value = '';
+    });
 }
 </script>
 {% endblock %}
