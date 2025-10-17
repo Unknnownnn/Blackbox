@@ -191,10 +191,21 @@
                         <div class="mb-3">
                             <label for="custom_background_css" class="form-label"><strong>Custom Background CSS</strong></label>
                             <textarea class="form-control font-monospace" id="custom_background_css" name="custom_background_css" 
-                                      rows="8" placeholder="Enter CSS for body background only...">{{ settings.get('custom_background_css', '') }}</textarea>
+                                      rows="8" placeholder="Enter complete CSS with body selector and @keyframes...
+
+Example:
+body {
+    background: linear-gradient(-45deg, #ee7752, #e73c7e);
+    animation: myAnim 15s ease infinite;
+}
+
+@keyframes myAnim {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 100% 50%; }
+}">{{ settings.get('custom_background_css', '') }}</textarea>
                             <div class="form-text">
-                                <i class="bi bi-info-circle"></i> CSS will be applied to the <code>body</code> element only.<br>
-                                <strong>Examples:</strong>
+                                <i class="bi bi-info-circle"></i> Include <code>body { }</code> selector and <code>@keyframes</code> for animations.<br>
+                                <strong>Examples below show complete working code:</strong>
                             </div>
                         </div>
                         
@@ -208,9 +219,11 @@
                                 </h2>
                                 <div id="example1" class="accordion-collapse collapse" data-bs-parent="#backgroundExamples">
                                     <div class="accordion-body">
-                                        <pre class="bg-dark text-light p-3"><code>background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
-background-size: 400% 400%;
-animation: gradient 15s ease infinite;
+                                        <pre class="bg-dark text-light p-3"><code>body {
+    background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+    background-size: 400% 400%;
+    animation: gradient 15s ease infinite;
+}
 
 @keyframes gradient {
     0% { background-position: 0% 50%; }
@@ -230,12 +243,14 @@ animation: gradient 15s ease infinite;
                                 </h2>
                                 <div id="example2" class="accordion-collapse collapse" data-bs-parent="#backgroundExamples">
                                     <div class="accordion-body">
-                                        <pre class="bg-dark text-light p-3"><code>background-color: #000;
-background-image: 
-    repeating-linear-gradient(0deg, transparent, transparent 2px, #0f0 3px, #0f0 4px),
-    repeating-linear-gradient(90deg, transparent, transparent 2px, #0f0 3px, #0f0 4px);
-background-size: 10px 10px;
-animation: matrixRain 20s linear infinite;
+                                        <pre class="bg-dark text-light p-3"><code>body {
+    background-color: #000;
+    background-image: 
+        repeating-linear-gradient(0deg, transparent, transparent 2px, #0f0 3px, #0f0 4px),
+        repeating-linear-gradient(90deg, transparent, transparent 2px, #0f0 3px, #0f0 4px);
+    background-size: 10px 10px;
+    animation: matrixRain 20s linear infinite;
+}
 
 @keyframes matrixRain {
     from { background-position: 0 0; }
@@ -249,21 +264,33 @@ animation: matrixRain 20s linear infinite;
                             <div class="accordion-item">
                                 <h2 class="accordion-header">
                                     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example3">
-                                        Example 3: Cyber Grid
+                                        Example 3: Animated Cyber Grid
                                     </button>
                                 </h2>
                                 <div id="example3" class="accordion-collapse collapse" data-bs-parent="#backgroundExamples">
                                     <div class="accordion-body">
-                                        <pre class="bg-dark text-light p-3"><code>background-color: #0a0e27;
-background-image: 
-    linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
-background-size: 50px 50px;
-animation: cyberMove 30s linear infinite;
+                                        <pre class="bg-dark text-light p-3"><code>body {
+    background-color: #050518;
+    background-image: 
+        linear-gradient(rgba(255, 0, 255, 0.25) 2px, transparent 2px),
+        linear-gradient(90deg, rgba(0, 200, 255, 0.25) 2px, transparent 2px),
+        linear-gradient(rgba(255, 0, 255, 0.1) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 200, 255, 0.1) 1px, transparent 1px);
+    background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+    background-position: 0 0, 0 0, 0 0, 0 0;
+    animation: cyberGrid 20s linear infinite;
+    transition: box-shadow 0.3s ease, filter 0.3s ease;
+    min-height: 100vh;
+    overflow-y: auto;
+}
 
-@keyframes cyberMove {
-    from { background-position: 0 0; }
-    to { background-position: 50px 50px; }
+@keyframes cyberGrid {
+    0% {
+        background-position: 0 0, 0 0, 0 0, 0 0;
+    }
+    100% {
+        background-position: 100px 100px, -100px -100px, -20px -20px, 20px 20px;
+    }
 }</code></pre>
                                         <button type="button" class="btn btn-sm btn-primary" onclick="applyExample(3)">Use This Example</button>
                                     </div>
@@ -278,9 +305,11 @@ animation: cyberMove 30s linear infinite;
                                 </h2>
                                 <div id="example4" class="accordion-collapse collapse" data-bs-parent="#backgroundExamples">
                                     <div class="accordion-body">
-                                        <pre class="bg-dark text-light p-3"><code>background: #000 url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><circle cx="10" cy="10" r="1" fill="white"/><circle cx="40" cy="30" r="1" fill="white"/><circle cx="70" cy="20" r="1" fill="white"/><circle cx="25" cy="60" r="1" fill="white"/><circle cx="80" cy="80" r="1" fill="white"/></svg>');
-background-size: 200px 200px;
-animation: starMove 100s linear infinite;
+                                        <pre class="bg-dark text-light p-3"><code>body {
+    background: #000 url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><circle cx="10" cy="10" r="1" fill="white"/><circle cx="40" cy="30" r="1" fill="white"/><circle cx="70" cy="20" r="1" fill="white"/><circle cx="25" cy="60" r="1" fill="white"/><circle cx="80" cy="80" r="1" fill="white"/></svg>');
+    background-size: 200px 200px;
+    animation: starMove 100s linear infinite;
+}
 
 @keyframes starMove {
     from { background-position: 0 0; }
@@ -335,40 +364,55 @@ function getFlaskVersion() {
 
 // Background theme examples
 const examples = {
-    1: `background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
-background-size: 400% 400%;
-animation: gradient 15s ease infinite;
+    1: `body {
+    background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+    background-size: 400% 400%;
+    animation: gradient 15s ease infinite;
+}
 
 @keyframes gradient {
     0% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
 }`,
-    2: `background-color: #000;
-background-image: 
-    repeating-linear-gradient(0deg, transparent, transparent 2px, #0f0 3px, #0f0 4px),
-    repeating-linear-gradient(90deg, transparent, transparent 2px, #0f0 3px, #0f0 4px);
-background-size: 10px 10px;
-animation: matrixRain 20s linear infinite;
+    2: `body {
+    background-color: #000;
+    background-image: 
+        repeating-linear-gradient(0deg, transparent, transparent 2px, #0f0 3px, #0f0 4px),
+        repeating-linear-gradient(90deg, transparent, transparent 2px, #0f0 3px, #0f0 4px);
+    background-size: 10px 10px;
+    animation: matrixRain 20s linear infinite;
+}
 
 @keyframes matrixRain {
     from { background-position: 0 0; }
     to { background-position: 0 100px; }
 }`,
-    3: `background-color: #0a0e27;
-background-image: 
-    linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
-background-size: 50px 50px;
-animation: cyberMove 30s linear infinite;
+    3: `body {
+    background-color: #0a0e27;
+    background-image: 
+        linear-gradient(rgba(0, 255, 255, 0.15) 2px, transparent 2px),
+        linear-gradient(90deg, rgba(0, 255, 255, 0.15) 2px, transparent 2px),
+        linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+    background-position: 0 0, 0 0, 0 0, 0 0;
+    animation: cyberGrid 20s linear infinite;
+}
 
-@keyframes cyberMove {
-    from { background-position: 0 0; }
-    to { background-position: 50px 50px; }
+@keyframes cyberGrid {
+    0% {
+        background-position: 0 0, 0 0, 0 0, 0 0;
+    }
+    100% {
+        background-position: 100px 100px, -100px -100px, -20px -20px, 20px 20px;
+    }
 }`,
-    4: `background: #000 url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><circle cx="10" cy="10" r="1" fill="white"/><circle cx="40" cy="30" r="1" fill="white"/><circle cx="70" cy="20" r="1" fill="white"/><circle cx="25" cy="60" r="1" fill="white"/><circle cx="80" cy="80" r="1" fill="white"/></svg>');
-background-size: 200px 200px;
-animation: starMove 100s linear infinite;
+    4: `body {
+    background: #000 url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><circle cx="10" cy="10" r="1" fill="white"/><circle cx="40" cy="30" r="1" fill="white"/><circle cx="70" cy="20" r="1" fill="white"/><circle cx="25" cy="60" r="1" fill="white"/><circle cx="80" cy="80" r="1" fill="white"/></svg>');
+    background-size: 200px 200px;
+    animation: starMove 100s linear infinite;
+}
 
 @keyframes starMove {
     from { background-position: 0 0; }

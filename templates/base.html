@@ -23,10 +23,8 @@
     
     <!-- Custom Background Theme -->
     {% if settings.get('custom_background_enabled') and settings.get('custom_background_css') %}
-    <style>
-        body {
-            {{ settings.get('custom_background_css') | safe }}
-        }
+    <style id="custom-background-theme">
+        {{ settings.get('custom_background_css') | safe }}
     </style>
     {% endif %}
     
