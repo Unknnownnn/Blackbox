@@ -98,6 +98,7 @@ echo ""
 
 # Start application with Gunicorn
 exec gunicorn \
+    --config gunicorn.conf.py \
     --bind 0.0.0.0:8000 \
     --workers "${WORKERS:-4}" \
     --worker-class eventlet \
@@ -105,4 +106,7 @@ exec gunicorn \
     --access-logfile "${ACCESS_LOG:--}" \
     --error-logfile "${ERROR_LOG:--}" \
     --log-level info \
+    --max-requests 10000 \
+    --max-requests-jitter 500 \
+    --preload-app \
     "app:create_app()"

@@ -36,8 +36,8 @@ tmp_upload_dir = None
 
 # Performance
 preload_app = True
-max_requests = 1000
-max_requests_jitter = 50
+max_requests = 10000  # Increased from 1000 to prevent frequent restarts
+max_requests_jitter = 500  # Increased jitter for better spread
 
 # Restart workers gracefully
 graceful_timeout = 30
