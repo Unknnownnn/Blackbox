@@ -448,7 +448,7 @@ function previewBackground() {
     // Apply preview
     const style = document.createElement('style');
     style.id = 'preview-background-style';
-    style.textContent = `body { ${css} }`;
+    style.textContent = css;
     document.head.appendChild(style);
     
     alert('Preview applied! Scroll around to see the effect. Save to make it permanent.');
