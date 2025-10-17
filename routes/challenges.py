@@ -372,7 +372,24 @@ def submit_flag(challenge_id):
         unlocked_challenges = []
         
         if hasattr(matched_flag, 'unlocks_challenge_id') and matched_flag.unlocks_challenge_id:
-            # This flag unlocks another challenge
+            # Check if this specific path/challenge was already unlocked by this user/team
+            existing_unlock = ChallengeUnlock.query.filter(
+                ChallengeUnlock.challenge_id == matched_flag.unlocks_challenge_id,
+                db.or_(
+                    ChallengeUnlock.user_id == current_user.id,
+                    ChallengeUnlock.team_id == team_id
+                )
+            ).first()
+            
+            if existing_unlock:
+                # Path already unlocked, inform user but don't create duplicate
+                unlocked_challenge = Challenge.query.get(matched_flag.unlocks_challenge_id)
+                return jsonify({
+                    'success': False,
+                    'message': f'You have already unlocked the path to "{unlocked_challenge.name if unlocked_challenge else "this challenge"}" with a different flag.'
+                }), 400
+            
+            # This flag unlocks another challenge - create unlock record
             unlock_record = ChallengeUnlock(
                 user_id=current_user.id,
                 team_id=team_id,
