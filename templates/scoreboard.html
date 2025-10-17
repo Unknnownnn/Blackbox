@@ -132,12 +132,11 @@
                     <th>{% if teams_enabled %}Team{% else %}User{% endif %}</th>
                     <th class="text-end">Score</th>
                     <th class="text-center">Solves</th>
-                    <th>Last Solve</th>
                 </tr>
             </thead>
             <tbody id="scoreboardBody">
                 <tr>
-                    <td colspan="5" class="text-center py-4">
+                    <td colspan="4" class="text-center py-4">
                         <div class="spinner-border text-primary" role="status">
                             <span class="visually-hidden">Loading...</span>
                         </div>
@@ -203,7 +202,7 @@ function updateScoreboardTable() {
         // Show loading state if no data received yet
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" class="text-center py-4">
+                <td colspan="4" class="text-center py-4">
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Loading scoreboard...</span>
                     </div>
@@ -245,21 +244,10 @@ function updateScoreboardTable() {
         solvesTd.className = 'solves-cell';
         solvesTd.textContent = team.solves;
         
-        // Last solve - Simple time
-        const lastSolveTd = document.createElement('td');
-        lastSolveTd.className = 'time-cell';
-        if (team.last_solve) {
-            const date = new Date(team.last_solve);
-            lastSolveTd.textContent = formatDate(date);
-        } else {
-            lastSolveTd.textContent = '-';
-        }
-        
         tr.appendChild(rankTd);
         tr.appendChild(nameTd);
         tr.appendChild(scoreTd);
         tr.appendChild(solvesTd);
-        tr.appendChild(lastSolveTd);
         
         tbody.appendChild(tr);
     });
@@ -304,7 +292,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const tbody = document.getElementById('scoreboardBody');
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="text-center text-danger py-4">
+                    <td colspan="4" class="text-center text-danger py-4">
                         <i class="bi bi-exclamation-triangle"></i> Error loading scoreboard
                     </td>
                 </tr>`;
