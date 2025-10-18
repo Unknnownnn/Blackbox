@@ -103,7 +103,7 @@ def get_platform_stats():
             'total_teams': Team.query.filter_by(is_active=True).count(),
             'total_challenges': Challenge.query.filter_by(is_visible=True).count(),
             'total_submissions': Submission.query.count(),
-            'total_solves': Solve.query.count(),
+            'total_solves': Solve.query.filter(Solve.challenge_id.isnot(None)).count(),
             'challenges_by_category': {}
         }
         

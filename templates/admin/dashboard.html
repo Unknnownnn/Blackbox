@@ -74,7 +74,7 @@
                         <tbody>
                             {% for solve in recent_solves %}
                             <tr>
-                                <td>{{ solve.solved_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>{{ solve.solved_at|format_datetime('%Y-%m-%d %H:%M') }}</td>
                                 <td>{{ solve.user.username }}</td>
                                 <td>{{ solve.team.name if solve.team else '-' }}</td>
                                 <td>{{ solve.challenge.name }}</td>

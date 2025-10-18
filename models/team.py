@@ -47,8 +47,8 @@ class Team(db.Model):
         return total
     
     def get_solves_count(self):
-        """Get number of challenges solved by team"""
-        return self.solves.count()
+        """Get number of challenges solved by team (excludes manual adjustments)"""
+        return self.solves.filter(db.text('challenge_id IS NOT NULL')).count()
     
     def get_members(self):
         """Get all team members"""

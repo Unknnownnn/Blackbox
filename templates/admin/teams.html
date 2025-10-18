@@ -57,7 +57,7 @@
                                         <i class="bi bi-pencil-square"></i>
                                     </button>
                                 </td>
-                                <td>{{ team.created_at.strftime('%Y-%m-%d') }}</td>
+                                <td>{{ team.created_at|format_datetime('%Y-%m-%d') }}</td>
                                 <td>
                                     <div class="btn-group btn-group-sm" role="group">
                                         <a href="{{ url_for('teams.view_team', team_id=team.id) }}" 
@@ -335,76 +335,6 @@ function deleteTeam(teamId, teamName) {
         if (data.success) {
             showFlash(data.message, 'success');
             setTimeout(() => location.reload(), 1000);
-        } else {
-            showFlash(data.message || 'Error deleting team', 'danger');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showFlash('Error deleting team', 'danger');
-    });
-}
-
-function showFlash(message, type) {
-    const flashContainer = document.querySelector('.container');
-    const alert = document.createElement('div');
-    alert.className = `alert alert-${type} alert-dismissible fade show mt-3`;
-    alert.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    flashContainer.insertBefore(alert, flashContainer.firstChild);
-    setTimeout(() => alert.remove(), 5000);
-}
-</script>
-    
-    const endpoint = currentTargetType === 'user' 
-        ? `/admin/users/${currentTargetId}/adjust-points`
-        : `/admin/teams/${currentTargetId}/adjust-points`;
-    
-    fetch(endpoint, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            points: delta,
-            reason: reason
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            pointsModal.hide();
-            showFlash(data.message, 'success');
-            // Reload page to update scores
-            setTimeout(() => location.reload(), 1000);
-        } else {
-            showFlash(data.message || 'Error adjusting points', 'danger');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showFlash('Error adjusting points', 'danger');
-    });
-}
-
-function deleteTeam(teamId, teamName) {
-    if (!confirm(`Are you sure you want to delete team "${teamName}"? All members will be removed from this team.`)) {
-        return;
-    }
-    
-    fetch(`/admin/teams/${teamId}/delete`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            document.getElementById(`team-${teamId}`).remove();
-            showFlash('Team deleted successfully', 'success');
         } else {
             showFlash(data.message || 'Error deleting team', 'danger');
         }

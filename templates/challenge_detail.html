@@ -41,6 +41,17 @@
                 <div class="challenge-description mb-4">
                     <h5>Description</h5>
                     <p style="white-space: pre-wrap;">{{ challenge.description }}</p>
+                    
+                    {% if images and images|length > 0 %}
+                    <div class="challenge-images mt-3 mb-3">
+                        {% for image in images %}
+                        <div class="mb-3">
+                            <img src="{{ image.url }}" alt="{{ image.original_filename }}" class="img-fluid rounded" style="max-width: 100%; height: auto; cursor: pointer;" onclick="window.open('{{ image.url }}', '_blank')">
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    
                     {% if challenge.connection_info %}
                     <p class="mt-2">
                         {% if challenge.connection_info.startswith('http://') or challenge.connection_info.startswith('https://') %}
@@ -196,9 +207,26 @@
                         <strong>Difficulty:</strong> {{ challenge.difficulty|capitalize }}
                     </li>
                     {% endif %}
-                    <li class="mb-2">
+                    <li class="list-group-item">
                         <strong>Solves:</strong> {{ challenge.solves }}
                     </li>
+                    {% if challenge.solver_count > 0 %}
+                    <li class="list-group-item">
+                        <strong>Solved by:</strong>
+                        <div class="mt-2">
+                            {% for solver in challenge.solvers %}
+                                <span class="badge bg-secondary me-1 mb-1">
+                                    {% if solver.is_team %}
+                                        <i class="bi bi-people-fill"></i>
+                                    {% else %}
+                                        <i class="bi bi-person-fill"></i>
+                                    {% endif %}
+                                    {{ solver.name }}
+                                </span>
+                            {% endfor %}
+                        </div>
+                    </li>
+                    {% endif %}
                 </ul>
             </div>
         </div>

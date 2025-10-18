@@ -67,8 +67,8 @@ class User(UserMixin, db.Model):
             return total
     
     def get_solves_count(self):
-        """Get number of challenges solved"""
-        return self.solves.count()
+        """Get number of challenges solved (excludes manual adjustments)"""
+        return self.solves.filter(db.text('challenge_id IS NOT NULL')).count()
     
     def has_solved(self, challenge_id):
         """Check if user has solved a challenge"""

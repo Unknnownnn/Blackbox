@@ -121,7 +121,7 @@
                                 </td>
                                 <td>
                                     <small class="text-muted">
-                                        {{ solve.solved_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                                        {{ solve.solved_at|format_datetime('%Y-%m-%d %H:%M:%S') }}
                                     </small>
                                     <br>
                                     <small class="text-muted">
@@ -247,7 +247,7 @@
                                 </td>
                                 <td>
                                     <small class="text-muted">
-                                        {{ hint_unlock.unlocked_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                                        {{ hint_unlock.unlocked_at|format_datetime('%Y-%m-%d %H:%M:%S') }}
                                     </small>
                                 </td>
                             </tr>

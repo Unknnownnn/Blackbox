@@ -95,8 +95,8 @@
                             {% for unlock in hint_unlocks.items %}
                             <tr>
                                 <td>
-                                    <small class="text-muted" data-timestamp="{{ unlock.unlocked_at.isoformat() }}">
-                                        {{ unlock.unlocked_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                                    <small class="text-muted" data-timestamp="{{ (unlock.unlocked_at|to_platform_tz).isoformat() }}">
+                                        {{ unlock.unlocked_at|format_datetime('%Y-%m-%d %H:%M:%S') }}
                                     </small>
                                 </td>
                                 <td>

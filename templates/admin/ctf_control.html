@@ -45,7 +45,7 @@
                     <div class="col-md-6">
                         <strong>Start Time:</strong><br>
                         {% if ctf_settings.start_time %}
-                        <span class="badge bg-info">{{ ctf_settings.start_time.strftime('%Y-%m-%d %H:%M:%S UTC') }}</span>
+                        <span class="badge bg-info">{{ ctf_settings.start_time|format_datetime('%Y-%m-%d %H:%M:%S') }}</span>
                         {% else %}
                         <span class="text-muted">Not set (Always running)</span>
                         {% endif %}
@@ -53,7 +53,7 @@
                     <div class="col-md-6">
                         <strong>End Time:</strong><br>
                         {% if ctf_settings.end_time %}
-                        <span class="badge bg-info">{{ ctf_settings.end_time.strftime('%Y-%m-%d %H:%M:%S UTC') }}</span>
+                        <span class="badge bg-info">{{ ctf_settings.end_time|format_datetime('%Y-%m-%d %H:%M:%S') }}</span>
                         {% else %}
                         <span class="text-muted">Not set (Never ends)</span>
                         {% endif %}
@@ -119,25 +119,25 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="start_time" class="form-label">
-                                <i class="bi bi-calendar-check"></i> Start Time (UTC)
+                                <i class="bi bi-calendar-check"></i> Start Time
                             </label>
                             <input type="datetime-local" 
                                    class="form-control" 
                                    id="start_time" 
                                    name="start_time"
-                                   value="{% if ctf_settings.start_time %}{{ ctf_settings.start_time.strftime('%Y-%m-%dT%H:%M') }}{% endif %}">
-                            <div class="form-text">When the CTF should begin</div>
+                                   value="{% if ctf_settings.start_time %}{{ (ctf_settings.start_time|to_platform_tz).strftime('%Y-%m-%dT%H:%M') }}{% endif %}">
+                            <div class="form-text">When the CTF should begin (in {{ settings.get('timezone', 'UTC') }})</div>
                         </div>
                         <div class="col-md-6">
                             <label for="end_time" class="form-label">
-                                <i class="bi bi-calendar-x"></i> End Time (UTC)
+                                <i class="bi bi-calendar-x"></i> End Time
                             </label>
                             <input type="datetime-local" 
                                    class="form-control" 
                                    id="end_time" 
                                    name="end_time"
-                                   value="{% if ctf_settings.end_time %}{{ ctf_settings.end_time.strftime('%Y-%m-%dT%H:%M') }}{% endif %}">
-                            <div class="form-text">When the CTF should end</div>
+                                   value="{% if ctf_settings.end_time %}{{ (ctf_settings.end_time|to_platform_tz).strftime('%Y-%m-%dT%H:%M') }}{% endif %}">
+                            <div class="form-text">When the CTF should end (in {{ settings.get('timezone', 'UTC') }})</div>
                         </div>
                     </div>
                     

@@ -4,6 +4,7 @@ from models import db
 from models.challenge import Challenge
 from models.submission import Submission, Solve
 from models.file import ChallengeFile
+from models.user import User
 from services.scoring import ScoringService
 from services.cache import cache_service
 from services.websocket import WebSocketService
@@ -123,9 +124,12 @@ def view_challenge(challenge_id):
     challenge_data['solved'] = solved
     challenge_data['requires_team'] = challenge.requires_team
     
-    # Get challenge files
-    challenge_files = ChallengeFile.query.filter_by(challenge_id=challenge_id).all()
+    # Get challenge files and images
+    challenge_files = ChallengeFile.query.filter_by(challenge_id=challenge_id, is_image=False).all()
     files_data = [f.to_dict() for f in challenge_files]
+    
+    challenge_images = ChallengeFile.query.filter_by(challenge_id=challenge_id, is_image=True).all()
+    images_data = [{'url': img.get_download_url(), 'original_filename': img.original_filename, 'id': img.id} for img in challenge_images]
     
     # Get hints
     from models.hint import Hint
@@ -189,9 +193,57 @@ def view_challenge(challenge_id):
     
     challenge_data['unlocked_paths'] = unlocked_paths
     
+    # Get list of solvers (users/teams who solved this challenge)
+    solvers = []
+    from models.settings import Settings
+    teams_enabled = Settings.get('teams_enabled', True)
+    team_mode = Settings.get('team_mode', False)
+    
+    if team_mode:
+        # Team mode: show teams that solved
+        team_solves = Solve.query.filter(
+            Solve.challenge_id == challenge_id,
+            Solve.team_id.isnot(None)
+        ).order_by(Solve.solved_at).all()
+        
+        seen_teams = set()
+        for solve in team_solves:
+            if solve.team_id and solve.team_id not in seen_teams:
+                seen_teams.add(solve.team_id)
+                from models.team import Team
+                team_obj = Team.query.get(solve.team_id)
+                if team_obj:
+                    solvers.append({
+                        'name': team_obj.name,
+                        'is_team': True,
+                        'solved_at': solve.solved_at
+                    })
+    else:
+        # Solo mode: show users that solved
+        user_solves = Solve.query.filter(
+            Solve.challenge_id == challenge_id,
+            Solve.user_id.isnot(None)
+        ).order_by(Solve.solved_at).all()
+        
+        seen_users = set()
+        for solve in user_solves:
+            if solve.user_id and solve.user_id not in seen_users:
+                seen_users.add(solve.user_id)
+                user_obj = User.query.get(solve.user_id)
+                if user_obj:
+                    solvers.append({
+                        'name': user_obj.username,
+                        'is_team': False,
+                        'solved_at': solve.solved_at
+                    })
+    
+    challenge_data['solvers'] = solvers
+    challenge_data['solver_count'] = len(solvers)
+    
     return render_template('challenge_detail.html', 
                           challenge=challenge_data, 
                           files=files_data,
+                          images=images_data,
                           hints=hints_data,
                           team=team)
 

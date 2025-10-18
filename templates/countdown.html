@@ -39,7 +39,8 @@
                     
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle"></i> 
-                        <strong>Start Time:</strong> {{ start_time.strftime('%B %d, %Y at %H:%M UTC') }}
+                        <strong>Start Time:</strong> {{ start_time|format_datetime('%B %d, %Y at %H:%M') }}
+                        <small>({{ settings.get('timezone', 'UTC') }})</small>
                     </div>
                     
                     <p class="text-muted small mt-4">
@@ -88,8 +89,8 @@
 </style>
 
 <script>
-// Parse start time from server (UTC)
-const startTime = new Date("{{ start_time.strftime('%Y-%m-%dT%H:%M:%SZ') }}");
+// Parse start time from server (converted to platform timezone, then to ISO for JS)
+const startTime = new Date("{{ (start_time|to_platform_tz).strftime('%Y-%m-%dT%H:%M:%S') }}");
 
 function updateCountdown() {
     const now = new Date();

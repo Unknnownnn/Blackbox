@@ -170,6 +170,67 @@
                 </div>
             </div>
             
+            <!-- System Settings (Timezone & Backup) -->
+            <div class="card mb-4" id="system-settings">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> System Settings</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('admin.update_system_settings') }}">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="timezone" class="form-label"><strong>Platform Timezone</strong></label>
+                                <select class="form-select" id="timezone" name="timezone" required>
+                                    {% set current_tz = settings.get('timezone', 'UTC') %}
+                                    <option value="UTC" {% if current_tz == 'UTC' %}selected{% endif %}>UTC (Coordinated Universal Time)</option>
+                                    <option value="US/Eastern" {% if current_tz == 'US/Eastern' %}selected{% endif %}>US Eastern (New York)</option>
+                                    <option value="US/Central" {% if current_tz == 'US/Central' %}selected{% endif %}>US Central (Chicago)</option>
+                                    <option value="US/Mountain" {% if current_tz == 'US/Mountain' %}selected{% endif %}>US Mountain (Denver)</option>
+                                    <option value="US/Pacific" {% if current_tz == 'US/Pacific' %}selected{% endif %}>US Pacific (Los Angeles)</option>
+                                    <option value="Europe/London" {% if current_tz == 'Europe/London' %}selected{% endif %}>Europe/London (GMT)</option>
+                                    <option value="Europe/Paris" {% if current_tz == 'Europe/Paris' %}selected{% endif %}>Europe/Paris (CET)</option>
+                                    <option value="Europe/Berlin" {% if current_tz == 'Europe/Berlin' %}selected{% endif %}>Europe/Berlin (CET)</option>
+                                    <option value="Europe/Moscow" {% if current_tz == 'Europe/Moscow' %}selected{% endif %}>Europe/Moscow (MSK)</option>
+                                    <option value="Asia/Dubai" {% if current_tz == 'Asia/Dubai' %}selected{% endif %}>Asia/Dubai (GST)</option>
+                                    <option value="Asia/Kolkata" {% if current_tz == 'Asia/Kolkata' %}selected{% endif %}>Asia/Kolkata (IST)</option>
+                                    <option value="Asia/Shanghai" {% if current_tz == 'Asia/Shanghai' %}selected{% endif %}>Asia/Shanghai (CST)</option>
+                                    <option value="Asia/Tokyo" {% if current_tz == 'Asia/Tokyo' %}selected{% endif %}>Asia/Tokyo (JST)</option>
+                                    <option value="Asia/Singapore" {% if current_tz == 'Asia/Singapore' %}selected{% endif %}>Asia/Singapore (SGT)</option>
+                                    <option value="Australia/Sydney" {% if current_tz == 'Australia/Sydney' %}selected{% endif %}>Australia/Sydney (AEDT)</option>
+                                    <option value="Pacific/Auckland" {% if current_tz == 'Pacific/Auckland' %}selected{% endif %}>Pacific/Auckland (NZDT)</option>
+                                </select>
+                                <div class="form-text">
+                                    <i class="bi bi-info-circle"></i> All timestamps (CTF times, backups, submissions) will display in this timezone.
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="backup_frequency" class="form-label"><strong>Automatic Backup Frequency</strong></label>
+                                <select class="form-select" id="backup_frequency" name="backup_frequency" required>
+                                    {% set current_freq = settings.get('backup_frequency', 'disabled') %}
+                                    <option value="disabled" {% if current_freq == 'disabled' %}selected{% endif %}>Disabled (Manual only)</option>
+                                    <option value="hourly" {% if current_freq == 'hourly' %}selected{% endif %}>Every Hour</option>
+                                    <option value="daily" {% if current_freq == 'daily' %}selected{% endif %}>Daily (2:00 AM)</option>
+                                    <option value="weekly" {% if current_freq == 'weekly' %}selected{% endif %}>Weekly (Sunday 2:00 AM)</option>
+                                    <option value="monthly" {% if current_freq == 'monthly' %}selected{% endif %}>Monthly (1st day, 2:00 AM)</option>
+                                </select>
+                                <div class="form-text">
+                                    <i class="bi bi-info-circle"></i> Automatic database backups. Times are in the configured timezone above.
+                                    {% set last_backup = settings.get('last_auto_backup') %}
+                                    {% if last_backup %}
+                                        <br><strong>Last auto backup:</strong> {{ last_backup|format_datetime('%Y-%m-%d %H:%M:%S') }}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-warning">
+                            <i class="bi bi-save"></i> Save System Settings
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
             <!-- Custom Background Theme -->
             <div class="card mb-4">
                 <div class="card-header bg-info text-white">

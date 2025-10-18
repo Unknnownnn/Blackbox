@@ -16,6 +16,7 @@ class Challenge(db.Model):
     
     # Files and resources
     files = db.Column(db.Text)  # JSON array of file URLs
+    images = db.Column(db.Text)  # JSON array of image URLs for display
     hints = db.Column(db.Text)  # JSON array of hints
     connection_info = db.Column(db.String(500))  # Connection info (nc host:port, URLs, etc.)
     
@@ -69,8 +70,8 @@ class Challenge(db.Model):
         return max(int(points), self.minimum_points)
     
     def get_solves_count(self):
-        """Get number of solves"""
-        return self.solves.count()
+        """Get number of solves (excludes manual adjustments)"""
+        return self.solves.filter(db.text('challenge_id IS NOT NULL')).count()
     
     def get_submissions_count(self):
         """Get total number of submissions"""

@@ -22,7 +22,7 @@
                 {% endif %}
                 <hr>
                 <p class="small text-muted mb-0">
-                    Joined {{ user.created_at.strftime('%B %d, %Y') if user.created_at else 'Unknown' }}
+                    Joined {{ user.created_at|format_datetime('%B %d, %Y') if user.created_at else 'Unknown' }}
                 </p>
             </div>
         </div>

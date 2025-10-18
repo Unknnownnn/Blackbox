@@ -35,7 +35,21 @@
                 <div class="card">
                     <div class="card-body text-center">
                         <h5 class="card-title">Auto Backup</h5>
-                        <h6 class="text-success"><i class="bi bi-check-circle-fill"></i> Every Hour</h6>
+                        {% set backup_freq = settings.get('backup_frequency', 'disabled') %}
+                        {% if backup_freq == 'disabled' %}
+                            <h6 class="text-danger"><i class="bi bi-x-circle-fill"></i> Disabled</h6>
+                        {% elif backup_freq == 'hourly' %}
+                            <h6 class="text-success"><i class="bi bi-check-circle-fill"></i> Every Hour</h6>
+                        {% elif backup_freq == 'daily' %}
+                            <h6 class="text-success"><i class="bi bi-check-circle-fill"></i> Daily (2:00 AM)</h6>
+                        {% elif backup_freq == 'weekly' %}
+                            <h6 class="text-success"><i class="bi bi-check-circle-fill"></i> Weekly (Sunday)</h6>
+                        {% elif backup_freq == 'monthly' %}
+                            <h6 class="text-success"><i class="bi bi-check-circle-fill"></i> Monthly (1st)</h6>
+                        {% endif %}
+                        <small class="text-muted">
+                            <a href="{{ url_for('admin.settings') }}#system-settings">Change frequency</a>
+                        </small>
                     </div>
                 </div>
             </div>

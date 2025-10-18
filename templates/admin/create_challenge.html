@@ -16,180 +16,225 @@
         <div class="card">
             <div class="card-body">
                 <form method="POST" enctype="multipart/form-data">
-                    <div class="row">
-                        <div class="col-md-8 mb-3">
-                            <label for="name" class="form-label">Challenge Name *</label>
-                            <input type="text" class="form-control" id="name" name="name" required>
+                    
+                    <!-- BASIC INFORMATION SECTION -->
+                    <div class="card mb-4 border-primary">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0"><i class="bi bi-info-circle"></i> Basic Information</h5>
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label for="category" class="form-label">Category *</label>
-                            <select class="form-select" id="category" name="category" required>
-                                <option value="web">Web</option>
-                                <option value="crypto">Crypto</option>
-                                <option value="pwn">Pwn</option>
-                                <option value="reverse">Reverse</option>
-                                <option value="forensics">Forensics</option>
-                                <option value="misc">Misc</option>
-                                <option value="osint">OSINT</option>
-                            </select>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-8 mb-3">
+                                    <label for="name" class="form-label fw-bold">Challenge Name *</label>
+                                    <input type="text" class="form-control form-control-lg" id="name" name="name" required>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="category" class="form-label fw-bold">Category *</label>
+                                    <select class="form-select form-select-lg" id="category" name="category" required>
+                                        <option value="web">Web</option>
+                                        <option value="crypto">Crypto</option>
+                                        <option value="pwn">Pwn</option>
+                                        <option value="reverse">Reverse</option>
+                                        <option value="forensics">Forensics</option>
+                                        <option value="misc">Misc</option>
+                                        <option value="osint">OSINT</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="description" class="form-label fw-bold">Description *</label>
+                                <textarea class="form-control" id="description" name="description" 
+                                          rows="6" required></textarea>
+                                <div class="form-text">Supports plain text (line breaks preserved)</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="connection_info" class="form-label">
+                                    <i class="bi bi-link-45deg"></i> Connection Info (Optional)
+                                </label>
+                                <input type="text" class="form-control" id="connection_info" name="connection_info" 
+                                       placeholder="nc challenges.example.com:1337 or https://challenge-site.com">
+                                <div class="form-text">
+                                    Enter connection details (e.g: nc x.x.x.x:8080 or a URL).
+                                </div>
+                            </div>
+                            
+                            <div class="mb-0">
+                                <label for="images" class="form-label">
+                                    <i class="bi bi-image"></i> Challenge Images (Optional)
+                                </label>
+                                <input type="file" class="form-control" id="images" name="images" multiple accept="image/*">
+                                <div class="form-text">
+                                    Upload images to display below the description (JPG, PNG, GIF, WebP, SVG). Images will be shown inline, not as downloads.
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="mb-3">
-                        <label for="description" class="form-label">Description *</label>
-                        <textarea class="form-control" id="description" name="description" 
-                                  rows="6" required></textarea>
-                        <div class="form-text">Supports plain text (line breaks preserved)</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="connection_info" class="form-label">
-                            <i class="bi bi-link-45deg"></i> Connection Info (Optional)
-                        </label>
-                        <input type="text" class="form-control" id="connection_info" name="connection_info" 
-                               placeholder="nc challenges.example.com:1337 or https://challenge-site.com">
-                        <div class="form-text">
-                            Enter connection details (e.g., <code>nc x.x.x.x:2023</code>) or a URL. 
-                            URLs will automatically become clickable links.
+                    <!-- FLAGS SECTION -->
+                    <div class="card mb-4 border-success">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0"><i class="bi bi-flag-fill"></i> Flags Configuration</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-7 mb-3">
+                                    <label for="flag" class="form-label fw-bold">Primary Flag *</label>
+                                    <input type="text" class="form-control form-control-lg" id="flag" name="flag" 
+                                           placeholder="flag{example}" required>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <label for="flag_case_sensitive" class="form-label">Case Sensitive</label>
+                                    <select class="form-select" id="flag_case_sensitive" name="flag_case_sensitive">
+                                        <option value="true">Yes</option>
+                                        <option value="false">No</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2 mb-3">
+                                    <label for="difficulty" class="form-label">Difficulty</label>
+                                    <select class="form-select" id="difficulty" name="difficulty">
+                                        <option value="">-</option>
+                                        <option value="easy">Easy</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="hard">Hard</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <!-- Additional Flags -->
+                            <div class="mt-3">
+                                <label class="form-label">
+                                    <i class="bi bi-flag"></i> Additional Flags (Optional)
+                                </label>
+                                <div id="flags-container">
+                                    <!-- Additional flags will be added here -->
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="addFlag()">
+                                    <i class="bi bi-plus-circle"></i> Add Alternative Flag
+                                </button>
+                                <div class="form-text mt-2">
+                                    Add multiple flags for different solution paths or branching challenges.
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="flag" class="form-label">Primary Flag *</label>
-                            <input type="text" class="form-control" id="flag" name="flag" 
-                                   placeholder="flag{example}" required>
+                    <!-- SCORING SECTION -->
+                    <div class="card mb-4 border-warning">
+                        <div class="card-header bg-warning text-dark">
+                            <h5 class="mb-0"><i class="bi bi-star-fill"></i> Scoring Configuration</h5>
                         </div>
-                        <div class="col-md-3 mb-3">
-                            <label for="flag_case_sensitive" class="form-label">Case Sensitive</label>
-                            <select class="form-select" id="flag_case_sensitive" name="flag_case_sensitive">
-                                <option value="true">Yes</option>
-                                <option value="false">No</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label for="difficulty" class="form-label">Difficulty</label>
-                            <select class="form-select" id="difficulty" name="difficulty">
-                                <option value="">-</option>
-                                <option value="easy">Easy</option>
-                                <option value="medium">Medium</option>
-                                <option value="hard">Hard</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <!-- Additional Flags Section -->
-                    <div class="mb-3">
-                        <label class="form-label">
-                            <i class="bi bi-flag"></i> Additional Flags (Optional - for branching/multiple solutions)
-                        </label>
-                        <div id="flags-container">
-                            <!-- Additional flags will be added here -->
-                        </div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="addFlag()">
-                            <i class="bi bi-plus-circle"></i> Add Alternative Flag
-                        </button>
-                        <div class="form-text mt-2">
-                            Add multiple flags for different solution paths or branching challenges.
-                            Configure branching after creating the challenge.
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label for="initial_points" class="form-label fw-bold">Initial Points</label>
+                                    <input type="number" class="form-control form-control-lg" id="initial_points" 
+                                           name="initial_points" value="500" min="0">
+                                    <div class="form-text">Starting point value</div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="minimum_points" class="form-label fw-bold">Minimum Points</label>
+                                    <input type="number" class="form-control form-control-lg" id="minimum_points" 
+                                           name="minimum_points" value="50" min="0">
+                                    <div class="form-text">Lowest point value</div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="decay_solves" class="form-label fw-bold">Decay Solves</label>
+                                    <input type="number" class="form-control form-control-lg" id="decay_solves" 
+                                           name="decay_solves" value="30" min="1">
+                                    <div class="form-text">Solves to reach minimum</div>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-info mb-0" role="alert">
+                                <i class="bi bi-info-circle"></i>
+                                <strong>Dynamic Scoring:</strong> Challenge points decrease as more teams solve it. 
+                                Points decay from <strong>Initial</strong> to <strong>Minimum</strong> over <strong>Decay Solves</strong> number of solves.
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label for="initial_points" class="form-label">Initial Points</label>
-                            <input type="number" class="form-control" id="initial_points" 
-                                   name="initial_points" value="500" min="0">
+                    <!-- SETTINGS SECTION -->
+                    <div class="card mb-4 border-secondary">
+                        <div class="card-header bg-secondary text-white">
+                            <h5 class="mb-0"><i class="bi bi-gear-fill"></i> Challenge Settings</h5>
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label for="minimum_points" class="form-label">Minimum Points</label>
-                            <input type="number" class="form-control" id="minimum_points" 
-                                   name="minimum_points" value="50" min="0">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label for="decay_solves" class="form-label">Decay Solves</label>
-                            <input type="number" class="form-control" id="decay_solves" 
-                                   name="decay_solves" value="30" min="1">
-                            <div class="form-text">Solves to reach minimum</div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-3 mb-3">
-                            <label for="max_attempts" class="form-label">Max Attempts</label>
-                            <input type="number" class="form-control" id="max_attempts" 
-                                   name="max_attempts" value="0" min="0">
-                            <div class="form-text">0 = unlimited</div>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label for="author" class="form-label">Author</label>
-                            <input type="text" class="form-control" id="author" name="author">
-                        </div>
-                        <div class="col-md-2 mb-3">
-                            <label for="is_visible" class="form-label">Visible</label>
-                            <select class="form-select" id="is_visible" name="is_visible">
-                                <option value="true">Yes</option>
-                                <option value="false">No</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2 mb-3">
-                            <label for="is_dynamic" class="form-label">Dynamic Scoring</label>
-                            <select class="form-select" id="is_dynamic" name="is_dynamic">
-                                <option value="true">Yes</option>
-                                <option value="false">No</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2 mb-3">
-                            <label for="requires_team" class="form-label">Requires Team</label>
-                            <select class="form-select" id="requires_team" name="requires_team">
-                                <option value="false">No</option>
-                                <option value="true">Yes</option>
-                            </select>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3 mb-3">
+                                    <label for="max_attempts" class="form-label">Max Attempts</label>
+                                    <input type="number" class="form-control" id="max_attempts" 
+                                           name="max_attempts" value="0" min="0">
+                                    <div class="form-text">0 = unlimited</div>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <label for="author" class="form-label">Author</label>
+                                    <input type="text" class="form-control" id="author" name="author">
+                                </div>
+                                <div class="col-md-2 mb-3">
+                                    <label for="is_visible" class="form-label">Visible</label>
+                                    <select class="form-select" id="is_visible" name="is_visible">
+                                        <option value="true">Yes</option>
+                                        <option value="false">No</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2 mb-3">
+                                    <label for="is_dynamic" class="form-label">Dynamic Scoring</label>
+                                    <select class="form-select" id="is_dynamic" name="is_dynamic">
+                                        <option value="true" selected>Yes</option>
+                                        <option value="false">No</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2 mb-3">
+                                    <label for="requires_team" class="form-label">Requires Team</label>
+                                    <select class="form-select" id="requires_team" name="requires_team">
+                                        <option value="false">No</option>
+                                        <option value="true">Yes</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="row">
-                        <div class="col-md-12 mb-3">
-                            <label for="difficulty" class="form-label">Difficulty</label>
-                            <select class="form-select" id="difficulty" name="difficulty">
-                                <option value="">-</option>
-                                <option value="easy">Easy</option>
-                                <option value="medium">Medium</option>
-                                <option value="hard">Hard</option>
-                            </select>
+                    <!-- HINTS SECTION -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-lightbulb"></i> Hints (Optional)</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="hints-container">
+                                <!-- Hints will be added here dynamically -->
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addHint()">
+                                <i class="bi bi-plus-circle"></i> Add Hint
+                            </button>
+                            <div class="form-text mt-2">
+                                <i class="bi bi-info-circle"></i> Hints can be unlocked by users for a point cost. You can also set prerequisites so hints must be unlocked in order.
+                            </div>
                         </div>
                     </div>
                     
-                    <!-- Hints Section -->
-                    <div class="mb-3">
-                        <label class="form-label">
-                            <i class="bi bi-lightbulb"></i> Hints (Optional)
-                        </label>
-                        <div id="hints-container">
-                            <!-- Hints will be added here dynamically -->
+                    <!-- FILES SECTION -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-file-earmark-arrow-up"></i> Upload Files</h5>
                         </div>
-                        <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addHint()">
-                            <i class="bi bi-plus-circle"></i> Add Hint
-                        </button>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="files" class="form-label">
-                            <i class="bi bi-file-earmark-arrow-up"></i> Upload Files
-                        </label>
-                        <input type="file" class="form-control" id="files" name="files" multiple>
-                        <div class="form-text">
-                            Upload challenge files (max 50MB per file). Supports: images, archives, executables, etc.
+                        <div class="card-body">
+                            <input type="file" class="form-control" id="files" name="files" multiple>
+                            <div class="form-text mt-2">
+                                Upload challenge files (max 50MB per file). Users will be able to download these files.
+                            </div>
                         </div>
                     </div>
                     
-                    <hr>
+                    <hr class="my-4">
                     
-                    <div class="d-flex justify-content-between">
-                        <a href="{{ url_for('admin.manage_challenges') }}" class="btn btn-secondary">
-                            <i class="bi bi-x"></i> Cancel
+                    <div class="d-flex justify-content-between align-items-center">
+                        <a href="{{ url_for('admin.manage_challenges') }}" class="btn btn-secondary btn-lg">
+                            <i class="bi bi-x-circle"></i> Cancel
                         </a>
-                        <button type="submit" class="btn btn-primary">
+                        <button type="submit" class="btn btn-primary btn-lg px-5">
                             <i class="bi bi-check-circle"></i> Create Challenge
                         </button>
                     </div>
@@ -198,6 +243,45 @@
         </div>
     </div>
 </div>
+
+<style>
+.card-header h5 {
+    font-weight: 600;
+}
+
+.fw-bold {
+    font-weight: 600 !important;
+}
+
+.form-control-lg, .form-select-lg {
+    font-size: 1.1rem;
+    padding: 0.75rem 1rem;
+}
+
+.card {
+    transition: box-shadow 0.2s ease-in-out;
+}
+
+.card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.border-primary {
+    border-width: 2px !important;
+}
+
+.border-success {
+    border-width: 2px !important;
+}
+
+.border-warning {
+    border-width: 2px !important;
+}
+
+.border-secondary {
+    border-width: 2px !important;
+}
+</style>
 
 <script>
 let hintCount = 0;
@@ -259,6 +343,12 @@ function addHint() {
     const hintDiv = document.createElement('div');
     hintDiv.className = 'card mb-2';
     hintDiv.id = `hint-${hintCount}`;
+    
+    // Build prerequisite options
+    let prereqOptions = '<option value="">None (can unlock anytime)</option>';
+    // Note: Since this is for new challenges, prerequisites can only be set on existing hints
+    // For new hints being added, they can't depend on each other yet
+    
     hintDiv.innerHTML = `
         <div class="card-body">
             <div class="row">
@@ -272,7 +362,16 @@ function addHint() {
                     <input type="number" class="form-control form-control-sm" 
                            name="hint_cost[]" value="10" min="0" required>
                 </div>
-                <div class="col-md-7">
+                <div class="col-md-3">
+                    <label class="form-label">
+                        Requires Hint
+                        <i class="bi bi-info-circle" title="User must unlock this hint first"></i>
+                    </label>
+                    <select class="form-select form-select-sm" name="hint_requires[]">
+                        ${prereqOptions}
+                    </select>
+                </div>
+                <div class="col-md-4">
                     <label class="form-label">Hint Content</label>
                     <textarea class="form-control form-control-sm" name="hint_content[]" 
                               rows="2" required placeholder="Enter hint text..."></textarea>
@@ -287,6 +386,34 @@ function addHint() {
         </div>
     `;
     container.appendChild(hintDiv);
+    updateHintPrerequisiteOptions();
+}
+
+function updateHintPrerequisiteOptions() {
+    // Update all prerequisite dropdowns to show available hints
+    const container = document.getElementById('hints-container');
+    const allHints = container.querySelectorAll('[id^="hint-"]');
+    
+    allHints.forEach((hintDiv, index) => {
+        const select = hintDiv.querySelector('select[name="hint_requires[]"]');
+        if (!select) return;
+        
+        const currentValue = select.value;
+        const currentOrder = hintDiv.querySelector('input[name="hint_order[]"]')?.value || (index + 1);
+        
+        // Build options: only hints with lower order can be prerequisites
+        let options = '<option value="">None (can unlock anytime)</option>';
+        
+        allHints.forEach((otherHintDiv, otherIndex) => {
+            if (otherIndex >= index) return; // Can't depend on itself or later hints
+            
+            const otherOrder = otherHintDiv.querySelector('input[name="hint_order[]"]')?.value || (otherIndex + 1);
+            options += `<option value="${otherOrder}">Hint #${otherOrder}</option>`;
+        });
+        
+        select.innerHTML = options;
+        select.value = currentValue; // Restore previous selection if valid
+    });
 }
 
 function removeHint(id) {

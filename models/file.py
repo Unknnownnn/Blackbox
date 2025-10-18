@@ -18,6 +18,7 @@ class ChallengeFile(db.Model):
     file_hash = db.Column(db.String(64))  # SHA256 hash
     file_size = db.Column(db.Integer)  # Size in bytes
     mime_type = db.Column(db.String(100))
+    is_image = db.Column(db.Boolean, default=False)  # True if this is an image for display
     
     # Timestamps
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)

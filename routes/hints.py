@@ -28,14 +28,22 @@ def get_challenge_hints(challenge_id):
         # Check if unlocked
         if team:
             unlocked = hint.is_unlocked_by_team(team.id)
+            can_unlock, reason = hint.can_unlock(team_id=team.id)
         else:
             unlocked = hint.is_unlocked_by_user(current_user.id)
+            can_unlock, reason = hint.can_unlock(user_id=current_user.id)
         
         hint_data = {
             'id': hint.id,
             'cost': hint.cost,
+            'order': hint.order,
             'unlocked': unlocked,
+            'can_unlock': can_unlock or unlocked,  # If already unlocked, consider it "can unlock"
+            'requires_hint_id': hint.requires_hint_id,
         }
+        
+        if not can_unlock and not unlocked:
+            hint_data['locked_reason'] = reason
         
         if unlocked or current_user.is_admin:
             hint_data['content'] = hint.content
@@ -66,6 +74,11 @@ def unlock_hint(hint_id):
     
     if already_unlocked:
         return jsonify({'success': False, 'message': 'Hint already unlocked'}), 400
+    
+    # Check if prerequisites are met
+    can_unlock, reason = hint.can_unlock(user_id=current_user.id, team_id=team_id)
+    if not can_unlock:
+        return jsonify({'success': False, 'message': reason}), 400
     
     # Get current score
     if team:

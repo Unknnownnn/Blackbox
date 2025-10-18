@@ -236,12 +236,34 @@ def create_app(config_name=None):
             'settings': Settings
         }
     
+    @app.template_filter('format_datetime')
+    def format_datetime_filter(dt, format_str='%Y-%m-%d %H:%M:%S'):
+        """Template filter to format datetime in platform timezone"""
+        from utils.timezone import format_datetime
+        return format_datetime(dt, format_str)
+    
+    @app.template_filter('to_platform_tz')
+    def to_platform_tz_filter(dt):
+        """Template filter to convert datetime to platform timezone"""
+        from utils.timezone import convert_to_platform_tz
+        return convert_to_platform_tz(dt)
+    
     return app
 
 
 def main():
     """Main entry point"""
     app = create_app()
+    
+    # Initialize backup scheduler after app is created
+    with app.app_context():
+        try:
+            from services.backup_scheduler import init_backup_scheduler
+            scheduler = init_backup_scheduler(app)
+            # Trigger initial schedule setup
+            scheduler.reschedule()
+        except Exception as e:
+            app.logger.warning(f"Could not initialize backup scheduler: {e}")
     
     socketio.run(
         app,
@@ -253,6 +275,15 @@ def main():
 
 
 app = create_app()
+
+# Initialize backup scheduler for production (gunicorn)
+with app.app_context():
+    try:
+        from services.backup_scheduler import init_backup_scheduler
+        scheduler = init_backup_scheduler(app)
+        scheduler.reschedule()
+    except Exception as e:
+        app.logger.warning(f"Could not initialize backup scheduler during app creation: {e}")
 
 
 if __name__ == '__main__':

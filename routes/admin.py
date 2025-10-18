@@ -37,7 +37,7 @@ def dashboard():
         'teams': Team.query.count(),
         'challenges': Challenge.query.count(),
         'submissions': Submission.query.count(),
-        'solves': Solve.query.count()
+        'solves': Solve.query.filter(Solve.challenge_id.isnot(None)).count()
     }
     
     # Recent activity
@@ -124,16 +124,35 @@ def create_challenge():
         hint_contents = request.form.getlist('hint_content[]')
         hint_costs = request.form.getlist('hint_cost[]')
         hint_orders = request.form.getlist('hint_order[]')
+        hint_requires = request.form.getlist('hint_requires[]')
         
+        # First pass: Create hints without prerequisites
+        created_hints = {}
         for i in range(len(hint_contents)):
             if hint_contents[i].strip():
+                order = int(hint_orders[i]) if i < len(hint_orders) else (i + 1)
                 hint = Hint(
                     challenge_id=challenge.id,
                     content=hint_contents[i],
                     cost=int(hint_costs[i]) if i < len(hint_costs) else 10,
-                    order=int(hint_orders[i]) if i < len(hint_orders) else (i + 1)
+                    order=order
                 )
                 db.session.add(hint)
+                created_hints[order] = hint
+        
+        # Flush to get hint IDs
+        db.session.flush()
+        
+        # Second pass: Set prerequisites based on order
+        for i in range(len(hint_contents)):
+            if hint_contents[i].strip():
+                order = int(hint_orders[i]) if i < len(hint_orders) else (i + 1)
+                requires_order = hint_requires[i] if i < len(hint_requires) and hint_requires[i] else None
+                
+                if requires_order and requires_order.strip():
+                    requires_order = int(requires_order)
+                    if requires_order in created_hints:
+                        created_hints[order].requires_hint_id = created_hints[requires_order].id
         
         # Handle file uploads
         uploaded_files = []
@@ -165,6 +184,37 @@ def create_challenge():
             file_urls = [f['url'] for f in uploaded_files]
             challenge.files = json.dumps(file_urls)
         
+        # Handle image uploads
+        uploaded_images = []
+        if 'images' in request.files:
+            images = request.files.getlist('images')
+            for image in images:
+                if image and image.filename:
+                    try:
+                        image_info = file_storage.save_challenge_file(image, challenge.id)
+                        if image_info:
+                            # Create ChallengeFile record for image
+                            challenge_image = ChallengeFile(
+                                challenge_id=challenge.id,
+                                original_filename=image_info['original_filename'],
+                                stored_filename=image_info['stored_filename'],
+                                filepath=image_info['filepath'],
+                                relative_path=image_info['relative_path'],
+                                file_hash=image_info['hash'],
+                                file_size=image_info['size'],
+                                uploaded_by=current_user.id,
+                                is_image=True  # Mark as image
+                            )
+                            db.session.add(challenge_image)
+                            uploaded_images.append(image_info)
+                    except Exception as e:
+                        flash(f'Error uploading image {image.filename}: {str(e)}', 'warning')
+        
+        # Store image URLs in challenge
+        if uploaded_images:
+            image_urls = [{'url': img['url'], 'original_filename': img['original_filename']} for img in uploaded_images]
+            challenge.images = json.dumps(image_urls)
+        
         db.session.commit()
         
         cache_service.invalidate_all_challenges()
@@ -183,6 +233,7 @@ def edit_challenge(challenge_id):
     challenge = Challenge.query.get_or_404(challenge_id)
     
     if request.method == 'POST':
+        from models.branching import ChallengeFlag
         data = request.form
         
         challenge.name = data.get('name')
@@ -201,23 +252,53 @@ def edit_challenge(challenge_id):
         challenge.author = data.get('author')
         challenge.difficulty = data.get('difficulty')
         
+        # Update primary flag in challenge_flags table
+        primary_flag = ChallengeFlag.query.filter_by(
+            challenge_id=challenge_id,
+            flag_label='Primary Flag'
+        ).first()
+        
+        if primary_flag:
+            primary_flag.flag_value = data.get('flag')
+            primary_flag.is_case_sensitive = data.get('flag_case_sensitive') == 'true'
+        else:
+            # Create primary flag if it doesn't exist
+            primary_flag = ChallengeFlag(
+                challenge_id=challenge_id,
+                flag_value=data.get('flag'),
+                flag_label='Primary Flag',
+                is_case_sensitive=data.get('flag_case_sensitive') == 'true'
+            )
+            db.session.add(primary_flag)
+        
         # Handle existing hints updates
         existing_hints = Hint.query.filter_by(challenge_id=challenge_id).all()
         for hint in existing_hints:
             content_key = f'existing_hint_content_{hint.id}'
             cost_key = f'existing_hint_cost_{hint.id}'
             order_key = f'existing_hint_order_{hint.id}'
+            requires_key = f'existing_hint_requires_{hint.id}'
             
             if content_key in data:
                 hint.content = data[content_key]
                 hint.cost = int(data[cost_key])
                 hint.order = int(data[order_key])
+                
+                # Handle prerequisite
+                requires_id = data.get(requires_key)
+                if requires_id and requires_id.strip():
+                    hint.requires_hint_id = int(requires_id)
+                else:
+                    hint.requires_hint_id = None
         
         # Handle new hints
         hint_contents = request.form.getlist('hint_content[]')
         hint_costs = request.form.getlist('hint_cost[]')
         hint_orders = request.form.getlist('hint_order[]')
+        hint_requires = request.form.getlist('hint_requires[]')
         
+        # First pass: Create hints without prerequisites
+        created_hints = []
         for i in range(len(hint_contents)):
             if hint_contents[i].strip():
                 hint = Hint(
@@ -227,6 +308,16 @@ def edit_challenge(challenge_id):
                     order=int(hint_orders[i]) if i < len(hint_orders) else (i + 1)
                 )
                 db.session.add(hint)
+                created_hints.append((hint, i))
+        
+        # Flush to get IDs for new hints
+        db.session.flush()
+        
+        # Second pass: Set prerequisites for new hints
+        for hint, i in created_hints:
+            requires_id = hint_requires[i] if i < len(hint_requires) and hint_requires[i] else None
+            if requires_id and requires_id.strip():
+                hint.requires_hint_id = int(requires_id)
         
         # Handle new file uploads
         if 'files' in request.files:
@@ -261,6 +352,40 @@ def edit_challenge(challenge_id):
                 all_urls = existing_urls + new_urls
                 challenge.files = json.dumps(all_urls)
         
+        # Handle new image uploads
+        if 'images' in request.files:
+            images = request.files.getlist('images')
+            uploaded_images = []
+            
+            for image in images:
+                if image and image.filename:
+                    try:
+                        image_info = file_storage.save_challenge_file(image, challenge.id)
+                        if image_info:
+                            # Create ChallengeFile record for image
+                            challenge_image = ChallengeFile(
+                                challenge_id=challenge.id,
+                                original_filename=image_info['original_filename'],
+                                stored_filename=image_info['stored_filename'],
+                                filepath=image_info['filepath'],
+                                relative_path=image_info['relative_path'],
+                                file_hash=image_info['hash'],
+                                file_size=image_info['size'],
+                                uploaded_by=current_user.id,
+                                is_image=True
+                            )
+                            db.session.add(challenge_image)
+                            uploaded_images.append(image_info)
+                    except Exception as e:
+                        flash(f'Error uploading image {image.filename}: {str(e)}', 'warning')
+            
+            # Update image URLs if new images were uploaded
+            if uploaded_images:
+                existing_imgs = json.loads(challenge.images) if challenge.images else []
+                new_imgs = [{'url': img['url'], 'original_filename': img['original_filename']} for img in uploaded_images]
+                all_imgs = existing_imgs + new_imgs
+                challenge.images = json.dumps(all_imgs)
+        
         db.session.commit()
         
         cache_service.invalidate_challenge(challenge_id)
@@ -270,12 +395,14 @@ def edit_challenge(challenge_id):
         return redirect(url_for('admin.manage_challenges'))
     
     # Get existing files and hints
-    existing_files = ChallengeFile.query.filter_by(challenge_id=challenge_id).all()
+    existing_files = ChallengeFile.query.filter_by(challenge_id=challenge_id, is_image=False).all()
+    existing_images = ChallengeFile.query.filter_by(challenge_id=challenge_id, is_image=True).all()
     existing_hints = Hint.query.filter_by(challenge_id=challenge_id).order_by(Hint.order).all()
     
     return render_template('admin/edit_challenge.html', 
                           challenge=challenge, 
                           existing_files=existing_files,
+                          existing_images=existing_images,
                           existing_hints=existing_hints)
 
 
@@ -374,6 +501,26 @@ def delete_challenge_file(file_id):
     cache_service.invalidate_challenge(challenge_id)
     
     return jsonify({'success': True, 'message': 'File deleted'})
+
+
+@admin_bp.route('/challenges/images/<int:image_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_challenge_image(image_id):
+    """Delete a challenge image"""
+    challenge_image = ChallengeFile.query.get_or_404(image_id)
+    challenge_id = challenge_image.challenge_id
+    
+    # Delete physical file
+    file_storage.delete_file(challenge_image.filepath)
+    
+    # Delete database record
+    db.session.delete(challenge_image)
+    db.session.commit()
+    
+    cache_service.invalidate_challenge(challenge_id)
+    
+    return jsonify({'success': True, 'message': 'Image deleted'})
 
 
 # User Management
@@ -598,7 +745,7 @@ def user_activity(user_id):
     hints_unlocked = HintUnlock.query.filter_by(user_id=user_id).order_by(HintUnlock.unlocked_at.desc()).all()
     
     # Get total stats
-    total_solves = Solve.query.filter_by(user_id=user_id).count()
+    total_solves = Solve.query.filter_by(user_id=user_id).filter(Solve.challenge_id.isnot(None)).count()
     total_submissions = Submission.query.filter_by(user_id=user_id).count()
     total_hints = len(hints_unlocked)
     total_score = user.get_score()
@@ -839,6 +986,39 @@ def update_background_theme():
     return redirect(url_for('admin.settings'))
 
 
+@admin_bp.route('/update-system-settings', methods=['POST'])
+@login_required
+@admin_required
+def update_system_settings():
+    """Update system settings (timezone and backup frequency)"""
+    from models.settings import Settings
+    from services.backup_scheduler import backup_scheduler
+    
+    try:
+        # Update timezone
+        timezone = request.form.get('timezone', 'UTC')
+        Settings.set('timezone', timezone, 'string', 'Platform timezone')
+        
+        # Update backup frequency
+        backup_frequency = request.form.get('backup_frequency', 'disabled')
+        old_frequency = Settings.get('backup_frequency', 'disabled')
+        Settings.set('backup_frequency', backup_frequency, 'string', 'Automatic backup frequency')
+        
+        # Clear last auto backup time if disabling backups
+        if backup_frequency == 'disabled':
+            Settings.set('last_auto_backup', None, 'datetime', 'Last automatic backup timestamp')
+        
+        # Reschedule backups if frequency changed
+        if backup_frequency != old_frequency and backup_scheduler is not None:
+            backup_scheduler.reschedule()
+        
+        flash('System settings updated successfully!', 'success')
+    except Exception as e:
+        flash(f'Error updating system settings: {str(e)}', 'error')
+    
+    return redirect(url_for('admin.settings'))
+
+
 # CTF Control
 @admin_bp.route('/ctf-control', methods=['GET', 'POST'])
 @login_required
@@ -847,6 +1027,7 @@ def ctf_control():
     """CTF control panel for scheduling and pausing"""
     from models.settings import Settings
     from datetime import datetime
+    import pytz
     
     if request.method == 'POST':
         action = request.form.get('action')
@@ -855,18 +1036,35 @@ def ctf_control():
             start_time_str = request.form.get('start_time')
             end_time_str = request.form.get('end_time')
             
+            # Get platform timezone
+            tz_name = Settings.get('timezone', 'UTC')
+            try:
+                tz = pytz.timezone(tz_name)
+            except pytz.UnknownTimeZoneError:
+                tz = pytz.UTC
+            
             if start_time_str:
                 try:
-                    start_time = datetime.fromisoformat(start_time_str)
-                    Settings.set('ctf_start_time', start_time, 'datetime', 'CTF start time')
+                    # Parse as naive datetime (user input is in platform timezone)
+                    start_time_naive = datetime.fromisoformat(start_time_str)
+                    # Localize to platform timezone
+                    start_time_aware = tz.localize(start_time_naive)
+                    # Convert to UTC for storage
+                    start_time_utc = start_time_aware.astimezone(pytz.UTC).replace(tzinfo=None)
+                    Settings.set('ctf_start_time', start_time_utc, 'datetime', 'CTF start time')
                     flash('CTF start time set successfully!', 'success')
                 except ValueError:
                     flash('Invalid start time format', 'error')
             
             if end_time_str:
                 try:
-                    end_time = datetime.fromisoformat(end_time_str)
-                    Settings.set('ctf_end_time', end_time, 'datetime', 'CTF end time')
+                    # Parse as naive datetime (user input is in platform timezone)
+                    end_time_naive = datetime.fromisoformat(end_time_str)
+                    # Localize to platform timezone
+                    end_time_aware = tz.localize(end_time_naive)
+                    # Convert to UTC for storage
+                    end_time_utc = end_time_aware.astimezone(pytz.UTC).replace(tzinfo=None)
+                    Settings.set('ctf_end_time', end_time_utc, 'datetime', 'CTF end time')
                     flash('CTF end time set successfully!', 'success')
                 except ValueError:
                     flash('Invalid end time format', 'error')
@@ -1302,6 +1500,7 @@ def list_backups():
     import json
     import os
     from pathlib import Path
+    from datetime import datetime
     
     try:
         # Store backups in the uploads directory under 'backups' folder
@@ -1322,16 +1521,20 @@ def list_backups():
                             metadata = json.load(f)
                             backups.append(metadata)
                     except json.JSONDecodeError:
+                        # Use file modification time as fallback, convert to ISO format
+                        timestamp = datetime.fromtimestamp(backup_file.stat().st_mtime).isoformat()
                         backups.append({
                             'backup_name': backup_name,
-                            'timestamp': backup_file.stat().st_mtime,
-                            'size_mb': backup_file.stat().st_size / (1024 * 1024)
+                            'timestamp': timestamp,
+                            'size_mb': round(backup_file.stat().st_size / (1024 * 1024), 2)
                         })
                 else:
+                    # Use file modification time as fallback, convert to ISO format
+                    timestamp = datetime.fromtimestamp(backup_file.stat().st_mtime).isoformat()
                     backups.append({
                         'backup_name': backup_name,
-                        'timestamp': backup_file.stat().st_mtime,
-                        'size_mb': backup_file.stat().st_size / (1024 * 1024)
+                        'timestamp': timestamp,
+                        'size_mb': round(backup_file.stat().st_size / (1024 * 1024), 2)
                     })
         
         return jsonify({'success': True, 'backups': backups})
