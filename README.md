@@ -483,28 +483,6 @@ git pull
 docker-compose build
 docker-compose up -d
 ```
-
----
-
-## Roadmap
-
-### Upcoming Features
-
-- [ ] **Multi-language Support**: Internationalization (i18n)
-- [ ] **Email Notifications**: Forgot password, team invites
-- [ ] **LDAP/SSO Integration**: Enterprise authentication
-- [ ] **Challenge Containers**: Docker-based dynamic instances
-- [ ] **Write-up Submission**: Allow participants to submit solutions
-- [ ] **Badge System**: Achievements and awards
-- [ ] **API Documentation**: REST API for integrations
-- [ ] **Mobile App**: Native iOS/Android apps
-- [ ] **Advanced Analytics**: Detailed statistics and charts
-- [ ] **Export/Import**: Challenge pack sharing
-- [ ] **Jeopardy Board**: Alternative challenge view
-- [ ] **Attack/Defense Mode**: King-of-the-hill gameplay
-- [ ] **Discord/Slack Bot**: Platform notifications
-- [ ] **Certificate Generation**: Automatic CTF completion certificates
-
 ---
 
 [⬆ Back to Top](#blackbox-ctf-platform)
