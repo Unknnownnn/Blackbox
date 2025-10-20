@@ -14,7 +14,7 @@ A modern, feature-rich Capture The Flag (CTF) platform built with Flask, designe
 </div>
 
 ---
-![alt text](images\image1.png)
+![Image](images/image1.png)
 
 ## Features
 
@@ -33,7 +33,7 @@ A modern, feature-rich Capture The Flag (CTF) platform built with Flask, designe
 
 #### Advanced Challenge Features
 
-![alt text](images\image2.png)
+![alt text](images/image2.png)
 
 - **Challenge Branching & Prerequisites**:
   - Set prerequisite challenges that must be solved first
