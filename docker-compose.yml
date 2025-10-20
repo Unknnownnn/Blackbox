@@ -3,12 +3,14 @@ services:
     container_name: blackbox-ctf
     build: .
     restart: always
+    user: "1001:${DOCKER_GID:-999}"  # Use host's docker group ID
     ports:
       - "8000:8000"
+      - "30000-30100:30000-30100"  # Port range for challenge containers
     environment:
       - FLASK_ENV=production
       - SECRET_KEY=${SECRET_KEY:-change-this-secret-key-in-production}
-      - DATABASE_URL=mysql+pymysql://${DATABASE_USER:-blackbox_user}:${DATABASE_PASSWORD:-blackbox_password}@db:3306/${DATABASE_NAME:-blackbox_ctf}
+      - DATABASE_URL=mysql+pymysql://${DATABASE_USER:-blackbox_user}:${DATABASE_PASSWORD:-blackbox_password}@db:3306/${DATABASE_NAME:-ctf_platform}
       - REDIS_URL=redis://cache:6379/0
       - UPLOAD_FOLDER=/var/uploads
       - CTF_NAME=${CTF_NAME:-BlackBox CTF}
@@ -20,6 +22,7 @@ services:
       - .:/opt/blackbox:ro
       - uploads:/var/uploads
       - logs:/var/log/blackbox
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker socket for container management
     depends_on:
       db:
         condition: service_healthy
@@ -28,6 +31,7 @@ services:
     networks:
       default:
       internal:
+      challenge_network:  # Network for challenge containers
     healthcheck:
       test: ["CMD", "curl", "-f", "--max-time", "15", "http://localhost:8000/health"]
       interval: 30s
@@ -60,7 +64,7 @@ services:
       - MARIADB_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root_password}
       - MARIADB_USER=${DATABASE_USER:-blackbox_user}
       - MARIADB_PASSWORD=${DATABASE_PASSWORD:-blackbox_password}
-      - MARIADB_DATABASE=${DATABASE_NAME:-blackbox_ctf}
+      - MARIADB_DATABASE=${DATABASE_NAME:-ctf_platform}
       - MARIADB_AUTO_UPGRADE=1
     volumes:
       - mysql_data:/var/lib/mysql
@@ -104,7 +108,7 @@ services:
     environment:
       - DATABASE_USER=${DATABASE_USER:-blackbox_user}
       - DATABASE_PASSWORD=${DATABASE_PASSWORD:-blackbox_password}
-      - DATABASE_NAME=${DATABASE_NAME:-blackbox_ctf}
+      - DATABASE_NAME=${DATABASE_NAME:-ctf_platform}
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root_password}
       - DB_HOST=db
       - MAX_BACKUPS=${MAX_BACKUPS:-168}
@@ -151,3 +155,6 @@ networks:
   internal:
     driver: bridge
     internal: true
+  challenge_network:
+    driver: bridge
+    name: ctf_challenges

@@ -63,6 +63,7 @@ def create_app(config_name=None):
     from routes.admin import admin_bp
     from routes.setup import setup_bp
     from routes.hints import hints_bp
+    from routes.container import container_bp
     
     app.register_blueprint(setup_bp)
     app.register_blueprint(auth_bp)
@@ -71,6 +72,7 @@ def create_app(config_name=None):
     app.register_blueprint(scoreboard_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(hints_bp)
+    app.register_blueprint(container_bp)
     
     # Setup check middleware
     @app.before_request
@@ -284,6 +286,22 @@ with app.app_context():
         scheduler.reschedule()
     except Exception as e:
         app.logger.warning(f"Could not initialize backup scheduler during app creation: {e}")
+
+# Initialize container reconciliation background task
+try:
+    import threading
+    from services.container_reconciliation import run_reconciliation_loop
+    
+    reconciliation_thread = threading.Thread(
+        target=run_reconciliation_loop,
+        args=(app, 60),  # Check every 60 seconds
+        daemon=True,
+        name="ContainerReconciliation"
+    )
+    reconciliation_thread.start()
+    app.logger.info("Container reconciliation background task started")
+except Exception as e:
+    app.logger.warning(f"Could not start container reconciliation task: {e}")
 
 
 if __name__ == '__main__':

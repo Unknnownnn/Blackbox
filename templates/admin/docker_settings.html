@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}Docker Settings - Admin - {{ ctf_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        {% include 'admin/_sidebar.html' %}
+    </div>
+    
+    <div class="col-md-9">
+        <h2 class="mb-4">
+            <i class="bi bi-gear"></i> Docker Container Settings
+        </h2>
+        
+        <form method="POST" enctype="multipart/form-data">
+            <!-- Connection Settings -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-hdd-network"></i> Docker Daemon Connection</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="hostname" class="form-label fw-bold">Docker Host</label>
+                        <input type="text" class="form-control" id="hostname" name="hostname" 
+                               value="{{ docker_settings.hostname or '' }}" 
+                               placeholder="tcp://10.10.10.10:2376">
+                        <div class="form-text">
+                            Leave empty to use local Docker socket. Format: <code>tcp://host:port</code>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">TLS Enabled</label>
+                        <div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="tls_enabled" id="tls_no" 
+                                       value="false" {% if not docker_settings.tls_enabled %}checked{% endif %} 
+                                       onchange="toggleTLSFields(false)">
+                                <label class="form-check-label" for="tls_no">No</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="tls_enabled" id="tls_yes" 
+                                       value="true" {% if docker_settings.tls_enabled %}checked{% endif %} 
+                                       onchange="toggleTLSFields(true)">
+                                <label class="form-check-label" for="tls_yes">Yes</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="tls-fields" style="display: {% if docker_settings.tls_enabled %}block{% else %}none{% endif %};">
+                        <div class="mb-3">
+                            <label for="ca_cert" class="form-label">CA Certificate</label>
+                            <input type="file" class="form-control" id="ca_cert" name="ca_cert" accept=".pem,.crt">
+                            {% if docker_settings.ca_cert %}
+                            <small class="text-success"><i class="bi bi-check-circle-fill"></i> Uploaded</small>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="client_cert" class="form-label">Client Certificate</label>
+                            <input type="file" class="form-control" id="client_cert" name="client_cert" accept=".pem,.crt">
+                            {% if docker_settings.client_cert %}
+                            <small class="text-success"><i class="bi bi-check-circle-fill"></i> Uploaded</small>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-0">
+                            <label for="client_key" class="form-label">Client Key</label>
+                            <input type="file" class="form-control" id="client_key" name="client_key" accept=".pem,.key">
+                            {% if docker_settings.client_key %}
+                            <small class="text-success"><i class="bi bi-check-circle-fill"></i> Uploaded</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Resource Limits -->
+            <div class="card mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-speedometer2"></i> Resource Limits</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="max_containers_per_user" class="form-label fw-bold">Max Containers Per User</label>
+                            <input type="number" class="form-control" id="max_containers_per_user" 
+                                   name="max_containers_per_user" value="{{ docker_settings.max_containers_per_user or 1 }}" 
+                                   min="1" required>
+                            <div class="form-text">Maximum number of containers a user can run simultaneously</div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="container_lifetime_minutes" class="form-label fw-bold">Container Lifetime (minutes)</label>
+                            <input type="number" class="form-control" id="container_lifetime_minutes" 
+                                   name="container_lifetime_minutes" value="{{ docker_settings.container_lifetime_minutes or 120 }}" 
+                                   min="5" required>
+                            <div class="form-text">How long containers run before auto-cleanup</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="revert_cooldown_minutes" class="form-label fw-bold">Revert Cooldown (minutes)</label>
+                            <input type="number" class="form-control" id="revert_cooldown_minutes" 
+                                   name="revert_cooldown_minutes" value="{{ docker_settings.revert_cooldown_minutes or 5 }}" 
+                                   min="1" required>
+                            <div class="form-text">Wait time between container revert/stop actions</div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="stale_container_hours" class="form-label fw-bold">Stale Container Cleanup (hours)</label>
+                            <input type="number" class="form-control" id="stale_container_hours" 
+                                   name="stale_container_hours" value="{{ docker_settings.stale_container_hours or 2 }}" 
+                                   min="1" required>
+                            <div class="form-text">How long before forgotten containers are cleaned up</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="port_range_start" class="form-label fw-bold">Port Range Start</label>
+                            <input type="number" class="form-control" id="port_range_start" 
+                                   name="port_range_start" value="{{ docker_settings.port_range_start or 30000 }}" 
+                                   min="1024" max="65535" required>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="port_range_end" class="form-label fw-bold">Port Range End</label>
+                            <input type="number" class="form-control" id="port_range_end" 
+                                   name="port_range_end" value="{{ docker_settings.port_range_end or 60000 }}" 
+                                   min="1024" max="65535" required>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Auto-Cleanup Settings -->
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-trash"></i> Auto-Cleanup Settings</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="auto_cleanup_on_solve" 
+                                   name="auto_cleanup_on_solve" value="true" 
+                                   {% if docker_settings.auto_cleanup_on_solve %}checked{% endif %}>
+                            <label class="form-check-label" for="auto_cleanup_on_solve">
+                                Auto-delete containers on solve
+                            </label>
+                        </div>
+                        <div class="form-text">Automatically stop containers when user solves the challenge</div>
+                    </div>
+                    
+                    <div class="mb-0">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="cleanup_stale_containers" 
+                                   name="cleanup_stale_containers" value="true" 
+                                   {% if docker_settings.cleanup_stale_containers %}checked{% endif %}>
+                            <label class="form-check-label" for="cleanup_stale_containers">
+                                Clean up stale containers
+                            </label>
+                        </div>
+                        <div class="form-text">Periodically clean up forgotten/orphaned containers</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Repository Whitelist -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-shield-check"></i> Allowed Repositories</h5>
+                </div>
+                <div class="card-body">
+                    <label for="allowed_repositories" class="form-label fw-bold">Repository Prefixes (one per line)</label>
+                    <textarea class="form-control" id="allowed_repositories" name="allowed_repositories" 
+                              rows="6" placeholder="registry.example.com/ctf/&#10;dockerhub/myrepo/">{{ docker_settings.allowed_repositories or '' }}</textarea>
+                    <div class="form-text">
+                        Only images with these prefixes will be available. Leave empty to allow all images.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Back
+                </a>
+                <button type="submit" class="btn btn-primary btn-lg px-5">
+                    <i class="bi bi-save"></i> Save Settings
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function toggleTLSFields(enabled) {
+    document.getElementById('tls-fields').style.display = enabled ? 'block' : 'none';
+}
+</script>
+{% endblock %}

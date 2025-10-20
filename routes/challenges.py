@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app
 from flask_login import login_required, current_user
 from models import db
 from models.challenge import Challenge
@@ -418,6 +418,18 @@ def submit_flag(challenge_id):
             is_first_blood=is_first_blood
         )
         db.session.add(solve)
+        
+        # Auto-stop container if challenge has one (cleanup after solve)
+        if challenge.docker_enabled:
+            try:
+                from services.container_manager import container_orchestrator
+                stop_result = container_orchestrator.stop_container(challenge_id, current_user.id, force=True)
+                if stop_result.get('success'):
+                    current_app.logger.info(f"Auto-stopped container for solved challenge {challenge_id} by user {current_user.id}")
+                else:
+                    current_app.logger.warning(f"Failed to auto-stop container for solved challenge {challenge_id}: {stop_result.get('error', 'Unknown error')}")
+            except Exception as e:
+                current_app.logger.error(f"Error auto-stopping container for solved challenge {challenge_id}: {e}")
         
         # Handle challenge unlocking via flags
         from models.branching import ChallengeUnlock

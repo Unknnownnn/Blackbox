@@ -1,0 +1,521 @@
+<!-- Docker Container Control Panel -->
+<div class="card border-info" id="container-panel">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0">
+            <i class="bi bi-box"></i> Docker Container Instance
+        </h5>
+    </div>
+    <div class="card-body">
+        <div id="container-status">
+            <!-- Container status will be loaded here -->
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2 text-muted">Checking container status...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const challengeId = {{ challenge.id }};
+let statusCheckInterval = null;
+let statusCheckAttempts = 0;
+const maxStatusCheckAttempts = 60;  // 120 seconds max (60 * 2s intervals)
+let isPolling = false;
+
+// Check container status on page load
+document.addEventListener('DOMContentLoaded', function() {
+    checkContainerStatus();
+});
+
+function checkContainerStatus() {
+    // Prevent multiple simultaneous calls
+    if (isPolling) {
+        return;
+    }
+    isPolling = true;
+    
+    fetch(`/container/status?challenge_id=${challengeId}`)
+        .then(response => response.json())
+        .then(data => {
+            isPolling = false;
+            
+            if (!data.success) {
+                showError(data.error || 'Failed to check container status');
+                return;
+            }
+            
+            const status = data.status;
+            const container = data.container;
+            
+            if (status === 'none' || status === 'expired') {
+                showStartButton();
+                statusCheckAttempts = 0;
+            } else if (status === 'starting') {
+                showStarting();
+                // Poll for status updates
+                statusCheckAttempts++;
+                if (statusCheckAttempts < maxStatusCheckAttempts) {
+                    if (statusCheckInterval) {
+                        clearTimeout(statusCheckInterval);
+                    }
+                    statusCheckInterval = setTimeout(checkContainerStatus, 2000);
+                } else {
+                    showError('Container is taking too long to start (timeout after 2 minutes). Please try force stopping and starting again.');
+                    statusCheckAttempts = 0;
+                }
+            } else if (status === 'running' && container) {
+                showRunning(container);
+                statusCheckAttempts = 0;  // Reset counter
+                if (statusCheckInterval) {
+                    clearTimeout(statusCheckInterval);
+                    statusCheckInterval = null;
+                }
+            } else if (status === 'error') {
+                showError(container && container.error_message ? container.error_message : 'Container failed to start');
+                statusCheckAttempts = 0;
+            }
+        })
+        .catch(error => {
+            isPolling = false;
+            console.error('Failed to check container status:', error);
+            showError('Network error checking container status. Please refresh the page.');
+        });
+}
+
+function startContainer() {
+    showStarting();
+    
+    fetch('/container/start', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            challenge_id: challengeId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (data.status === 'running') {
+                showRunning(data.container || data);
+            } else if (data.status === 'starting') {
+                // Wait 10 seconds before first status check to let container fully start
+                statusCheckAttempts = 0;
+                setTimeout(checkContainerStatus, 10000);
+            }
+        } else {
+            // Check if it's a cooldown error with existing container
+            if (data.status === 'running' && data.container) {
+                showRunning(data.container);
+            } else {
+                showError(data.error || 'Failed to start container');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Failed to start container:', error);
+        showError('Failed to start container: ' + error.message);
+    });
+}
+
+function stopContainer() {
+    if (!confirm('Are you sure you want to stop this container?')) {
+        return;
+    }
+    
+    showStarting('Stopping container...');
+    
+    fetch('/container/stop', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            challenge_id: challengeId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showStartButton();
+            showSuccess('Container stopped successfully');
+        } else {
+            if (data.remaining_seconds) {
+                showError(`Please wait ${data.remaining_seconds} seconds before stopping`);
+            } else {
+                showError(data.error || 'Failed to stop container');
+            }
+            checkContainerStatus();  // Refresh status
+        }
+    })
+    .catch(error => {
+        console.error('Failed to stop container:', error);
+        showError('Failed to stop container: ' + error.message);
+    });
+}
+
+function forceStop() {
+    if (!confirm('Force cleanup stuck/expired containers? This will remove any containers that are preventing you from starting a new one.')) {
+        return;
+    }
+    
+    showStarting('Cleaning up containers...');
+    statusCheckAttempts = 0;
+    
+    // Clear any pending intervals
+    if (statusCheckInterval) {
+        clearTimeout(statusCheckInterval);
+        statusCheckInterval = null;
+    }
+    
+    // First try force cleanup endpoint
+    fetch('/container/force-cleanup', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            challenge_id: challengeId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showStartButton();
+            showSuccess(data.message || 'Containers cleaned up successfully');
+        } else {
+            // If cleanup failed, try regular stop
+            return fetch('/container/stop', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    challenge_id: challengeId,
+                    force: true
+                })
+            });
+        }
+    })
+    .then(response => {
+        if (response) {
+            return response.json();
+        }
+    })
+    .then(data => {
+        if (data) {
+            if (data.success) {
+                showStartButton();
+                showSuccess('Container stopped successfully');
+            } else {
+                showError(data.error || 'Failed to stop container');
+            }
+        }
+        // Refresh status either way
+        setTimeout(checkContainerStatus, 1000);
+    })
+    .catch(error => {
+        console.error('Failed to cleanup/stop container:', error);
+        showError('Cleanup failed. Refreshing status...');
+        setTimeout(checkContainerStatus, 2000);
+    });
+}
+
+function revertContainer() {
+    if (!confirm('Revert container? This will stop and restart it with a fresh instance.')) {
+        return;
+    }
+    
+    showStarting('Reverting container...');
+    
+    fetch('/container/revert', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            challenge_id: challengeId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (data.status === 'running') {
+                showRunning(data);
+                showSuccess('Container reverted successfully');
+            } else if (data.status === 'starting') {
+                statusCheckAttempts = 0;
+                checkContainerStatus();
+            }
+        } else {
+            if (data.remaining_seconds) {
+                showError(`Please wait ${data.remaining_seconds} seconds before reverting`);
+            } else {
+                showError(data.error || 'Failed to revert container');
+            }
+            checkContainerStatus();  // Refresh status
+        }
+    })
+    .catch(error => {
+        console.error('Failed to revert container:', error);
+        showError('Failed to revert container: ' + error.message);
+    });
+}
+
+function showStartButton() {
+    const statusDiv = document.getElementById('container-status');
+    statusDiv.innerHTML = `
+        <div class="text-center">
+            <button class="btn btn-primary btn-lg" onclick="startContainer()">
+                <i class="bi bi-play-fill"></i> Start Container Instance
+            </button>
+            <p class="text-muted mt-3">
+                <small>
+                    <i class="bi bi-info-circle"></i> 
+                    Containers may take up to 30 seconds to start (first-time image pull may take longer).
+                </small>
+            </p>
+        </div>
+    `;
+}
+
+function showStarting(message = 'Starting container...') {
+    const statusDiv = document.getElementById('container-status');
+    const showForceStop = statusCheckAttempts > 10; // Show after 20 seconds
+    
+    statusDiv.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border text-primary mb-3" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="text-primary">${message}</p>
+            <small class="text-muted">Please wait...</small>
+            ${showForceStop ? `
+                <div class="mt-3">
+                    <button class="btn btn-sm btn-danger" onclick="forceStop()">
+                        <i class="bi bi-x-circle"></i> Cancel & Force Stop
+                    </button>
+                    <p class="text-muted mt-2"><small>Container taking too long to start</small></p>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+function showRunning(container) {
+    const statusDiv = document.getElementById('container-status');
+    
+    // Calculate remaining time using UTC timestamps to avoid timezone issues
+    let expiresIn = 'N/A';
+    let showControls = true;
+    let remainingMinutes = 0;
+    
+    if (container.expires_at || container.expires_at_ms) {
+        // Use expires_at_ms (milliseconds since epoch) if available, otherwise parse ISO string
+        const expiresMs = container.expires_at_ms || new Date(container.expires_at).getTime();
+        const now = Date.now(); // Current time in UTC milliseconds
+        const diff = expiresMs - now;
+        
+        if (diff > 0) {
+            remainingMinutes = Math.floor(diff / 60000);
+            const seconds = Math.floor((diff % 60000) / 1000);
+            expiresIn = `${remainingMinutes}m ${seconds}s`;
+            
+            // Start countdown
+            setTimeout(() => updateCountdown(container), 1000);
+        } else {
+            expiresIn = 'Expired';
+            showControls = false;
+        }
+    }
+    
+    // Build connection info
+    let connectionHtml = '';
+    if (container.connection_info) {
+        // Check if it's a URL
+        if (container.connection_info.startsWith('http://') || container.connection_info.startsWith('https://')) {
+            connectionHtml = `
+                <div class="alert alert-success mb-3">
+                    <strong><i class="bi bi-link-45deg"></i> Connection URL:</strong><br>
+                    <a href="${container.connection_info}" target="_blank" rel="noopener noreferrer" class="alert-link fs-5">
+                        ${container.connection_info}
+                    </a>
+                    <button class="btn btn-sm btn-outline-success ms-2" onclick="navigator.clipboard.writeText('${container.connection_info}')">
+                        <i class="bi bi-clipboard"></i> Copy
+                    </button>
+                </div>
+            `;
+        } else {
+            connectionHtml = `
+                <div class="alert alert-success mb-3">
+                    <strong><i class="bi bi-terminal"></i> Connection:</strong><br>
+                    <code>${container.connection_info}</code>
+                    <button class="btn btn-sm btn-outline-success ms-2" onclick="navigator.clipboard.writeText('${container.connection_info}')">
+                        <i class="bi bi-clipboard"></i> Copy
+                    </button>
+                </div>
+            `;
+        }
+    } else {
+        // Fallback to host:port
+        const hostPort = container.host_port || 'N/A';
+        const hostIp = container.host_ip || 'localhost';
+        const url = `http://${hostIp}:${hostPort}`;
+        connectionHtml = `
+            <div class="alert alert-success mb-3">
+                <strong><i class="bi bi-hdd-network"></i> Container Access:</strong><br>
+                <a href="${url}" target="_blank" rel="noopener noreferrer" class="alert-link fs-5">
+                    ${url}
+                </a>
+                <button class="btn btn-sm btn-outline-success ms-2" onclick="navigator.clipboard.writeText('${url}')">
+                    <i class="bi bi-clipboard"></i> Copy
+                </button>
+            </div>
+        `;
+    }
+    
+    // Warning if less than 10 minutes remaining
+    let timeWarning = '';
+    if (remainingMinutes < 10 && remainingMinutes > 0) {
+        timeWarning = `
+            <div class="alert alert-warning mb-3">
+                <i class="bi bi-clock-fill"></i> <strong>Warning:</strong> Container will expire in less than 10 minutes!
+            </div>
+        `;
+    }
+    
+    statusDiv.innerHTML = `
+        <div class="alert alert-info mb-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <strong><i class="bi bi-check-circle-fill"></i> Container Running</strong>
+                </div>
+                <div class="text-end">
+                    <span class="badge bg-primary fs-6">
+                        <i class="bi bi-clock"></i> <span id="countdown-timer">${expiresIn}</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        ${timeWarning}
+        ${connectionHtml}
+        
+        ${showControls ? `
+        <div class="d-grid gap-2">
+            <button class="btn btn-danger" onclick="stopContainer()" title="Stop and remove container">
+                <i class="bi bi-stop-fill"></i> Stop Container
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="checkContainerStatus()" title="Refresh status">
+                <i class="bi bi-arrow-clockwise"></i> Refresh Status
+            </button>
+        </div>
+        <p class="text-muted text-center mt-3 mb-0">
+            <small>
+                <i class="bi bi-info-circle"></i> 
+                Actions have a cooldown period to prevent abuse.
+            </small>
+        </p>
+        ` : `
+        <div class="alert alert-warning">
+            <i class="bi bi-hourglass-bottom"></i> Container has expired. Please start a new one.
+        </div>
+        <div class="text-center">
+            <button class="btn btn-primary" onclick="checkContainerStatus()">
+                <i class="bi bi-play-fill"></i> Start New Container
+            </button>
+        </div>
+        `}
+    `;
+    
+    // Store container data for countdown
+    statusDiv.dataset.containerData = JSON.stringify(container);
+}
+
+function updateCountdown(container) {
+    const timerElement = document.getElementById('countdown-timer');
+    if (!timerElement) return;
+    
+    // Use expires_at_ms (milliseconds since epoch) if available, otherwise parse ISO string
+    // This avoids timezone issues - server sends UTC timestamp, client compares against UTC now
+    const expiresMs = container.expires_at_ms || new Date(container.expires_at).getTime();
+    const now = Date.now();  // Current time in milliseconds since epoch (UTC)
+    const diff = expiresMs - now;
+    
+    if (diff > 0) {
+        const minutes = Math.floor(diff / 60000);
+        const seconds = Math.floor((diff % 60000) / 1000);
+        timerElement.textContent = `${minutes}m ${seconds < 10 ? '0' : ''}${seconds}s`;
+        
+        // Continue countdown
+        setTimeout(() => updateCountdown(container), 1000);
+    } else {
+        timerElement.textContent = 'Expired';
+        timerElement.classList.add('text-danger');
+        // Refresh status to show expired state
+        setTimeout(checkContainerStatus, 1000);
+    }
+}
+
+function showError(message) {
+    // Clear any pending intervals
+    if (statusCheckInterval) {
+        clearTimeout(statusCheckInterval);
+        statusCheckInterval = null;
+    }
+    statusCheckAttempts = 0;
+    
+    const statusDiv = document.getElementById('container-status');
+    statusDiv.innerHTML = `
+        <div class="alert alert-danger mb-3">
+            <strong><i class="bi bi-exclamation-triangle-fill"></i> Error</strong><br>
+            ${message}
+        </div>
+        <div class="d-grid gap-2">
+            <button class="btn btn-primary" onclick="checkContainerStatus()">
+                <i class="bi bi-arrow-clockwise"></i> Refresh Status
+            </button>
+            <button class="btn btn-outline-primary" onclick="startContainer()">
+                <i class="bi bi-play-fill"></i> Try Start Again
+            </button>
+        </div>
+    `;
+}
+
+function showSuccess(message) {
+    // Show temporary success message
+    const panel = document.getElementById('container-panel');
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-success alert-dismissible fade show';
+    alert.innerHTML = `
+        <strong><i class="bi bi-check-circle-fill"></i> Success!</strong> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    panel.insertBefore(alert, panel.firstChild);
+    
+    setTimeout(() => {
+        alert.remove();
+    }, 5000);
+}
+</script>
+
+<style>
+#container-panel {
+    border-width: 2px;
+}
+
+#container-panel code {
+    background-color: #f8f9fa;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+}
+
+#container-panel .alert code {
+    background-color: transparent;
+}
+</style>

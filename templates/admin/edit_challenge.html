@@ -204,6 +204,76 @@
                         </div>
                     </div>
                     
+                    <!-- DOCKER CONTAINER SECTION -->
+                    <div class="card mb-4 border-info">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0">
+                                <i class="bi bi-box-seam"></i> Docker Container (Optional)
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="docker_enabled" 
+                                       name="docker_enabled" value="true" 
+                                       {% if challenge.docker_enabled %}checked{% endif %}
+                                       onchange="toggleDockerSettings()">
+                                <label class="form-check-label fw-bold" for="docker_enabled">
+                                    Enable Docker Container for this Challenge
+                                </label>
+                            </div>
+                            
+                            <div id="docker-settings" style="display: {% if challenge.docker_enabled %}block{% else %}none{% endif %};">
+                                <div class="alert alert-info">
+                                    <i class="bi bi-info-circle"></i>
+                                    <strong>Docker Container:</strong> When enabled, players can start a dedicated Docker container for this challenge. Each player gets their own instance with a unique port.
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="docker_image" class="form-label fw-bold">
+                                            Docker Image *
+                                            <i class="bi bi-info-circle" title="Select from available images or type manually"></i>
+                                        </label>
+                                        <select class="form-select" id="docker_image" name="docker_image">
+                                            <option value="">-- Select Docker Image --</option>
+                                            <option value="custom">-- Type Manually --</option>
+                                        </select>
+                                        <input type="text" class="form-control mt-2" id="docker_image_manual" 
+                                               name="docker_image_manual" placeholder="e.g., ctf-web-basic:v1"
+                                               value="{{ challenge.docker_image or '' }}"
+                                               style="display: none;">
+                                        <div class="form-text">
+                                            Docker image must be built and available on the host system. Use <code>docker images</code> to list available images.
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <label for="docker_connection_info" class="form-label fw-bold">
+                                            Connection Info Template
+                                        </label>
+                                        <input type="text" class="form-control" id="docker_connection_info" 
+                                               name="docker_connection_info" 
+                                               value="{{ challenge.docker_connection_info or 'http://{host}:{port}' }}"
+                                               placeholder="http://{host}:{port}">
+                                        <div class="form-text">
+                                            Use <code>{host}</code> and <code>{port}</code> placeholders. Example: <code>http://{host}:{port}</code> or <code>nc {host} {port}</code>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="alert alert-warning mb-0">
+                                    <i class="bi bi-exclamation-triangle"></i>
+                                    <strong>Requirements:</strong>
+                                    <ul class="mb-0 mt-2">
+                                        <li>Docker must be configured in <a href="{{ url_for('admin.docker_settings') }}" target="_blank">Docker Settings</a></li>
+                                        <li>Image must be whitelisted in allowed repositories</li>
+                                        <li>Image must exist on the Docker host</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- HINTS SECTION -->
                     <div class="card mb-4">
                         <div class="card-header">
@@ -360,6 +430,89 @@
 
 <script>
 let hintCount = 0;
+
+// Load Docker images when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    {% if challenge.docker_enabled %}
+    loadDockerImages();
+    {% endif %}
+});
+
+function toggleDockerSettings() {
+    const enabled = document.getElementById('docker_enabled').checked;
+    const settings = document.getElementById('docker-settings');
+    settings.style.display = enabled ? 'block' : 'none';
+    
+    if (enabled) {
+        loadDockerImages();
+    }
+}
+
+function loadDockerImages() {
+    fetch('/admin/docker/images')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('docker_image');
+            const manualInput = document.getElementById('docker_image_manual');
+            const currentValue = manualInput.value || '{{ challenge.docker_image or "" }}';
+            
+            // Clear existing options except first two
+            while (select.options.length > 2) {
+                select.remove(2);
+            }
+            
+            if (data.success && data.images && data.images.length > 0) {
+                // Add available images
+                data.images.forEach(image => {
+                    const option = document.createElement('option');
+                    option.value = image;
+                    option.textContent = image;
+                    if (image === currentValue) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+                
+                // If current value matches an image, select it
+                if (currentValue && data.images.includes(currentValue)) {
+                    select.value = currentValue;
+                    manualInput.style.display = 'none';
+                } else if (currentValue) {
+                    // Current value is not in list, show manual input
+                    select.value = 'custom';
+                    manualInput.style.display = 'block';
+                }
+            } else {
+                // No images available, show manual input
+                select.value = 'custom';
+                manualInput.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading images:', error);
+            // On error, show manual input
+            document.getElementById('docker_image').value = 'custom';
+            document.getElementById('docker_image_manual').style.display = 'block';
+        });
+}
+
+// Handle image selection change
+document.addEventListener('DOMContentLoaded', function() {
+    const imageSelect = document.getElementById('docker_image');
+    const manualInput = document.getElementById('docker_image_manual');
+    
+    if (imageSelect) {
+        imageSelect.addEventListener('change', function() {
+            if (this.value === 'custom') {
+                manualInput.style.display = 'block';
+                manualInput.focus();
+            } else {
+                manualInput.style.display = 'none';
+                manualInput.value = this.value;
+            }
+        });
+    }
+});
 
 function addHint() {
     hintCount++;

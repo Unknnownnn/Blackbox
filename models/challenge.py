@@ -20,6 +20,11 @@ class Challenge(db.Model):
     hints = db.Column(db.Text)  # JSON array of hints
     connection_info = db.Column(db.String(500))  # Connection info (nc host:port, URLs, etc.)
     
+    # Docker container settings
+    docker_enabled = db.Column(db.Boolean, default=False)
+    docker_image = db.Column(db.String(256))  # Docker image:tag to use
+    docker_connection_info = db.Column(db.String(512))  # Template with {host} {port} placeholders
+    
     # Scoring
     initial_points = db.Column(db.Integer, nullable=False, default=500)
     minimum_points = db.Column(db.Integer, nullable=False, default=50)
@@ -183,7 +188,12 @@ class Challenge(db.Model):
             'connection_info': self.connection_info,
             'files': self.files,
             'hints': self.hints,
-            'created_at': self.created_at.isoformat() if self.created_at else None
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            # Docker fields
+            'docker_enabled': self.docker_enabled,
+            'docker_image': self.docker_image,
+            'docker_connection_info': self.docker_connection_info,
+            'requires_team': self.requires_team
         }
         
         if include_solves:

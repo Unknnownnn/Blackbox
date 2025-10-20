@@ -81,7 +81,11 @@ def create_challenge():
             is_dynamic=data.get('is_dynamic') == 'true',
             requires_team=data.get('requires_team') == 'true',
             author=data.get('author'),
-            difficulty=data.get('difficulty')
+            difficulty=data.get('difficulty'),
+            # Docker fields
+            docker_enabled=data.get('docker_enabled') == 'true',
+            docker_image=data.get('docker_image') if data.get('docker_enabled') == 'true' else None,
+            docker_connection_info=data.get('docker_connection_info') if data.get('docker_enabled') == 'true' else None
         )
         
         db.session.add(challenge)
@@ -251,6 +255,21 @@ def edit_challenge(challenge_id):
         challenge.requires_team = data.get('requires_team') == 'true'
         challenge.author = data.get('author')
         challenge.difficulty = data.get('difficulty')
+        
+        # Handle Docker container settings
+        challenge.docker_enabled = data.get('docker_enabled') == 'true'
+        if challenge.docker_enabled:
+            docker_image_value = data.get('docker_image')
+            if docker_image_value == 'custom' or not docker_image_value:
+                # Use manual input
+                challenge.docker_image = data.get('docker_image_manual')
+            else:
+                # Use selected image
+                challenge.docker_image = docker_image_value
+            challenge.docker_connection_info = data.get('docker_connection_info', 'http://{host}:{port}')
+        else:
+            challenge.docker_image = None
+            challenge.docker_connection_info = None
         
         # Update primary flag in challenge_flags table
         primary_flag = ChallengeFlag.query.filter_by(
@@ -1918,3 +1937,189 @@ def upload_backup():
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+
+# ==================== Docker Container Management ====================
+
+@admin_bp.route('/docker/settings', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def docker_settings():
+    """Configure Docker connection and settings"""
+    from models.settings import DockerSettings
+    
+    settings = DockerSettings.get_config()
+    
+    if request.method == 'POST':
+        # Update basic settings
+        settings.hostname = request.form.get('hostname') or None
+        settings.tls_enabled = request.form.get('tls_enabled') == 'true'
+        settings.max_containers_per_user = int(request.form.get('max_containers_per_user', 1))
+        settings.container_lifetime_minutes = int(request.form.get('container_lifetime_minutes', 15))
+        settings.revert_cooldown_minutes = int(request.form.get('revert_cooldown_minutes', 5))
+        settings.port_range_start = int(request.form.get('port_range_start', 30000))
+        settings.port_range_end = int(request.form.get('port_range_end', 60000))
+        settings.auto_cleanup_on_solve = request.form.get('auto_cleanup_on_solve') == 'true'
+        settings.cleanup_stale_containers = request.form.get('cleanup_stale_containers') == 'true'
+        settings.stale_container_hours = int(request.form.get('stale_container_hours', 2))
+        settings.allowed_repositories = request.form.get('allowed_repositories', '').strip()
+        
+        # Handle certificate uploads
+        if 'ca_cert' in request.files:
+            ca_file = request.files['ca_cert']
+            if ca_file and ca_file.filename:
+                settings.ca_cert = ca_file.read().decode('utf-8')
+        
+        if 'client_cert' in request.files:
+            cert_file = request.files['client_cert']
+            if cert_file and cert_file.filename:
+                settings.client_cert = cert_file.read().decode('utf-8')
+        
+        if 'client_key' in request.files:
+            key_file = request.files['client_key']
+            if key_file and key_file.filename:
+                settings.client_key = key_file.read().decode('utf-8')
+        
+        # If TLS disabled, clear certificates
+        if not settings.tls_enabled:
+            settings.ca_cert = None
+            settings.client_cert = None
+            settings.client_key = None
+        
+        db.session.commit()
+        
+        # Reinitialize Docker client
+        from services.container_manager import container_orchestrator
+        container_orchestrator._init_docker_client()
+        
+        flash('Docker settings updated successfully', 'success')
+        return redirect(url_for('admin.docker_settings'))
+    
+    return render_template('admin/docker_settings.html', docker_settings=settings)
+
+
+@admin_bp.route('/docker/status')
+@login_required
+@admin_required
+def docker_status():
+    """View all active containers"""
+    from models.container import ContainerInstance
+    
+    # Get all containers
+    containers = ContainerInstance.query.filter(
+        ContainerInstance.status.in_(['starting', 'running'])
+    ).order_by(ContainerInstance.started_at.desc()).all()
+    
+    # Enrich with user/team/challenge info
+    container_data = []
+    for c in containers:
+        container_data.append({
+            'id': c.id,
+            'user': c.user.username if c.user else 'Unknown',
+            'team': c.team.name if c.team else 'N/A',
+            'challenge': c.challenge.name if c.challenge else 'Unknown',
+            'container_id': c.container_id[:12] if c.container_id else 'N/A',
+            'host_port': c.host_port,
+            'status': c.status,
+            'started_at': c.started_at,
+            'expires_at': c.expires_at,
+            'remaining_time': c.get_remaining_time() if c.expires_at else 'N/A'
+        })
+    
+    return render_template('admin/docker_status.html', containers=container_data)
+
+
+@admin_bp.route('/docker/containers/<int:container_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_container(container_id):
+    """Admin force-delete a container"""
+    from models.container import ContainerInstance
+    from services.container_manager import container_orchestrator
+    import docker
+    
+    try:
+        container = ContainerInstance.query.get_or_404(container_id)
+        
+        # Stop Docker container
+        try:
+            if container_orchestrator.docker_client:
+                docker_container = container_orchestrator.docker_client.containers.get(container.container_id)
+                docker_container.stop(timeout=10)
+                docker_container.remove()
+        except docker.errors.NotFound:
+            pass  # Already removed
+        except Exception as e:
+            current_app.logger.error(f"Failed to stop container: {e}")
+        
+        # Update database
+        container.status = 'stopped'
+        container.stopped_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Container deleted successfully'
+        })
+    
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@admin_bp.route('/docker/containers/delete-all', methods=['POST'])
+@login_required
+@admin_required
+def delete_all_containers():
+    """Delete all running containers"""
+    from models.container import ContainerInstance
+    from services.container_manager import container_orchestrator
+    import docker
+    
+    try:
+        containers = ContainerInstance.query.filter(
+            ContainerInstance.status.in_(['starting', 'running'])
+        ).all()
+        
+        deleted_count = 0
+        for container in containers:
+            try:
+                if container_orchestrator.docker_client:
+                    docker_container = container_orchestrator.docker_client.containers.get(container.container_id)
+                    docker_container.stop(timeout=10)
+                    docker_container.remove()
+            except docker.errors.NotFound:
+                pass
+            except Exception as e:
+                current_app.logger.error(f"Failed to stop container {container.id}: {e}")
+            
+            container.status = 'stopped'
+            container.stopped_at = datetime.utcnow()
+            deleted_count += 1
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Deleted {deleted_count} containers'
+        })
+    
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@admin_bp.route('/docker/images')
+@login_required
+@admin_required
+def list_docker_images():
+    """List available Docker images"""
+    from services.container_manager import container_orchestrator
+    
+    result = container_orchestrator.list_available_images()
+    return jsonify(result)
+

@@ -228,6 +228,50 @@
                         </div>
                     </div>
                     
+                    <!-- DOCKER CONTAINER SECTION -->
+                    <div class="card mb-4 border-info">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0">
+                                <i class="bi bi-box"></i> Docker Container Configuration
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="docker_enabled" name="docker_enabled" value="true" onchange="toggleDockerSettings()">
+                                    <label class="form-check-label fw-bold" for="docker_enabled">
+                                        Enable Docker Container for this challenge
+                                    </label>
+                                </div>
+                                <div class="form-text">
+                                    Enable this to allow users to spawn isolated container instances for this challenge.
+                                </div>
+                            </div>
+                            
+                            <div id="docker-settings" style="display:none;">
+                                <div class="mb-3">
+                                    <label for="docker_image" class="form-label fw-bold">Docker Image *</label>
+                                    <select class="form-select" id="docker_image" name="docker_image">
+                                        <option value="">Loading images...</option>
+                                    </select>
+                                    <div class="form-text">
+                                        Select the Docker image to use. Only whitelisted repositories are shown.
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-0">
+                                    <label for="docker_connection_info" class="form-label">Connection Info Template</label>
+                                    <input type="text" class="form-control" id="docker_connection_info" name="docker_connection_info" 
+                                           placeholder="http://{host}:{port}">
+                                    <div class="form-text">
+                                        Template for connection information. Use <code>{host}</code> and <code>{port}</code> as placeholders.
+                                        Example: <code>http://{host}:{port}</code> or <code>nc {host} {port}</code>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <hr class="my-4">
                     
                     <div class="d-flex justify-content-between align-items-center">
@@ -422,5 +466,59 @@ function removeHint(id) {
         hintDiv.remove();
     }
 }
+
+// Docker settings toggle
+function toggleDockerSettings() {
+    const checkbox = document.getElementById('docker_enabled');
+    const settings = document.getElementById('docker-settings');
+    const imageSelect = document.getElementById('docker_image');
+    
+    if (checkbox.checked) {
+        settings.style.display = 'block';
+        imageSelect.required = true;
+        
+        // Load available images
+        if (imageSelect.options.length === 1) {
+            loadDockerImages();
+        }
+    } else {
+        settings.style.display = 'none';
+        imageSelect.required = false;
+    }
+}
+
+// Load available Docker images
+function loadDockerImages() {
+    const select = document.getElementById('docker_image');
+    
+    fetch('/admin/docker/images')
+        .then(response => response.json())
+        .then(data => {
+            select.innerHTML = '';
+            
+            if (!data.success) {
+                select.innerHTML = '<option value="">Error: ' + (data.error || 'Docker not configured') + '</option>';
+                return;
+            }
+            
+            if (data.images.length === 0) {
+                select.innerHTML = '<option value="">No images available</option>';
+                return;
+            }
+            
+            select.innerHTML = '<option value="">Select an image...</option>';
+            data.images.forEach(img => {
+                const option = document.createElement('option');
+                option.value = img.tag;
+                option.textContent = img.tag;
+                select.appendChild(option);
+            });
+        })
+        .catch(error => {
+            select.innerHTML = '<option value="">Error loading images</option>';
+            console.error('Failed to load Docker images:', error);
+        });
+}
+
 </script>
 {% endblock %}

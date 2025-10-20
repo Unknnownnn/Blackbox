@@ -23,6 +23,12 @@
         <a href="{{ url_for('admin.backups') }}" class="admin-nav-link {% if request.endpoint == 'admin.backups' %}active{% endif %}">
             <i class="bi bi-cloud-arrow-down"></i> Backups
         </a>
+        <a href="{{ url_for('admin.docker_settings') }}" class="admin-nav-link {% if request.endpoint == 'admin.docker_settings' %}active{% endif %}">
+            <i class="bi bi-box"></i> Docker Config
+        </a>
+        <a href="{{ url_for('admin.docker_status') }}" class="admin-nav-link {% if request.endpoint == 'admin.docker_status' %}active{% endif %}">
+            <i class="bi bi-box-seam"></i> Docker Status
+        </a>
         <a href="{{ url_for('admin.ctf_control') }}" class="admin-nav-link {% if request.endpoint == 'admin.ctf_control' %}active{% endif %}">
             <i class="bi bi-clock-history"></i> CTF Control
         </a>

@@ -96,6 +96,12 @@ echo "  Starting BlackBox CTF Platform"
 echo -e "==================================================${NC}"
 echo ""
 
+# Ensure Docker settings schema & defaults exist (non-destructive)
+echo -e "${YELLOW}Ensuring Docker settings schema exists...${NC}"
+python scripts/ensure_docker_schema.py || echo -e "${RED}Warning: ensure_docker_schema.py failed (continuing)${NC}"
+echo -e "${GREEN}  ✓ Docker schema check complete${NC}"
+
+
 # Start application with Gunicorn
 exec gunicorn \
     --config gunicorn.conf.py \

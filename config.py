@@ -19,7 +19,7 @@ class Config:
     DATABASE_PASSWORD = os.getenv('DATABASE_PASSWORD', 'blackbox_password')
     DATABASE_HOST = os.getenv('DATABASE_HOST', 'localhost')
     DATABASE_PORT = os.getenv('DATABASE_PORT', '3306')
-    DATABASE_NAME = os.getenv('DATABASE_NAME', 'blackbox_ctf')
+    DATABASE_NAME = os.getenv('DATABASE_NAME', 'ctf_platform')
     
     # Support DATABASE_URL for Docker deployment
     DATABASE_URL = os.getenv('DATABASE_URL')

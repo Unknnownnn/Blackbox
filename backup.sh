@@ -14,7 +14,7 @@ BACKUP_PATH="${BACKUP_DIR}/${BACKUP_NAME}"
 DB_HOST="${DB_HOST:-db}"
 DB_USER="${DATABASE_USER:-blackbox_user}"
 DB_PASSWORD="${DATABASE_PASSWORD:-blackbox_password}"
-DB_NAME="${DATABASE_NAME:-blackbox_ctf}"
+DB_NAME="${DATABASE_NAME:-ctf_platform}"
 
 # Maximum number of backups to keep
 MAX_BACKUPS="${MAX_BACKUPS:-168}"  # Keep 1 week of hourly backups (24*7)

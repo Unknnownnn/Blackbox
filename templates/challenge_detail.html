@@ -63,6 +63,13 @@
                     {% endif %}
                 </div>
                 
+                {% if challenge.docker_enabled %}
+                <!-- Docker Container Panel -->
+                <div class="mb-4">
+                    {% include 'components/container_panel.html' %}
+                </div>
+                {% endif %}
+                
                 {% if files and files|length > 0 %}
                 <div class="mb-4">
                     <h5><i class="bi bi-file-earmark-arrow-down"></i> Downloads</h5>

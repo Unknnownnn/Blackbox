@@ -11,7 +11,7 @@ BACKUP_DIR="/var/backups/ctf"
 DB_HOST="${DB_HOST:-db}"
 DB_USER="${DATABASE_USER:-blackbox_user}"
 DB_PASSWORD="${DATABASE_PASSWORD:-blackbox_password}"
-DB_NAME="${DATABASE_NAME:-blackbox_ctf}"
+DB_NAME="${DATABASE_NAME:-ctf_platform}"
 ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-root_password}"
 
 # Check if backup name is provided

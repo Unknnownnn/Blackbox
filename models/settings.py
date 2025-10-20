@@ -235,3 +235,87 @@ class Settings(db.Model):
     
     def __repr__(self):
         return f'<Settings {self.key}={self.value}>'
+
+
+class DockerSettings(db.Model):
+    """Docker daemon connection and orchestration settings"""
+    __tablename__ = 'docker_settings'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Docker daemon connection
+    hostname = db.Column(db.String(256))  # e.g., "tcp://10.10.10.10:2376" or empty for local socket
+    tls_enabled = db.Column(db.Boolean, default=False)
+    ca_cert = db.Column(db.Text)  # PEM format
+    client_cert = db.Column(db.Text)  # PEM format
+    client_key = db.Column(db.Text)  # PEM format
+    
+    # Repository whitelist (one per line)
+    allowed_repositories = db.Column(db.Text)  # Newline-separated list of allowed image prefixes
+    
+    # Resource limits
+    max_containers_per_user = db.Column(db.Integer, default=1)
+    container_lifetime_minutes = db.Column(db.Integer, default=15)  # 15 minutes
+    revert_cooldown_minutes = db.Column(db.Integer, default=5)
+    
+    # Port range for container mapping
+    port_range_start = db.Column(db.Integer, default=30000)
+    port_range_end = db.Column(db.Integer, default=60000)
+    
+    # Resource limits
+    max_cpu_percent = db.Column(db.Float, default=50.0)
+    max_memory_mb = db.Column(db.Integer, default=512)
+    
+    # Auto-cleanup settings
+    auto_cleanup_on_solve = db.Column(db.Boolean, default=True)
+    auto_cleanup_expired = db.Column(db.Boolean, default=True)
+    cleanup_interval_minutes = db.Column(db.Integer, default=5)
+    cleanup_stale_containers = db.Column(db.Boolean, default=True)
+    stale_container_hours = db.Column(db.Integer, default=2)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    @staticmethod
+    def get_config():
+        """Get Docker configuration (singleton pattern)"""
+        config = DockerSettings.query.first()
+        if not config:
+            # Create default config
+            config = DockerSettings()
+            db.session.add(config)
+            db.session.commit()
+        return config
+    
+    def get_allowed_repositories_list(self):
+        """Get list of allowed repository prefixes"""
+        if not self.allowed_repositories:
+            return []
+        return [r.strip() for r in self.allowed_repositories.split('\n') if r.strip()]
+    
+    def is_image_allowed(self, image_name):
+        """Check if an image is in the allowed repositories"""
+        allowed = self.get_allowed_repositories_list()
+        if not allowed:
+            return True  # No whitelist = allow all
+        
+        return any(image_name.startswith(repo) for repo in allowed)
+    
+    def to_dict(self):
+        """Convert to dictionary (excluding sensitive data)"""
+        return {
+            'id': self.id,
+            'hostname': self.hostname,
+            'tls_enabled': self.tls_enabled,
+            'has_certificates': bool(self.ca_cert and self.client_cert and self.client_key),
+            'max_containers_per_user': self.max_containers_per_user,
+            'container_lifetime_minutes': self.container_lifetime_minutes,
+            'revert_cooldown_minutes': self.revert_cooldown_minutes,
+            'port_range_start': self.port_range_start,
+            'port_range_end': self.port_range_end,
+            'auto_cleanup_on_solve': self.auto_cleanup_on_solve,
+            'allowed_repositories_count': len(self.get_allowed_repositories_list())
+        }
+    
+    def __repr__(self):
+        return f'<DockerSettings hostname={self.hostname} tls={self.tls_enabled}>'

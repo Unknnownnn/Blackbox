@@ -60,12 +60,14 @@ docker-compose exec -T blackbox python -c "from app import create_app; from mode
 echo ""
 echo "Running database migrations..."
 docker-compose exec -T blackbox bash -c "
-    mysql -h db -u blackbox_user -pblackbox_password blackbox_ctf < migrations/add_hints_and_team_requirements.sql 2>/dev/null || true
-    mysql -h db -u blackbox_user -pblackbox_password blackbox_ctf < migrations/add_team_invites_and_attempts.sql 2>/dev/null || true
-    mysql -h db -u blackbox_user -pblackbox_password blackbox_ctf < migrations/add_challenge_branching.sql 2>/dev/null || true
-    mysql -h db -u blackbox_user -pblackbox_password blackbox_ctf < migrations/add_ctf_control.sql 2>/dev/null || true
-    mysql -h db -u blackbox_user -pblackbox_password blackbox_ctf < migrations/add_event_config.sql 2>/dev/null || true
-    mysql -h db -u blackbox_user -pblackbox_password blackbox_ctf < migrations/add_first_blood_and_dynamic_scoring.sql 2>/dev/null || true
+    mysql -h db -u blackbox_user -pblackbox_password ctf_platform < migrations/add_hints_and_team_requirements.sql 2>/dev/null || true
+    mysql -h db -u blackbox_user -pblackbox_password ctf_platform < migrations/add_team_invites_and_attempts.sql 2>/dev/null || true
+    mysql -h db -u blackbox_user -pblackbox_password ctf_platform < migrations/add_challenge_branching.sql 2>/dev/null || true
+    mysql -h db -u blackbox_user -pblackbox_password ctf_platform < migrations/add_ctf_control.sql 2>/dev/null || true
+    mysql -h db -u blackbox_user -pblackbox_password ctf_platform < migrations/add_event_config.sql 2>/dev/null || true
+    mysql -h db -u blackbox_user -pblackbox_password ctf_platform < migrations/add_first_blood_and_dynamic_scoring.sql 2>/dev/null || true
+    mysql -h db -u blackbox_user -pblackbox_password ctf_platform < migrations/add_container_orchestration.sql 2>/dev/null || true
+    mysql -h db -u blackbox_user -pblackbox_password ctf_platform < migrations/add_docker_settings.sql 2>/dev/null || true
 "
 
 echo "✓ Migrations completed"
