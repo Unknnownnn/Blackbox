@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}Flag Sharing Detection - Admin{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        {% include 'admin/_sidebar.html' %}
+    </div>
+    
+    <div class="col-md-9">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="bi bi-shield-exclamation"></i> Flag Sharing Detection</h2>
+            <form method="POST" action="{{ url_for('admin.clear_all_flag_abuse') }}" 
+                  onsubmit="return confirm('Are you sure you want to clear all flag abuse records?');">
+                <button type="submit" class="btn btn-danger btn-sm">
+                    <i class="bi bi-trash"></i> Clear All Records
+                </button>
+            </form>
+        </div>
+
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            This page shows attempts by users/teams to submit flags that belong to other teams. 
+            Dynamic flags are unique per team, so any cross-team submission is logged here.
+        </div>
+
+        <!-- Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <h6>Total Attempts</h6>
+                        <h3>{{ total_attempts }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-danger text-white">
+                    <div class="card-body">
+                        <h6>Today</h6>
+                        <h3>{{ attempts_today }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h6>Unique Users</h6>
+                        <h3>{{ unique_users }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h6>Unique Teams</h6>
+                        <h3>{{ unique_teams }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Filters</h5>
+                <form method="GET" action="{{ url_for('admin.flag_abuse') }}">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Challenge</label>
+                            <select name="challenge_id" class="form-select">
+                                <option value="">All Challenges</option>
+                                {% for challenge in challenges %}
+                                <option value="{{ challenge.id }}" 
+                                    {% if filters.challenge_id == challenge.id %}selected{% endif %}>
+                                    {{ challenge.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Team</label>
+                            <select name="team_id" class="form-select">
+                                <option value="">All Teams</option>
+                                {% for team in teams %}
+                                <option value="{{ team.id }}" 
+                                    {% if filters.team_id == team.id %}selected{% endif %}>
+                                    {{ team.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Severity</label>
+                            <select name="severity" class="form-select">
+                                <option value="">All Severities</option>
+                                <option value="warning" {% if filters.severity == 'warning' %}selected{% endif %}>Warning</option>
+                                <option value="suspicious" {% if filters.severity == 'suspicious' %}selected{% endif %}>Suspicious</option>
+                                <option value="critical" {% if filters.severity == 'critical' %}selected{% endif %}>Critical</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">&nbsp;</label>
+                            <div>
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="bi bi-funnel"></i> Apply Filters
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Attempts Table -->
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Flag Abuse Attempts</h5>
+                
+                {% if attempts %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>User/Team (Submitter)</th>
+                                <th>Challenge</th>
+                                <th>Actual Owner</th>
+                                <th>Severity</th>
+                                <th>IP Address</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for attempt in attempts %}
+                            <tr class="
+                                {% if attempt.severity == 'critical' %}table-danger
+                                {% elif attempt.severity == 'suspicious' %}table-warning
+                                {% else %}table-secondary{% endif %}">
+                                <td>
+                                    <small>{{ attempt.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small>
+                                </td>
+                                <td>
+                                    <strong>{{ attempt.user_name }}</strong>
+                                    {% if attempt.team_name %}
+                                    <br><small class="text-muted">Team: {{ attempt.team_name }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">{{ attempt.challenge_name }}</span>
+                                </td>
+                                <td>
+                                    {% if attempt.actual_team_name %}
+                                    <span class="badge bg-danger">Team: {{ attempt.actual_team_name }}</span>
+                                    {% elif attempt.actual_user_name %}
+                                    <span class="badge bg-warning">User: {{ attempt.actual_user_name }}</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Unknown</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if attempt.severity == 'critical' %}
+                                    <span class="badge bg-danger">Critical</span>
+                                    {% elif attempt.severity == 'suspicious' %}
+                                    <span class="badge bg-warning">Suspicious</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Warning</span>
+                                    {% endif %}
+                                </td>
+                                <td><small>{{ attempt.ip_address }}</small></td>
+                                <td>
+                                    <form method="POST" 
+                                          action="{{ url_for('admin.delete_flag_abuse_attempt', attempt_id=attempt.id) }}"
+                                          style="display: inline;"
+                                          onsubmit="return confirm('Delete this record?');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% if attempt.notes %}
+                            <tr>
+                                <td colspan="7" class="bg-light">
+                                    <small><strong>Notes:</strong> {{ attempt.notes }}</small>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if pagination.pages > 1 %}
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center">
+                        {% if pagination.has_prev %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('admin.flag_abuse', page=pagination.prev_num, 
+                                challenge_id=filters.challenge_id, team_id=filters.team_id, 
+                                severity=filters.severity) }}">Previous</a>
+                        </li>
+                        {% endif %}
+                        
+                        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                            {% if page_num %}
+                                {% if page_num == pagination.page %}
+                                <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
+                                {% else %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('admin.flag_abuse', page=page_num, 
+                                        challenge_id=filters.challenge_id, team_id=filters.team_id, 
+                                        severity=filters.severity) }}">{{ page_num }}</a>
+                                </li>
+                                {% endif %}
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">...</span></li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if pagination.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('admin.flag_abuse', page=pagination.next_num, 
+                                challenge_id=filters.challenge_id, team_id=filters.team_id, 
+                                severity=filters.severity) }}">Next</a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+
+                {% else %}
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i>
+                    No flag sharing attempts detected! Your CTF is running cleanly.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

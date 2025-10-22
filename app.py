@@ -287,6 +287,14 @@ with app.app_context():
     except Exception as e:
         app.logger.warning(f"Could not initialize backup scheduler during app creation: {e}")
 
+    # Ensure DB schema has required docker-related columns and defaults
+    try:
+        from scripts.db_schema import ensure_docker_schema
+        ensure_docker_schema()
+        app.logger.info("Ensured docker DB schema and defaults")
+    except Exception as e:
+        app.logger.warning(f"Could not ensure docker DB schema on startup: {e}")
+
 # Initialize container reconciliation background task
 try:
     import threading

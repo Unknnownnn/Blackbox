@@ -372,8 +372,75 @@ def submit_flag(challenge_id):
         }), 429
     
     # Check the flag
-    matched_flag = challenge.check_flag(submitted_flag)
+    matched_flag = challenge.check_flag(submitted_flag, team_id=team_id, user_id=current_user.id)
     is_correct = matched_flag is not None
+    
+    # ANTI-FLAG-SHARING: Check if submitted flag is a dynamic flag from another team
+    if not is_correct and challenge.docker_enabled:
+        from services.container_manager import ContainerOrchestrator
+        from models.flag_abuse import FlagAbuseAttempt
+        
+        parsed_flag = ContainerOrchestrator.parse_dynamic_flag(submitted_flag)
+        if parsed_flag and parsed_flag.get('is_valid'):
+            # This is a valid dynamic flag format
+            flag_challenge_id = parsed_flag.get('challenge_id')
+            flag_team_id = parsed_flag.get('team_id')
+            flag_user_id = parsed_flag.get('user_id')
+            
+            # Check if this flag belongs to a different team/user
+            is_wrong_team = False
+            actual_owner_team_id = None
+            actual_owner_user_id = None
+            
+            if flag_challenge_id == challenge_id:
+                # Flag is for this challenge
+                if parsed_flag.get('is_team_flag') and flag_team_id:
+                    # It's a team flag - check if it's a different team
+                    if team_id and flag_team_id != team_id:
+                        is_wrong_team = True
+                        actual_owner_team_id = flag_team_id
+                    elif not team_id and flag_team_id:
+                        # User not in team trying to use team's flag
+                        is_wrong_team = True
+                        actual_owner_team_id = flag_team_id
+                elif not parsed_flag.get('is_team_flag') and flag_user_id:
+                    # It's a user flag (no team) - check if it's a different user
+                    if current_user.id != flag_user_id:
+                        is_wrong_team = True
+                        actual_owner_user_id = flag_user_id
+            
+            # Log the flag sharing attempt
+            if is_wrong_team:
+                # Resolve owner name for nicer notes/logs
+                owner_label = None
+                try:
+                    if actual_owner_team_id:
+                        from models.team import Team
+                        owner = Team.query.get(actual_owner_team_id)
+                        owner_label = f"team {owner.name}" if owner else f"team {actual_owner_team_id}"
+                    elif actual_owner_user_id:
+                        from models.user import User
+                        owner = User.query.get(actual_owner_user_id)
+                        owner_label = f"user {owner.username}" if owner else f"user {actual_owner_user_id}"
+                except Exception:
+                    owner_label = f"team {actual_owner_team_id}" if actual_owner_team_id else f"user {actual_owner_user_id}"
+
+                abuse_record = FlagAbuseAttempt(
+                    user_id=current_user.id,
+                    team_id=team_id,
+                    challenge_id=challenge_id,
+                    submitted_flag=submitted_flag,
+                    actual_team_id=actual_owner_team_id,
+                    actual_user_id=actual_owner_user_id,
+                    ip_address=request.remote_addr,
+                    severity='suspicious',
+                    notes=f'Attempted to submit flag belonging to {owner_label}'
+                )
+                db.session.add(abuse_record)
+                current_app.logger.warning(
+                    f"FLAG SHARING ATTEMPT: User {current_user.id} (team {team_id}) "
+                    f"submitted flag for challenge {challenge_id} that belongs to {owner_label}"
+                )
     
     # Create submission record
     submission = Submission(
@@ -636,7 +703,7 @@ def explore_flag(challenge_id):
         }), 429
     
     # Check the flag
-    matched_flag = challenge.check_flag(submitted_flag)
+    matched_flag = challenge.check_flag(submitted_flag, team_id=team_id, user_id=current_user.id)
     
     if not matched_flag:
         return jsonify({'success': False, 'message': 'Incorrect flag'}), 400

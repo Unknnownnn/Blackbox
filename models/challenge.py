@@ -24,6 +24,8 @@ class Challenge(db.Model):
     docker_enabled = db.Column(db.Boolean, default=False)
     docker_image = db.Column(db.String(256))  # Docker image:tag to use
     docker_connection_info = db.Column(db.String(512))  # Template with {host} {port} placeholders
+    # Path inside container where the flag file should be written (e.g. /flag.txt)
+    docker_flag_path = db.Column(db.String(256), nullable=True)
     
     # Scoring
     initial_points = db.Column(db.Integer, nullable=False, default=500)
@@ -82,9 +84,19 @@ class Challenge(db.Model):
         """Get total number of submissions"""
         return self.submissions.count()
     
-    def check_flag(self, submitted_flag):
-        """Check if submitted flag is correct (checks all flags for this challenge)"""
+    def check_flag(self, submitted_flag, team_id=None, user_id=None):
+        """Check if submitted flag is correct (checks all flags for this challenge)
+        
+        Args:
+            submitted_flag: The flag string submitted by the user
+            team_id: Optional team_id for dynamic flag validation
+            user_id: Optional user_id for dynamic flag validation (when not in a team)
+        
+        Returns:
+            Flag object if match found, True for legacy flags, or None if no match
+        """
         from models.branching import ChallengeFlag
+        from services.cache import cache_service
         
         # Get all flags for this challenge
         flags = ChallengeFlag.query.filter_by(challenge_id=self.id).all()
@@ -93,6 +105,23 @@ class Challenge(db.Model):
         for flag in flags:
             if flag.check_flag(submitted_flag):
                 return flag  # Return the matching flag object
+        
+        # Check dynamic flags if docker is enabled
+        if self.docker_enabled and (team_id or user_id):
+            # Build the cache key for this team/user's dynamic flag
+            if team_id:
+                team_part = f'team_{team_id}'
+            elif user_id:
+                team_part = f'user_{user_id}'
+            else:
+                team_part = None
+            
+            if team_part:
+                cache_key = f"dynamic_flag_mapping:{self.id}:{team_part}"
+                expected_flag = cache_service.get(cache_key)
+                
+                if expected_flag and submitted_flag == expected_flag:
+                    return True  # Dynamic flag matches
         
         # Legacy support: check old flag column if no flags defined
         if not flags and self.flag:
@@ -193,6 +222,7 @@ class Challenge(db.Model):
             'docker_enabled': self.docker_enabled,
             'docker_image': self.docker_image,
             'docker_connection_info': self.docker_connection_info,
+            'docker_flag_path': self.docker_flag_path,
             'requires_team': self.requires_team
         }
         

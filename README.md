@@ -22,11 +22,11 @@ A modern, feature-rich Capture The Flag (CTF) platform built with Flask, designe
 
 #### Challenge Management
 - **Multiple Challenge Types**: Web, Crypto, Forensics, Reverse Engineering, Binary Exploitation, OSINT, etc.
-- **Dynamic Scoring**: Point values adjust based on solve count (logarithmic, linear, or exponential decay)
+- **Dynamic Scoring**: Point values adjust based on solve count
 - **Static Scoring**: Fixed point values for traditional CTF format
 - **First Blood Bonus**: Configurable bonus points for first solver
 - **File Attachments**: Upload challenge files with automatic hashing and integrity verification
-- **Challenge Images**: Add inline images to challenge descriptions (similar to CTFd)
+- **Challenge Images**: Add inline images to challenge descriptions 
 - **Connection Info**: Display SSH/netcat/web URLs for remote challenges
 - **Challenge Flags**: Support for multiple flags per challenge (primary + alternative)
 - **Case-Insensitive Flags**: Optional flag matching configuration
@@ -180,6 +180,26 @@ A modern, feature-rich Capture The Flag (CTF) platform built with Flask, designe
 - **Restore Functionality**: One-click database restore
 - **Backup Cleanup**: Auto-delete old automatic backups (keeps last 10)
 - **Upload/Download**: Import and export backup files
+
+
+#### Flag Sharing Detection
+
+- Per-team dynamic flags for Docker/file-based challenges
+   - Dockerized challenges may now use per-team dynamic flags. When a container is started for a team (or individual in solo mode) the platform generates a unique, time-scoped flag and injects it into the running container at the path configured by the challenge admin (`docker_flag_path`). This prevents simple flag sharing and enables each team to have a unique indicator inside their container.
+   - The generated dynamic flags are deterministic per (challenge, team/user, date) so that restarting a session within the same day keeps the same flag value.
+
+- Flag-sharing detection and admin visibility
+   - If a user submits a dynamic flag that belongs to a different team or user, the submission handler now detects that and records a `FlagAbuseAttempt` in the database. Administrators can review these attempts in the Admin → Flag Sharing page and see helpful context (submitter, claimed owner, challenge, IP, and human-readable owner names).
+   - Frequent or repeated abuse attempts are logged for review — this helps detect intentional sharing or misuse of dynamic flags.
+
+- Database schema helper (self-healing migrations)
+   - Startup logic includes an idempotent schema helper that will create missing columns/tables used by the Docker and flag-abuse changes. If your deployment is running an older schema and you see OperationalError exceptions related to missing columns (for example `challenges.docker_flag_path`), make sure the running app process executes the `scripts/ensure_docker_schema.py` helper (it is normally called at app startup). If you run into problems, execute the helper inside your app container so it has the same import paths and DB access.
+
+- Container lifecycle and permission hardening
+   - The container injection logic now ensures the target directory exists, writes the flag file with permissive file mode, and runs a best-effort `chmod` inside the container. This avoids permission errors when in-container services try to modify the flag file.
+   - Background reconciliation and container cleanup were improved to help with stuck containers or expired sessions. Admins can also force-clean containers from the admin UI if necessary.
+
+
 
 #### Platform Configuration
 - **Event Settings**:

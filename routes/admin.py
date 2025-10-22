@@ -85,7 +85,8 @@ def create_challenge():
             # Docker fields
             docker_enabled=data.get('docker_enabled') == 'true',
             docker_image=data.get('docker_image') if data.get('docker_enabled') == 'true' else None,
-            docker_connection_info=data.get('docker_connection_info') if data.get('docker_enabled') == 'true' else None
+            docker_connection_info=data.get('docker_connection_info') if data.get('docker_enabled') == 'true' else None,
+            docker_flag_path=data.get('docker_flag_path') if data.get('docker_enabled') == 'true' else None
         )
         
         db.session.add(challenge)
@@ -267,6 +268,8 @@ def edit_challenge(challenge_id):
                 # Use selected image
                 challenge.docker_image = docker_image_value
             challenge.docker_connection_info = data.get('docker_connection_info', 'http://{host}:{port}')
+            # Optional: path inside the container to write the dynamic flag (e.g. /flag.txt)
+            challenge.docker_flag_path = data.get('docker_flag_path')
         else:
             challenge.docker_image = None
             challenge.docker_connection_info = None
@@ -463,6 +466,46 @@ def delete_challenge(challenge_id):
     
     # Step 7: Delete all flags for this challenge
     ChallengeFlag.query.filter_by(challenge_id=challenge_id).delete()
+
+    # Step 7a: Delete container instances and related events for this challenge
+    try:
+        from models.container import ContainerInstance, ContainerEvent
+        from services.container_manager import container_orchestrator
+        import docker
+
+        # Stop and remove any real docker containers, then remove DB records
+        instances = ContainerInstance.query.filter_by(challenge_id=challenge_id).all()
+        for inst in instances:
+            try:
+                if container_orchestrator and container_orchestrator.docker_client:
+                    try:
+                        docker_container = container_orchestrator.docker_client.containers.get(inst.container_id)
+                        docker_container.stop(timeout=10)
+                        docker_container.remove()
+                    except docker.errors.NotFound:
+                        pass
+                    except Exception as e:
+                        current_app.logger.warning(f"Failed to stop/remove container {inst.container_id}: {e}")
+            except Exception:
+                # If the orchestrator itself isn't available, continue to delete DB records
+                pass
+
+            # Delete any container events referencing this instance
+            ContainerEvent.query.filter_by(container_instance_id=inst.id).delete()
+            # Delete the instance record
+            db.session.delete(inst)
+
+        # Also remove any container events that reference the challenge directly
+        ContainerEvent.query.filter_by(challenge_id=challenge_id).delete()
+    except Exception as e:
+        current_app.logger.warning(f"Error cleaning up container records for challenge {challenge_id}: {e}")
+
+    # Step 7b: Remove any flag abuse records referencing this challenge
+    try:
+        from models.flag_abuse import FlagAbuseAttempt
+        FlagAbuseAttempt.query.filter_by(challenge_id=challenge_id).delete()
+    except Exception:
+        pass
     
     # Step 8: Delete associated files from filesystem
     file_storage.delete_challenge_files(challenge_id)
@@ -1499,6 +1542,107 @@ def hint_logs_api():
         'pages': hint_unlocks.pages,
         'current_page': hint_unlocks.page
     })
+
+
+# ==================== Flag Abuse Monitoring ====================
+
+@admin_bp.route('/flag-abuse')
+@login_required
+@admin_required
+def flag_abuse():
+    """Flag abuse attempts monitoring page"""
+    from models.flag_abuse import FlagAbuseAttempt
+    from models.challenge import Challenge
+    from models.user import User
+    from models.team import Team
+    
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    
+    # Filters
+    challenge_id = request.args.get('challenge_id', type=int)
+    team_id = request.args.get('team_id', type=int)
+    user_id = request.args.get('user_id', type=int)
+    severity = request.args.get('severity', type=str)
+    
+    # Build query
+    query = FlagAbuseAttempt.query
+    
+    if challenge_id:
+        query = query.filter_by(challenge_id=challenge_id)
+    if team_id:
+        query = query.filter_by(team_id=team_id)
+    if user_id:
+        query = query.filter_by(user_id=user_id)
+    if severity:
+        query = query.filter_by(severity=severity)
+    
+    # Order by most recent first
+    query = query.order_by(FlagAbuseAttempt.timestamp.desc())
+    
+    # Paginate
+    attempts = query.paginate(page=page, per_page=per_page, error_out=False)
+    
+    # Get filter options
+    challenges = Challenge.query.order_by(Challenge.name).all()
+    teams = Team.query.order_by(Team.name).all()
+    
+    # Get statistics
+    total_attempts = FlagAbuseAttempt.query.count()
+    attempts_today = FlagAbuseAttempt.query.filter(
+        FlagAbuseAttempt.timestamp >= datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    ).count()
+    unique_users = db.session.query(FlagAbuseAttempt.user_id).distinct().count()
+    unique_teams = db.session.query(FlagAbuseAttempt.team_id).filter(
+        FlagAbuseAttempt.team_id.isnot(None)
+    ).distinct().count()
+    
+    return render_template('admin/flag_abuse.html',
+        attempts=attempts.items,
+        pagination=attempts,
+        challenges=challenges,
+        teams=teams,
+        total_attempts=total_attempts,
+        attempts_today=attempts_today,
+        unique_users=unique_users,
+        unique_teams=unique_teams,
+        filters={
+            'challenge_id': challenge_id,
+            'team_id': team_id,
+            'user_id': user_id,
+            'severity': severity
+        }
+    )
+
+
+@admin_bp.route('/flag-abuse/<int:attempt_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_flag_abuse_attempt(attempt_id):
+    """Delete a flag abuse attempt record"""
+    from models.flag_abuse import FlagAbuseAttempt
+    
+    attempt = FlagAbuseAttempt.query.get_or_404(attempt_id)
+    db.session.delete(attempt)
+    db.session.commit()
+    
+    flash('Flag abuse record deleted successfully', 'success')
+    return redirect(url_for('admin.flag_abuse'))
+
+
+@admin_bp.route('/flag-abuse/clear-all', methods=['POST'])
+@login_required
+@admin_required
+def clear_all_flag_abuse():
+    """Clear all flag abuse attempt records"""
+    from models.flag_abuse import FlagAbuseAttempt
+    
+    count = FlagAbuseAttempt.query.delete()
+    db.session.commit()
+    
+    flash(f'Cleared {count} flag abuse records', 'success')
+    return redirect(url_for('admin.flag_abuse'))
 
 
 # ==================== Backup Management ====================

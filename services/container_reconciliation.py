@@ -14,6 +14,8 @@ from sqlalchemy.orm import joinedload
 from models import db
 from models.container import ContainerInstance, ContainerEvent
 from services.container_manager import container_orchestrator
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +34,21 @@ def reconcile_containers(app):
                 return
             
             # Get all active containers from database
-            db_containers = ContainerInstance.query.filter(
-                ContainerInstance.status.in_(['starting', 'running', 'stopping'])
-            ).all()
+            try:
+                db_containers = ContainerInstance.query.filter(
+                    ContainerInstance.status.in_(['starting', 'running', 'stopping'])
+                ).all()
+            except OperationalError as oe:
+                # Possibly missing column (e.g., dynamic_flag) - attempt to add it and retry
+                logger.warning(f"OperationalError when querying containers: {oe}; attempting to add missing column and retry")
+                try:
+                    db.engine.execute(text("ALTER TABLE container_instances ADD COLUMN IF NOT EXISTS dynamic_flag VARCHAR(512) DEFAULT NULL;"))
+                    db_containers = ContainerInstance.query.filter(
+                        ContainerInstance.status.in_(['starting', 'running', 'stopping'])
+                    ).all()
+                except Exception as e:
+                    logger.error(f"Failed to add dynamic_flag column or retry query: {e}")
+                    return
             
             # Get all running containers from Docker
             docker_containers = {}

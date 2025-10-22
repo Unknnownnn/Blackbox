@@ -259,6 +259,11 @@
                                             Use <code>{host}</code> and <code>{port}</code> placeholders. Example: <code>http://{host}:{port}</code> or <code>nc {host} {port}</code>
                                         </div>
                                     </div>
+                                <div class="col-md-12 mb-3">
+                                    <label for="docker_flag_path" class="form-label fw-bold">Flag File Path (optional)</label>
+                                    <input type="text" class="form-control" id="docker_flag_path" name="docker_flag_path" value="{{ challenge.docker_flag_path or '' }}" placeholder="/flag.txt or /home/ctfuser/flag.txt">
+                                    <div class="form-text">If provided, this path will be written with a per-team dynamic flag when the container starts.</div>
+                                </div>
                                 </div>
                                 
                                 <div class="alert alert-warning mb-0">
