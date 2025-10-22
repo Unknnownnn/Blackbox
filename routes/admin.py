@@ -1729,6 +1729,17 @@ def create_backup():
         backup_name = f'backup_{timestamp}'
         backup_file = backup_dir / f'{backup_name}.sql.gz'
         
+        # Determine optional components requested (JSON body or form)
+        include_uploads = False
+        include_redis = False
+        try:
+            data = request.get_json(silent=True) or {}
+            include_uploads = bool(data.get('include_uploads'))
+            include_redis = bool(data.get('include_redis'))
+        except Exception:
+            include_uploads = request.form.get('include_uploads') == 'on'
+            include_redis = request.form.get('include_redis') == 'on'
+
         # Export database to SQL dump
         import pymysql
         from urllib.parse import urlparse
@@ -1794,19 +1805,76 @@ def create_backup():
         with gzip.open(backup_file, 'wt', encoding='utf-8') as f:
             f.write('\n'.join(sql_dump))
         
+        # Prepare components metadata
+        components = {'database': True, 'uploads': False, 'redis': False}
+        sizes = {
+            'database_mb': round(backup_file.stat().st_size / (1024 * 1024), 2),
+            'uploads_mb': 0,
+            'redis_mb': 0
+        }
+
+        # Include uploads if requested
+        if include_uploads:
+            try:
+                uploads_dir = Path(current_app.config.get('UPLOAD_FOLDER', 'static/uploads'))
+                uploads_archive = backup_dir / f"{backup_name}_uploads.tar.gz"
+                if uploads_dir.exists():
+                    import tarfile
+                    with tarfile.open(uploads_archive, 'w:gz') as tar:
+                        tar.add(uploads_dir, arcname='uploads')
+                    components['uploads'] = True
+                    sizes['uploads_mb'] = round(uploads_archive.stat().st_size / (1024 * 1024), 2)
+            except Exception as e:
+                current_app.logger.warning(f"Failed to include uploads in manual backup: {e}")
+
+        # Include redis snapshot if requested (best-effort)
+        if include_redis:
+            try:
+                import redis as redislib
+                redis_url = current_app.config.get('REDIS_URL')
+                if redis_url:
+                    r = redislib.from_url(redis_url)
+                    try:
+                        r.bgsave()
+                    except Exception:
+                        try:
+                            r.save()
+                        except Exception:
+                            pass
+
+                    try:
+                        cfg = r.config_get('dir')
+                        dirpath = cfg.get('dir') if isinstance(cfg, dict) else None
+                        dbfile = r.config_get('dbfilename')
+                        filename = dbfile.get('dbfilename') if isinstance(dbfile, dict) else None
+                        if dirpath and filename:
+                            dump_path = Path(dirpath) / filename
+                            if dump_path.exists():
+                                import shutil
+                                target = backup_dir / f"{backup_name}_redis.rdb"
+                                shutil.copy2(dump_path, target)
+                                components['redis'] = True
+                                sizes['redis_mb'] = round(target.stat().st_size / (1024 * 1024), 2)
+                    except Exception:
+                        current_app.logger.debug('Could not copy redis dump file; skipping')
+            except Exception as e:
+                current_app.logger.warning(f"Failed to include redis in manual backup: {e}")
+
         # Create metadata
         metadata = {
             'backup_name': backup_name,
             'timestamp': datetime.now().isoformat(),
             'database': parsed.path.lstrip('/'),
             'tables': len(tables),
-            'size_mb': backup_file.stat().st_size / (1024 * 1024)
+            'size_mb': sizes['database_mb'],
+            'components': components,
+            'sizes': sizes
         }
         
         metadata_file = backup_dir / f'{backup_name}.json'
         with open(metadata_file, 'w') as f:
             json.dump(metadata, f, indent=2)
-        
+
         return jsonify({
             'success': True,
             'message': 'Backup created successfully',

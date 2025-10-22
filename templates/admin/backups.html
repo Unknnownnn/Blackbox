@@ -61,15 +61,27 @@
                 <h5 class="mb-0">Quick Actions</h5>
             </div>
             <div class="card-body">
-                <button class="btn btn-primary" onclick="createBackup()">
-                    <i class="bi bi-plus-circle"></i> Create Manual Backup
-                </button>
-                <button class="btn btn-success ms-2" onclick="document.getElementById('uploadInput').click()">
-                    <i class="bi bi-upload"></i> Upload Backup
-                </button>
-                <button class="btn btn-secondary ms-2" onclick="loadBackups()">
-                    <i class="bi bi-arrow-clockwise"></i> Refresh List
-                </button>
+                <div class="mb-2">
+                    <div class="btn-group" role="group" aria-label="backup options">
+                        <input type="checkbox" class="btn-check" id="includeUploads" autocomplete="off">
+                        <label class="btn btn-outline-secondary" for="includeUploads">Include uploaded files</label>
+
+                        <input type="checkbox" class="btn-check" id="includeRedis" autocomplete="off">
+                        <label class="btn btn-outline-secondary" for="includeRedis">Include Redis snapshot</label>
+                    </div>
+                </div>
+
+                <div>
+                    <button class="btn btn-primary" onclick="createBackup()">
+                        <i class="bi bi-plus-circle"></i> Create Manual Backup
+                    </button>
+                    <button class="btn btn-success ms-2" onclick="document.getElementById('uploadInput').click()">
+                        <i class="bi bi-upload"></i> Upload Backup
+                    </button>
+                    <button class="btn btn-secondary ms-2" onclick="loadBackups()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh List
+                    </button>
+                </div>
                 
                 <input type="file" id="uploadInput" accept=".sql.gz" style="display: none;" onchange="uploadBackup(event)">
                 
@@ -235,8 +247,13 @@ function createBackup() {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating...';
     
+    const includeUploads = document.getElementById('includeUploads').checked;
+    const includeRedis = document.getElementById('includeRedis').checked;
+
     fetch('/admin/backups/api/create', {
-        method: 'POST'
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({include_uploads: includeUploads, include_redis: includeRedis})
     })
     .then(response => response.json())
     .then(data => {

@@ -194,17 +194,94 @@ class BackupScheduler:
                 # Write compressed backup
                 with gzip.open(backup_file, 'wt', encoding='utf-8') as f:
                     f.write('\n'.join(sql_dump))
-                
+                # Optional: include uploads and redis snapshot (best-effort)
+                components = {
+                    'database': True,
+                    'uploads': False,
+                    'redis': False
+                }
+
+                sizes = {
+                    'database_mb': round(backup_file.stat().st_size / (1024 * 1024), 2),
+                    'uploads_mb': 0,
+                    'redis_mb': 0
+                }
+
+                # Include uploads directory if enabled in settings
+                try:
+                    include_uploads = Settings.get('backup_include_uploads', False)
+                except Exception:
+                    include_uploads = False
+
+                if include_uploads:
+                    try:
+                        uploads_dir = Path(self.app.config.get('UPLOAD_FOLDER', 'static/uploads'))
+                        uploads_archive = backup_dir / f"{backup_name}_uploads.tar.gz"
+                        # Create tarball of uploads (skip if missing)
+                        if uploads_dir.exists():
+                            import tarfile
+                            with tarfile.open(uploads_archive, 'w:gz') as tar:
+                                tar.add(uploads_dir, arcname='uploads')
+                            components['uploads'] = True
+                            sizes['uploads_mb'] = round(uploads_archive.stat().st_size / (1024 * 1024), 2)
+                    except Exception as e:
+                        logger.warning(f"Failed to include uploads in backup: {e}")
+
+                # Attempt to include Redis RDB snapshot (best-effort)
+                try:
+                    include_redis = Settings.get('backup_include_redis', False)
+                except Exception:
+                    include_redis = False
+
+                if include_redis:
+                    try:
+                        # Best-effort: ask Redis to save and then copy the dump if accessible
+                        import redis as redislib
+                        redis_url = self.app.config.get('REDIS_URL')
+                        if redis_url:
+                            r = redislib.from_url(redis_url)
+                            # Use BGSAVE to avoid blocking
+                            try:
+                                r.bgsave()
+                            except Exception:
+                                # Some managed Redis may not permit bgsave; try SAVE
+                                try:
+                                    r.save()
+                                except Exception:
+                                    pass
+
+                            # Try to locate Redis dump path via CONFIG
+                            try:
+                                cfg = r.config_get('dir')
+                                dirpath = cfg.get('dir') if isinstance(cfg, dict) else None
+                                dbfile = r.config_get('dbfilename')
+                                filename = dbfile.get('dbfilename') if isinstance(dbfile, dict) else None
+                                if dirpath and filename:
+                                    dump_path = Path(dirpath) / filename
+                                    if dump_path.exists():
+                                        target = backup_dir / f"{backup_name}_redis.rdb"
+                                        import shutil
+                                        shutil.copy2(dump_path, target)
+                                        components['redis'] = True
+                                        sizes['redis_mb'] = round(target.stat().st_size / (1024 * 1024), 2)
+                            except Exception:
+                                # If config_get or file access fails, skip redis
+                                logger.debug('Could not copy redis dump file; skipping')
+                    except Exception as e:
+                        logger.warning(f"Failed to include redis in backup: {e}")
+
                 # Create metadata file
                 metadata = {
                     'backup_name': backup_name,
                     'timestamp': datetime.now().isoformat(),
-                    'size_mb': round(backup_file.stat().st_size / (1024 * 1024), 2),
+                    'size_mb': sizes['database_mb'],
                     'auto_backup': True,
-                    'tables': len(tables)
+                    'tables': len(tables),
+                    'components': components,
+                    'sizes': sizes
                 }
-                
-                metadata_file = backup_file.with_suffix('.json')
+
+                metadata_file = backup_dir / f'{backup_name}.json'
                 with open(metadata_file, 'w') as f:
                     json.dump(metadata, f, indent=2)
                 

@@ -23,7 +23,7 @@ PERFORMANCE_INDEXES = {
     'challenges': ['name', 'category', 'is_visible', 'is_enabled'],
     'submissions': ['user_id', 'team_id', 'challenge_id', 'is_correct', 'submitted_at'],
     'solves': ['user_id', 'team_id', 'challenge_id', 'solved_at'],
-    'settings': ['key'],  # Already indexed
+    'settings': ['key'], 
     'challenge_files': ['challenge_id'],
     'hints': ['challenge_id'],
     'hint_unlocks': ['user_id', 'team_id', 'hint_id'],
