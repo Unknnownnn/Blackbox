@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
@@ -92,6 +92,16 @@
                         </li>
                         {% endif %}
                         <li class="nav-item dropdown">
+                            <a class="nav-link" href="#" id="notificationsDropdown" role="button" data-bs-toggle="dropdown">
+                                <i class="bi bi-bell"></i>
+                                <span id="notifBadge" class="badge bg-danger" style="display:none; font-size:0.65rem;">0</span>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" style="width: 350px;" aria-labelledby="notificationsDropdown">
+                                <li class="dropdown-header">Notifications</li>
+                                <li><div id="notifList" class="list-group list-group-flush" style="max-height:300px; overflow:auto;"></div></li>
+                            </ul>
+                        </li>
+                        <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" 
                                data-bs-toggle="dropdown">
                                 <i class="bi bi-person-circle"></i> {{ current_user.username }}
@@ -143,7 +153,7 @@
     <footer class="mt-5 py-2">
         <div class="container text-center">
             <p class="mb-0">{{ ctf_name }}</p>
-            <p class="mb-0 footer-credit">BlackBox Platform - Developed by Aakansh</p>
+            <p class="mb-0 footer-credit">BlackBox - Developed by Unknnownnn</p>
         </div>
     </footer>
 
@@ -151,6 +161,13 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Socket.IO -->
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <!-- Notification audio -->
+    <audio id="notificationSound" src="{{ url_for('static', filename='sounds/notification.mp3') }}" preload="auto"></audio>
+
+    <!-- Toast container for notifications -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
+        <div id="toastContainer"></div>
+    </div>
     
     <!-- CSRF Token Helper -->
     <script>
@@ -219,5 +236,138 @@
     </script>
     
     {% block extra_js %}{% endblock %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                const socket = io('/live');
+                const notifBadge = document.getElementById('notifBadge');
+                const notifList = document.getElementById('notifList');
+                const toastContainer = document.getElementById('toastContainer');
+                const notificationSound = document.getElementById('notificationSound');
+                let unread = 0;
+
+                function showToast(title, body) {
+                    const toastEl = document.createElement('div');
+                    toastEl.className = 'toast align-items-center text-bg-primary border-0 show';
+                    toastEl.setAttribute('role', 'alert');
+                    toastEl.setAttribute('aria-live', 'assertive');
+                    toastEl.setAttribute('aria-atomic', 'true');
+                    toastEl.style.minWidth = '280px';
+                    toastEl.innerHTML = `<div class="d-flex">
+                        <div class="toast-body"><strong>${title}</strong><div class="mt-1">${body}</div></div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                    </div>`;
+                    toastContainer.appendChild(toastEl);
+                    setTimeout(() => { toastEl.remove(); }, 10000);
+                }
+
+                function tryPlaySound() {
+                    notificationSound.play().catch(err => {
+                        console.log('Audio autoplay blocked by browser');
+                    });
+                }
+
+                socket.on('connect', () => {
+                    // console.log('Socket connected');
+                });
+
+                // On load, fetch recent persisted notifications so offline users still see them
+                fetch('/api/notifications', { credentials: 'same-origin' })
+                    .then(res => res.json())
+                    .then(payload => {
+                        if (payload && payload.success && Array.isArray(payload.notifications)) {
+                            // payload.unread contains unread count for current user
+                            unread = payload.unread || 0;
+                            if (unread > 0) {
+                                notifBadge.style.display = '';
+                                notifBadge.textContent = unread;
+                            }
+
+                            payload.notifications.reverse().forEach(data => {
+                                const item = document.createElement('div');
+                                item.className = data.read ? 'list-group-item' : 'list-group-item list-group-item-action';
+                                item.dataset.notifId = data.id;
+                                item.dataset.read = data.read ? '1' : '0';
+                                item.innerHTML = `<div class="d-flex w-100 justify-content-between"><strong>${data.title}</strong><small class="text-muted">${new Date(data.created_at || Date.now()).toLocaleTimeString()}</small></div><p class="mb-1">${data.body}</p>`;
+                                notifList.prepend(item);
+                            });
+                        }
+                    }).catch(() => {/* ignore */});
+
+                socket.on('notification', (data) => {
+                    try {
+                        const title = data.title || 'Notification';
+                        const body = data.body || '';
+
+                        // Add to dropdown list
+                        const item = document.createElement('div');
+                        item.className = 'list-group-item list-group-item-action';
+                        item.dataset.notifId = data.id || '';
+                        item.dataset.read = '0';
+                        item.innerHTML = `<div class="d-flex w-100 justify-content-between"><strong>${title}</strong><small class="text-muted">${new Date(data.created_at || Date.now()).toLocaleTimeString()}</small></div><p class="mb-1">${body}</p>`;
+                        notifList.prepend(item);
+
+                        // Update badge
+                        unread += 1;
+                        notifBadge.style.display = '';
+                        notifBadge.textContent = unread;
+
+                        // Play sound if requested by notification
+                        if (data.play_sound) {
+                            tryPlaySound();
+                        }
+
+                        // Show toast
+                        showToast(title, body);
+                    } catch (e) {
+                        console.error('Error handling notification', e);
+                    }
+                });
+
+                // When the notifications dropdown is shown, mark unread notifications as read
+                document.getElementById('notificationsDropdown').addEventListener('shown.bs.dropdown', function() {
+                    // find unread items and mark read via API
+                    const items = notifList.querySelectorAll('[data-notif-id]');
+                    items.forEach(item => {
+                        if (item.dataset.read === '0') {
+                            const nid = item.dataset.notifId;
+                            fetchWithCSRF(`/api/notifications/${nid}/read`, { method: 'POST', credentials: 'same-origin' })
+                                .then(r => r.json())
+                                .then(resp => {
+                                    if (resp && resp.success) {
+                                        item.dataset.read = '1';
+                                        item.classList.remove('list-group-item-action');
+                                        if (unread > 0) unread -= 1;
+                                        if (unread <= 0) {
+                                            notifBadge.style.display = 'none';
+                                        } else {
+                                            notifBadge.textContent = unread;
+                                        }
+                                    }
+                                }).catch(() => {/* ignore */});
+                        }
+                    });
+                });
+
+                // Handle server-side deletion events
+                socket.on('notification_deleted', (payload) => {
+                    try {
+                        const id = payload.id;
+                        const el = notifList.querySelector(`[data-notif-id='${id}']`);
+                        if (el) {
+                            // if the deleted one was unread, decrement unread count
+                            if (el.dataset.read === '0' && unread > 0) {
+                                unread -= 1;
+                                if (unread <= 0) notifBadge.style.display = 'none'; else notifBadge.textContent = unread;
+                            }
+                            el.remove();
+                        }
+                    } catch (e) { console.error('Error processing notification_deleted', e); }
+                });
+            } catch (e) {
+                console.error('Notifications init failed', e);
+            }
+        });
+    </script>
 </body>
 </html>

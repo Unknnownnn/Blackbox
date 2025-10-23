@@ -115,6 +115,19 @@
                                     <i class="bi bi-info-circle"></i> Extra points awarded to the first solver of each challenge. Set to 0 to disable.
                                 </div>
                             </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="decay_function" class="form-label"><strong>Dynamic Scoring Decay Function</strong></label>
+                                <select class="form-select" id="decay_function" name="decay_function">
+                                    {% set current_decay = settings.get('decay_function', 'logarithmic') %}
+                                    <option value="logarithmic" {% if current_decay == 'logarithmic' %}selected{% endif %}>Logarithmic (Smooth, gradual decay)</option>
+                                    <option value="parabolic" {% if current_decay == 'parabolic' %}selected{% endif %}>Parabolic (Steeper early decay)</option>
+                                </select>
+                                <div class="form-text">
+                                    <i class="bi bi-info-circle"></i> <strong>Logarithmic:</strong> Points decrease smoothly and gradually as more teams solve.<br>
+                                    <i class="bi bi-info-circle"></i> <strong>Parabolic:</strong> Steeper decrease initially, then levels out.
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="row">

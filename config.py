@@ -73,6 +73,7 @@ class Config:
     DYNAMIC_SCORING = os.getenv('DYNAMIC_SCORING', 'true').lower() == 'true'
     MIN_CHALLENGE_POINTS = int(os.getenv('MIN_CHALLENGE_POINTS', 50))
     MAX_CHALLENGE_POINTS = int(os.getenv('MAX_CHALLENGE_POINTS', 500))
+    # Decay function: 'logarithmic' (smooth decay) or 'parabolic' (CTFd-style, steeper early decay)
     DECAY_FUNCTION = os.getenv('DECAY_FUNCTION', 'logarithmic')
     
     # Server

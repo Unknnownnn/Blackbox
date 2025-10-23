@@ -11,7 +11,7 @@ class ScoringService:
     def calculate_dynamic_points(challenge, solve_count=None):
         """
         Calculate dynamic points for a challenge based on solve count
-        Uses logarithmic decay function
+        Supports both logarithmic and parabolic decay functions
         """
         if not challenge.is_dynamic:
             return challenge.initial_points
@@ -26,17 +26,32 @@ class ScoringService:
         if solve_count >= challenge.decay_solves:
             return challenge.minimum_points
         
-        # Logarithmic decay formula
-        # Points decrease logarithmically as more teams solve
+        # Get decay function from Settings or config
+        from flask import current_app
+        from models.settings import Settings
+        
+        decay_function = Settings.get('decay_function', 'string')
+        if not decay_function:
+            decay_function = current_app.config.get('DECAY_FUNCTION', 'logarithmic')
+        
         max_points = challenge.initial_points
         min_points = challenge.minimum_points
         decay = challenge.decay_solves
         
-        # Calculate using natural log for smooth decay
-        points = max_points - (max_points - min_points) * \
-                 (math.log(solve_count + 1) / math.log(decay + 1))
+        if decay_function == 'parabolic':
+            # Parabolic decay (CTFd-style)
+            # Formula: value = (((minimum - initial) / (decay²)) * (solves²)) + initial
+            # Steeper decrease early on, then levels out
+            points = (((min_points - max_points) / (decay ** 2)) * (solve_count ** 2)) + max_points
+            points = math.ceil(points)
+        else:
+            # Logarithmic decay (default)
+            # Smooth, gradual decrease using natural log
+            points = max_points - (max_points - min_points) * \
+                     (math.log(solve_count + 1) / math.log(decay + 1))
+            points = int(points)
         
-        return max(int(points), min_points)
+        return max(points, min_points)
     
     @staticmethod
     def get_scoreboard(team_based=True, limit=None):

@@ -61,6 +61,7 @@ def create_app(config_name=None):
     from routes.teams import teams_bp
     from routes.scoreboard import scoreboard_bp
     from routes.admin import admin_bp
+    from routes.notifications import notifications_bp
     from routes.setup import setup_bp
     from routes.hints import hints_bp
     from routes.container import container_bp
@@ -71,6 +72,7 @@ def create_app(config_name=None):
     app.register_blueprint(teams_bp)
     app.register_blueprint(scoreboard_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(notifications_bp)
     app.register_blueprint(hints_bp)
     app.register_blueprint(container_bp)
     

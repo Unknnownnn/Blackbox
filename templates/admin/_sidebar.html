@@ -17,6 +17,9 @@
         <a href="{{ url_for('admin.manage_teams') }}" class="admin-nav-link {% if request.endpoint == 'admin.manage_teams' %}active{% endif %}">
             <i class="bi bi-people-fill"></i> Teams
         </a>
+        <a href="{{ url_for('admin.manage_notifications') }}" class="admin-nav-link {% if request.endpoint == 'admin.manage_notifications' %}active{% endif %}">
+            <i class="bi bi-bell"></i> Notifications
+        </a>
         <a href="{{ url_for('admin.flag_abuse') }}" class="admin-nav-link {% if request.endpoint == 'admin.flag_abuse' %}active{% endif %}">
             <i class="bi bi-shield-exclamation"></i> Flag Sharing
         </a>

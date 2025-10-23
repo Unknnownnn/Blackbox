@@ -119,6 +119,23 @@
                         <small class="form-text text-muted">You can override this per-challenge in admin panel</small>
                     </div>
 
+                    <div class="mb-4">
+                        <label class="form-label">Dynamic Scoring Decay Function</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="decay_function" id="decay_logarithmic" value="logarithmic" checked>
+                            <label class="form-check-label" for="decay_logarithmic">
+                                <strong>Logarithmic</strong> - Smooth, gradual points decrease
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="decay_function" id="decay_parabolic" value="parabolic">
+                            <label class="form-check-label" for="decay_parabolic">
+                                <strong>Parabolic</strong> - Steeper decrease early, then levels out
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">How challenge points decrease as more teams solve them</small>
+                    </div>
+
                     <div class="d-grid">
                         <button type="submit" class="btn btn-setup btn-lg">
                             Complete Setup

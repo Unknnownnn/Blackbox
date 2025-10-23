@@ -64,17 +64,36 @@ class Challenge(db.Model):
         if solve_count == 0:
             return self.initial_points
         
-        # Logarithmic decay function
+        # Import here to avoid circular imports
         import math
+        from flask import current_app
+        from models.settings import Settings
+        
         if solve_count >= self.decay_solves:
             return self.minimum_points
         
-        # Calculate decay
-        decay_rate = math.log(self.decay_solves) / (self.decay_solves - 1)
-        points = self.initial_points - (self.initial_points - self.minimum_points) * \
-                 (math.log(solve_count + 1) / math.log(self.decay_solves + 1))
+        # Get decay function from Settings or config
+        decay_function = Settings.get('decay_function', 'string')
+        if not decay_function:
+            decay_function = current_app.config.get('DECAY_FUNCTION', 'logarithmic')
         
-        return max(int(points), self.minimum_points)
+        max_points = self.initial_points
+        min_points = self.minimum_points
+        decay = self.decay_solves
+        
+        if decay_function == 'parabolic':
+            # Parabolic decay (CTFd-style)
+            # Formula: value = (((minimum - initial) / (decay²)) * (solves²)) + initial
+            points = (((min_points - max_points) / (decay ** 2)) * (solve_count ** 2)) + max_points
+            points = math.ceil(points)
+        else:
+            # Logarithmic decay (default)
+            # Smooth, gradual decrease
+            points = max_points - (max_points - min_points) * \
+                     (math.log(solve_count + 1) / math.log(decay + 1))
+            points = int(points)
+        
+        return max(points, min_points)
     
     def get_solves_count(self):
         """Get number of solves (excludes manual adjustments)"""

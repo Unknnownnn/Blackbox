@@ -31,6 +31,16 @@ class WebSocketService:
         """Emit challenge update (points change)"""
         socketio.emit('challenge_update', challenge_data, namespace='/live')
 
+    @staticmethod
+    def emit_notification(notification_data):
+        """Emit a generic notification to all connected clients"""
+        socketio.emit('notification', notification_data, namespace='/live')
+
+    @staticmethod
+    def emit_notification_deleted(notification_id):
+        """Notify clients that a notification was deleted"""
+        socketio.emit('notification_deleted', {'id': notification_id}, namespace='/live')
+
 
 # WebSocket event handlers
 @socketio.on('connect', namespace='/live')

@@ -22,7 +22,7 @@ A modern, feature-rich Capture The Flag (CTF) platform built with Flask, designe
 
 #### Challenge Management
 - **Multiple Challenge Types**: Web, Crypto, Forensics, Reverse Engineering, Binary Exploitation, OSINT, etc.
-- **Dynamic Scoring**: Point values adjust based on solve count
+- **Dynamic Scoring**: Point values adjust based on solve count with **logarithmic** (smooth decay) or **parabolic** (CTFd-style) decay functions
 - **Static Scoring**: Fixed point values for traditional CTF format
 - **First Blood Bonus**: Configurable bonus points for first solver
 - **File Attachments**: Upload challenge files with automatic hashing and integrity verification
@@ -481,6 +481,15 @@ Access via **Admin → Backups**:
    - Monthly (1st of month, 2:00 AM)
 3. **Restore**: Restore from any backup
 4. **Download**: Export backup files
+
+---
+
+## Additional Documentation
+
+- **[Scoring Systems Guide](docs/SCORING_SYSTEMS.md)** - Detailed explanation of static, logarithmic, and parabolic scoring with configuration examples
+- **[Dynamic Flags Implementation](DYNAMIC_FLAGS_IMPLEMENTATION.md)** - Per-team dynamic flag generation for Docker challenges
+- **[Dynamic Flags Examples](docs/DYNAMIC_FLAGS_EXAMPLES.md)** - Example implementations and usage
+- **[Dynamic Flags Flow](docs/DYNAMIC_FLAGS_FLOW.md)** - Technical flow diagrams
 
 ---
 

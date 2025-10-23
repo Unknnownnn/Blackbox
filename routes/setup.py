@@ -32,6 +32,7 @@ def initial_setup():
         confirm_password = request.form.get('confirm_password')
         ctf_name = request.form.get('ctf_name', 'CTF Platform')
         submission_mode = request.form.get('submission_mode', 'individual')
+        decay_function = request.form.get('decay_function', 'logarithmic')
         
         # Validation
         if not all([username, email, password, confirm_password]):
@@ -63,6 +64,7 @@ def initial_setup():
             # Save CTF settings
             Settings.set('ctf_name', ctf_name, 'string')
             Settings.set('require_team_for_challenges', submission_mode == 'team_required', 'bool')
+            Settings.set('decay_function', decay_function, 'string')
             
             flash('Admin account created successfully! Please login.', 'success')
             return redirect(url_for('auth.login'))

@@ -12,6 +12,8 @@ from models.hint import Hint, HintUnlock
 from services.cache import cache_service
 from services.file_storage import file_storage
 import json
+from models.notification import Notification
+from services.websocket import WebSocketService
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -854,6 +856,41 @@ def get_team_solves(team_id):
         'solves': solve_list
     })
 
+
+# Notifications management
+@admin_bp.route('/notifications', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def manage_notifications():
+    """Admin page to create and send notifications to all users"""
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        body = request.form.get('body', '').strip()
+
+        if not title or not body:
+            flash('Title and body are required to send a notification', 'error')
+            return redirect(url_for('admin.manage_notifications'))
+        # Read play_sound option
+        play_sound = request.form.get('play_sound') in ('true', 'on', '1')
+
+        # Create notification record (persist whether recipients should play sound)
+        notif = Notification(title=title, body=body, sent_by=current_user.id, play_sound=play_sound)
+        db.session.add(notif)
+        db.session.commit()
+
+        # Broadcast via websocket
+        try:
+            WebSocketService.emit_notification(notif.to_dict())
+        except Exception as e:
+            current_app.logger.exception('Failed to emit notification via websocket')
+
+        flash('Notification sent to all connected users', 'success')
+        return redirect(url_for('admin.manage_notifications'))
+
+    # GET: list recent notifications
+    notifications = Notification.query.order_by(Notification.created_at.desc()).limit(50).all()
+    return render_template('admin/notifications.html', notifications=notifications)
+
     data = request.get_json()
     
     points_delta = int(data.get('points', 0))
@@ -962,6 +999,11 @@ def update_event_config():
             Settings.set('first_blood_bonus', first_blood_bonus, 'int', 'Bonus points for first blood')
         except ValueError:
             pass  # Ignore invalid values
+        
+        # Update decay function
+        decay_function = request.form.get('decay_function', 'logarithmic')
+        if decay_function in ['logarithmic', 'parabolic']:
+            Settings.set('decay_function', decay_function, 'string', 'Dynamic scoring decay function')
         
         # Handle logo upload
         if 'ctf_logo' in request.files:
