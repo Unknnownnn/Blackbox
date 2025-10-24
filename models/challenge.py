@@ -26,6 +26,9 @@ class Challenge(db.Model):
     docker_connection_info = db.Column(db.String(512))  # Template with {host} {port} placeholders
     # Path inside container where the flag file should be written (e.g. /flag.txt)
     docker_flag_path = db.Column(db.String(256), nullable=True)
+    # Monitoring
+    # If True, detect exact identical submissions of regex-derived flags across teams
+    detect_regex_sharing = db.Column(db.Boolean, default=False)
     
     # Scoring
     initial_points = db.Column(db.Integer, nullable=False, default=500)
@@ -242,6 +245,7 @@ class Challenge(db.Model):
             'docker_image': self.docker_image,
             'docker_connection_info': self.docker_connection_info,
             'docker_flag_path': self.docker_flag_path,
+            'detect_regex_sharing': self.detect_regex_sharing,
             'requires_team': self.requires_team
         }
         

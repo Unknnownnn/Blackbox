@@ -486,6 +486,59 @@ def submit_flag(challenge_id):
     db.session.add(submission)
     
     if is_correct:
+        # DETECT exact regex-based flag sharing (admin-controlled per-challenge)
+        try:
+            from models.flag_abuse import FlagAbuseAttempt
+            from datetime import timedelta, datetime
+
+            # Only consider when this flag was matched via a regex flag and the challenge has monitoring enabled
+            if hasattr(matched_flag, 'is_regex') and matched_flag.is_regex and getattr(challenge, 'detect_regex_sharing', False):
+                # Time window (minutes) to consider prior identical submissions. Configurable via app config.
+                window_minutes = int(current_app.config.get('REGEX_SHARING_WINDOW_MINUTES', 60))
+                cutoff = datetime.utcnow() - timedelta(minutes=window_minutes)
+
+                # Find a prior correct submission of the exact same submitted_flag by another team/user within the window
+                prior_query = Submission.query.filter(
+                    Submission.challenge_id == challenge_id,
+                    Submission.submitted_flag == submitted_flag,
+                    Submission.is_correct == True,
+                    Submission.submitted_at >= cutoff
+                )
+
+                # Exclude current team/user
+                if team_id:
+                    prior_query = prior_query.filter(Submission.team_id.isnot(None), Submission.team_id != team_id)
+                else:
+                    prior_query = prior_query.filter(Submission.user_id.isnot(None), Submission.user_id != current_user.id)
+
+                prior = prior_query.order_by(Submission.submitted_at.asc()).first()
+
+                if prior:
+                    actual_owner_team_id = prior.team_id
+                    actual_owner_user_id = prior.user_id
+
+                    # Record a FlagAbuseAttempt for this exact-match regex sharing
+                    notes = f'Exact regex-derived flag "{submitted_flag}" previously submitted by '
+                    if actual_owner_team_id:
+                        notes += f'team {actual_owner_team_id} at {prior.submitted_at.isoformat()}'
+                    else:
+                        notes += f'user {actual_owner_user_id} at {prior.submitted_at.isoformat()}'
+
+                    abuse_record = FlagAbuseAttempt(
+                        user_id=current_user.id,
+                        team_id=team_id,
+                        challenge_id=challenge_id,
+                        submitted_flag=submitted_flag,
+                        actual_team_id=actual_owner_team_id,
+                        actual_user_id=actual_owner_user_id,
+                        ip_address=request.remote_addr,
+                        severity='suspicious',
+                        notes=notes
+                    )
+                    db.session.add(abuse_record)
+                    current_app.logger.warning(f"Regex-sharing detected: {notes}")
+        except Exception as e:
+            current_app.logger.debug(f"Regex-sharing detection error: {e}")
         # Calculate points at time of solve
         points = challenge.get_current_points()
         

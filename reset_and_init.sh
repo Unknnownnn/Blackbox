@@ -69,6 +69,8 @@ docker-compose exec -T db mysql -u root -proot_password ctf_platform < migration
 docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_first_blood_and_dynamic_scoring.sql 2>/dev/null || true
 docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_container_orchestration.sql 2>/dev/null || true
 docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_docker_settings.sql 2>/dev/null || true
+docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_enhanced_flag_features.sql 2>/dev/null || true
+docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_detect_regex_sharing.sql 2>/dev/null || true
 docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_notifications.sql 2>/dev/null || true
 docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_notifications_play_sound.sql 2>/dev/null || true
 

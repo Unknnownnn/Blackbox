@@ -88,7 +88,8 @@ def create_challenge():
             docker_enabled=data.get('docker_enabled') == 'true',
             docker_image=data.get('docker_image') if data.get('docker_enabled') == 'true' else None,
             docker_connection_info=data.get('docker_connection_info') if data.get('docker_enabled') == 'true' else None,
-            docker_flag_path=data.get('docker_flag_path') if data.get('docker_enabled') == 'true' else None
+            docker_flag_path=data.get('docker_flag_path') if data.get('docker_enabled') == 'true' else None,
+            detect_regex_sharing=data.get('detect_regex_sharing') == 'true'
         )
         
         db.session.add(challenge)
@@ -278,6 +279,9 @@ def edit_challenge(challenge_id):
         else:
             challenge.docker_image = None
             challenge.docker_connection_info = None
+
+        # Regex sharing detection toggle
+        challenge.detect_regex_sharing = data.get('detect_regex_sharing') == 'true'
         
         # Update primary flag in challenge_flags table
         primary_flag = ChallengeFlag.query.filter_by(

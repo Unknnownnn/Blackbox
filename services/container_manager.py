@@ -279,11 +279,21 @@ class ContainerOrchestrator:
                                 # If DB write fails, fallback to cache
                                 cache_service.set(f"dynamic_flag:{session_id}", dynamic_flag, ttl=settings.container_lifetime_minutes * 60)
 
-                            # Determine path to write flag (use challenge setting if provided)
-                            flag_path = getattr(challenge, 'docker_flag_path', None) or '/flag.txt'
-                            # Attempt to write flag into the container at the configured path
-                            self._inject_flag_into_container(container, dynamic_flag, path=flag_path)
-                            current_app.logger.info(f"Injected dynamic flag into container {container.short_id}")
+                            # Determine path to write flag. ONLY inject if challenge explicitly configured a docker_flag_path.
+                            docker_flag_path = getattr(challenge, 'docker_flag_path', None)
+                            if docker_flag_path:
+                                # Attempt to write flag into the container at the configured path
+                                injected = self._inject_flag_into_container(container, dynamic_flag, path=docker_flag_path)
+                                if injected:
+                                    current_app.logger.info(f"Injected dynamic flag into container {container.short_id} at {docker_flag_path}")
+                                else:
+                                    current_app.logger.warning(f"Failed to inject dynamic flag into container {container.short_id} at {docker_flag_path}")
+                            else:
+                                # No explicit path configured; do not write a default /flag.txt to avoid overwriting
+                                # non-dynamic challenge data. Log at debug level for visibility.
+                                current_app.logger.debug(
+                                    f"Skipping dynamic flag injection for container {container.short_id}: no docker_flag_path configured on challenge {challenge.id}"
+                                )
                 except Exception as inject_err:
                     current_app.logger.warning(f"Failed to inject dynamic flag into container: {inject_err}")
 

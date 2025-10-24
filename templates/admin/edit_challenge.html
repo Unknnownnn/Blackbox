@@ -121,6 +121,14 @@
                                     </div>
                                 </div>
                                 <div class="col-md-2 mb-3">
+                                    <label for="detect_regex_sharing" class="form-label">Monitor Regex Sharing</label>
+                                    <div class="form-check form-switch mt-2">
+                                        <input class="form-check-input" type="checkbox" id="detect_regex_sharing" name="detect_regex_sharing" value="true"
+                                               {% if challenge.detect_regex_sharing %}checked{% endif %}>
+                                        <label class="form-check-label" for="detect_regex_sharing">Detect exact matches</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-2 mb-3">
                                     <label for="flag_case_sensitive" class="form-label">Case Sensitive</label>
                                     <select class="form-select" id="flag_case_sensitive" name="flag_case_sensitive">
                                         <option value="true" {% if challenge.flag_case_sensitive %}selected{% endif %}>Yes</option>
