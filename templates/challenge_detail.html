@@ -63,8 +63,8 @@
                     {% endif %}
                 </div>
                 
-                {% if challenge.docker_enabled %}
-                <!-- Docker Container Panel -->
+                {% if challenge.docker_enabled and not challenge.solved %}
+                <!-- Docker Container Panel (hidden after solving) -->
                 <div class="mb-4">
                     {% include 'components/container_panel.html' %}
                 </div>
@@ -136,7 +136,7 @@
                     <form id="flagForm" onsubmit="submitFlag(event)">
                         <div class="input-group mb-3">
                             <input type="text" class="form-control" id="flagInput" 
-                                   placeholder="flag{...}" required>
+                                   placeholder="CYS{...}" required>
                             <button class="btn btn-primary" type="submit" id="submitBtn">
                                 <i class="bi bi-flag-fill"></i> Submit
                             </button>

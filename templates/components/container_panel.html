@@ -339,22 +339,22 @@ function showRunning(container) {
         // Check if it's a URL
         if (container.connection_info.startsWith('http://') || container.connection_info.startsWith('https://')) {
             connectionHtml = `
-                <div class="alert alert-success mb-3">
+                <div class="alert alert-success mb-3 connection-block">
                     <strong><i class="bi bi-link-45deg"></i> Connection URL:</strong><br>
                     <a href="${container.connection_info}" target="_blank" rel="noopener noreferrer" class="alert-link fs-5">
                         ${container.connection_info}
                     </a>
-                    <button class="btn btn-sm btn-outline-success ms-2" onclick="navigator.clipboard.writeText('${container.connection_info}')">
+                    <button type="button" class="btn btn-sm btn-outline-success ms-2 btn-copy-conn">
                         <i class="bi bi-clipboard"></i> Copy
                     </button>
                 </div>
             `;
         } else {
             connectionHtml = `
-                <div class="alert alert-success mb-3">
+                <div class="alert alert-success mb-3 connection-block">
                     <strong><i class="bi bi-terminal"></i> Connection:</strong><br>
                     <code>${container.connection_info}</code>
-                    <button class="btn btn-sm btn-outline-success ms-2" onclick="navigator.clipboard.writeText('${container.connection_info}')">
+                    <button type="button" class="btn btn-sm btn-outline-success ms-2 btn-copy-conn">
                         <i class="bi bi-clipboard"></i> Copy
                     </button>
                 </div>
@@ -366,12 +366,12 @@ function showRunning(container) {
         const hostIp = container.host_ip || 'localhost';
         const url = `http://${hostIp}:${hostPort}`;
         connectionHtml = `
-            <div class="alert alert-success mb-3">
+            <div class="alert alert-success mb-3 connection-block">
                 <strong><i class="bi bi-hdd-network"></i> Container Access:</strong><br>
                 <a href="${url}" target="_blank" rel="noopener noreferrer" class="alert-link fs-5">
                     ${url}
                 </a>
-                <button class="btn btn-sm btn-outline-success ms-2" onclick="navigator.clipboard.writeText('${url}')">
+                <button type="button" class="btn btn-sm btn-outline-success ms-2 btn-copy-conn">
                     <i class="bi bi-clipboard"></i> Copy
                 </button>
             </div>
@@ -434,6 +434,29 @@ function showRunning(container) {
     
     // Store container data for countdown
     statusDiv.dataset.containerData = JSON.stringify(container);
+    // Attach copy handlers to the copy buttons to avoid string-escaping issues in inline onclick handlers.
+    try {
+        const copyButtons = statusDiv.querySelectorAll('.btn-copy-conn');
+        copyButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                // Find the closest connection-block and extract the visible text to copy (either <a> or <code>)
+                const block = btn.closest('.connection-block');
+                if (!block) return;
+                const anchor = block.querySelector('a');
+                const code = block.querySelector('code');
+                const text = anchor ? anchor.textContent.trim() : (code ? code.textContent.trim() : '');
+                if (!text) return;
+                navigator.clipboard.writeText(text).then(() => {
+                    showSuccess('Connection info copied to clipboard');
+                }).catch(err => {
+                    console.error('Copy failed:', err);
+                    showError('Failed to copy to clipboard');
+                });
+            });
+        });
+    } catch (err) {
+        console.error('Failed to attach copy handlers:', err);
+    }
 }
 
 function updateCountdown(container) {

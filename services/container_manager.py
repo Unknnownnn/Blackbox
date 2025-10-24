@@ -508,22 +508,58 @@ class ContainerOrchestrator:
                 ContainerInstance.status == 'running',
                 ContainerInstance.expires_at < datetime.utcnow()
             ).all()
-            
+
+            cleaned = 0
             for instance in expired:
+                # Attempt to stop and remove the Docker container if possible, but do not let Docker errors
+                # prevent marking the instance as stopped in the database.
                 try:
-                    if self.docker_client:
-                        container = self.docker_client.containers.get(instance.container_id)
-                        container.stop(timeout=10)
-                        container.remove()
-                except:
+                    if self.docker_client and instance.container_id:
+                        try:
+                            container = self.docker_client.containers.get(instance.container_id)
+                            container.stop(timeout=10)
+                            container.remove()
+                            current_app.logger.info(f"Stopped and removed expired container in Docker: {instance.container_id}")
+                        except docker.errors.NotFound:
+                            current_app.logger.warning(f"Expired container not found in Docker: {instance.container_id}")
+                        except Exception as docker_err:
+                            current_app.logger.warning(f"Error stopping/removing expired container {instance.container_id}: {docker_err}")
+                except Exception as e:
+                    current_app.logger.error(f"Docker cleanup check failed for instance {instance.id}: {e}")
+
+                # Always mark the instance as stopped and persist immediately so users can start a new container
+                try:
+                    instance.status = 'stopped'
+                    instance.stopped_at = datetime.utcnow()
+                    # Clear identifiers that would block new container creation
+                    instance.container_id = None
+                    # Capture session id for cache cleanup then clear it
+                    sess = instance.session_id
+                    instance.session_id = None
+                    db.session.commit()
+                except Exception as db_err:
+                    current_app.logger.error(f"Failed to mark expired container instance {instance.id} as stopped: {db_err}")
+                    db.session.rollback()
+                    # Continue to attempt cache cleanup/logging even if DB update failed
+
+                # Remove cached session and dynamic flag if present
+                try:
+                    if sess:
+                        cache_service.delete(f"container_session:{sess}")
+                        cache_service.delete(f"dynamic_flag:{sess}")
+                except Exception:
                     pass
-                
-                instance.status = 'stopped'
-                instance.stopped_at = datetime.utcnow()
-                self._log_event(instance.id, 'expired', 'Container expired and cleaned up', event_type='expire')
-            
-            db.session.commit()
-            current_app.logger.info(f"Cleaned up {len(expired)} expired containers")
+
+                # Log the expiration event
+                try:
+                    self._log_event(instance.id, 'expired', 'Container expired and cleaned up', event_type='expire')
+                except Exception:
+                    # ensure logging failures don't stop the loop
+                    pass
+
+                cleaned += 1
+
+            current_app.logger.info(f"Cleaned up {cleaned} expired containers")
             
         except Exception as e:
             current_app.logger.error(f"Cleanup error: {e}", exc_info=True)
