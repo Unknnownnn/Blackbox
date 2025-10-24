@@ -264,8 +264,10 @@ class ContainerOrchestrator:
                 # Generate and inject dynamic flag if container exposes /flag.txt or challenge expects a flag file
                 try:
                     dynamic_flag = None
-                    # Generate only if this challenge likely uses a flag file (heuristic: challenge.files or docker image naming)
-                    if challenge.docker_enabled:
+                    # Determine path to write flag. ONLY generate and inject if challenge explicitly configured a docker_flag_path.
+                    docker_flag_path = getattr(challenge, 'docker_flag_path', None)
+                    if challenge.docker_enabled and docker_flag_path:
+                        # Generate dynamic flag only when an explicit path is configured on the challenge
                         dynamic_flag = self._generate_dynamic_flag(challenge, team_id or instance.team_id, instance.id)
                         if dynamic_flag:
                             # Prefer storing in DB if column exists, otherwise put in cache keyed by session
@@ -279,21 +281,18 @@ class ContainerOrchestrator:
                                 # If DB write fails, fallback to cache
                                 cache_service.set(f"dynamic_flag:{session_id}", dynamic_flag, ttl=settings.container_lifetime_minutes * 60)
 
-                            # Determine path to write flag. ONLY inject if challenge explicitly configured a docker_flag_path.
-                            docker_flag_path = getattr(challenge, 'docker_flag_path', None)
-                            if docker_flag_path:
-                                # Attempt to write flag into the container at the configured path
-                                injected = self._inject_flag_into_container(container, dynamic_flag, path=docker_flag_path)
-                                if injected:
-                                    current_app.logger.info(f"Injected dynamic flag into container {container.short_id} at {docker_flag_path}")
-                                else:
-                                    current_app.logger.warning(f"Failed to inject dynamic flag into container {container.short_id} at {docker_flag_path}")
+                            # Attempt to write flag into the container at the configured path
+                            injected = self._inject_flag_into_container(container, dynamic_flag, path=docker_flag_path)
+                            if injected:
+                                current_app.logger.info(f"Injected dynamic flag into container {container.short_id} at {docker_flag_path}")
                             else:
-                                # No explicit path configured; do not write a default /flag.txt to avoid overwriting
-                                # non-dynamic challenge data. Log at debug level for visibility.
-                                current_app.logger.debug(
-                                    f"Skipping dynamic flag injection for container {container.short_id}: no docker_flag_path configured on challenge {challenge.id}"
-                                )
+                                current_app.logger.warning(f"Failed to inject dynamic flag into container {container.short_id} at {docker_flag_path}")
+                    else:
+                        # No explicit path configured; do not generate or write a default /flag.txt to avoid overwriting
+                        # non-dynamic challenge data. Log at debug level for visibility.
+                        current_app.logger.debug(
+                            f"Skipping dynamic flag generation/injection for container {container.short_id}: no docker_flag_path configured on challenge {challenge.id}"
+                        )
                 except Exception as inject_err:
                     current_app.logger.warning(f"Failed to inject dynamic flag into container: {inject_err}")
 
@@ -567,35 +566,36 @@ class ContainerOrchestrator:
         This prevents flag sharing between teams while allowing team members to share.
         """
         try:
-            import base64
-            from datetime import datetime
+            import random
 
-            if not team_id:
-                # For users not in teams, use user_id from instance (fallback)
-                team_part = f'user_{instance_id}'
-            else:
+            # Use team_ or user_ prefixes to keep mapping keys consistent
+            if team_id:
                 team_part = f'team_{team_id}'
-            
-            ts = datetime.utcnow().strftime('%Y%m%d')
-            # Include challenge_id to make flags unique per challenge
-            payload = f"{challenge.id}:{team_part}:{ts}"
-            b64 = base64.urlsafe_b64encode(payload.encode()).decode().rstrip('=')
-            
-            # Keep the visible flag format similar to challenge flag (if challenge.flag has PREFIX{...})
-            prefix = 'FLAG'
-            # Try to extract a prefix from challenge.flag if it looks like PREFIX{...}
-            if challenge and challenge.flag and '{' in challenge.flag and '}' in challenge.flag:
+            else:
+                # For users not in teams, use user_{instance_id} fallback
+                team_part = f'user_{instance_id}'
+
+            # Random number between 0 and 1999 inclusive
+            rand = random.randint(0, 1999)
+
+            # Default prefix is CYS unless challenge.flag indicates a different prefix (PREFIX{...})
+            prefix = 'CYS'
+            if challenge and getattr(challenge, 'flag', None) and '{' in challenge.flag and '}' in challenge.flag:
                 try:
                     prefix = challenge.flag.split('{', 1)[0]
                 except Exception:
-                    prefix = 'FLAG'
+                    prefix = 'CYS'
 
+            # New format: encode payload as base64 of "{challenge_id}:{team_part}:{rand}" and wrap in PREFIX{...}
+            import base64
+            payload = f"{challenge.id}:{team_part}:{rand}"
+            b64 = base64.urlsafe_b64encode(payload.encode()).decode().rstrip('=')
             dynamic = f"{prefix}{{{b64}}}"
-            
+
             # Store mapping in cache for validation (expires in 24 hours)
             cache_key = f"dynamic_flag_mapping:{challenge.id}:{team_part}"
             cache_service.set(cache_key, dynamic, ttl=86400)  # 24 hours
-            
+
             return dynamic
         except Exception as e:
             current_app.logger.error(f"Failed to generate dynamic flag: {e}")
@@ -608,53 +608,77 @@ class ContainerOrchestrator:
         Returns: dict with 'challenge_id', 'team_id', 'is_valid' keys, or None if not a dynamic flag
         """
         try:
-            import base64
-            
-            # Check if it looks like a dynamic flag: PREFIX{base64}
+            # Check basic braces
             if not ('{' in flag_value and '}' in flag_value):
                 return None
-            
-            # Extract base64 part
-            b64_part = flag_value.split('{', 1)[1].rsplit('}', 1)[0]
-            
-            # Try to decode
-            # Add padding if needed
+
+            inner = flag_value.split('{', 1)[1].rsplit('}', 1)[0]
+
+            # Try base64 payload decoding (covers both legacy and new formats)
+            import base64
+
+            b64_part = inner
             padding = 4 - (len(b64_part) % 4)
             if padding and padding != 4:
                 b64_part += '=' * padding
-            
-            decoded = base64.urlsafe_b64decode(b64_part).decode('utf-8')
-            
-            # Parse payload: "challengeid:team_X:date" or "challengeid:user_X:date"
-            parts = decoded.split(':')
-            if len(parts) != 3:
-                return None
-            
-            challenge_id = int(parts[0])
-            team_part = parts[1]  # e.g., "team_5" or "user_123"
-            date = parts[2]
-            
-            # Extract team_id or user indicator
-            if team_part.startswith('team_'):
-                team_id = int(team_part.replace('team_', ''))
-                return {
-                    'challenge_id': challenge_id,
-                    'team_id': team_id,
-                    'date': date,
-                    'is_valid': True,
-                    'is_team_flag': True
-                }
-            elif team_part.startswith('user_'):
-                user_id = int(team_part.replace('user_', ''))
-                return {
-                    'challenge_id': challenge_id,
-                    'team_id': None,
-                    'user_id': user_id,
-                    'date': date,
-                    'is_valid': True,
-                    'is_team_flag': False
-                }
-            
+
+            try:
+                decoded = base64.urlsafe_b64decode(b64_part).decode('utf-8')
+                parts = decoded.split(':')
+                # New format: challenge_id:team_<id>:rand  OR challenge_id:user_<id>:rand
+                if len(parts) == 3:
+                    # Determine whether third part is numeric (rand) or a date (legacy)
+                    challenge_id = int(parts[0])
+                    team_part = parts[1]
+                    third = parts[2]
+                    if third.isdigit():
+                        # New format
+                        if team_part.startswith('team_'):
+                            team_id = int(team_part.replace('team_', ''))
+                            return {
+                                'challenge_id': challenge_id,
+                                'team_id': team_id,
+                                'date': None,
+                                'is_valid': True,
+                                'is_team_flag': True
+                            }
+                        elif team_part.startswith('user_'):
+                            user_id = int(team_part.replace('user_', ''))
+                            return {
+                                'challenge_id': challenge_id,
+                                'team_id': None,
+                                'user_id': user_id,
+                                'date': None,
+                                'is_valid': True,
+                                'is_team_flag': False
+                            }
+                    else:
+                        # Legacy format: challengeid:team_part:date
+                        date = third
+                        if team_part.startswith('team_'):
+                            team_id = int(team_part.replace('team_', ''))
+                            return {
+                                'challenge_id': challenge_id,
+                                'team_id': team_id,
+                                'date': date,
+                                'is_valid': True,
+                                'is_team_flag': True
+                            }
+                        elif team_part.startswith('user_'):
+                            user_id = int(team_part.replace('user_', ''))
+                            return {
+                                'challenge_id': challenge_id,
+                                'team_id': None,
+                                'user_id': user_id,
+                                'date': date,
+                                'is_valid': True,
+                                'is_team_flag': False
+                            }
+            except Exception:
+                # Not base64 or failed decode; fall through
+                pass
+
+            # If not base64, return None (we no longer support unencoded new format)
             return None
         except Exception:
             return None
