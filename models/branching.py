@@ -5,6 +5,7 @@ Handles multiple flags, prerequisites, and flag-based challenge unlocking
 
 from datetime import datetime
 from models import db
+import re
 
 
 class ChallengeFlag(db.Model):
@@ -19,6 +20,9 @@ class ChallengeFlag(db.Model):
     flag_label = db.Column(db.String(100))  # User-friendly label for admin
     is_case_sensitive = db.Column(db.Boolean, default=True)
     
+    # Regex flag support
+    is_regex = db.Column(db.Boolean, default=False)
+    
     # Branching: which challenge does this flag unlock?
     unlocks_challenge_id = db.Column(db.Integer, db.ForeignKey('challenges.id'), nullable=True, index=True)
     
@@ -32,8 +36,30 @@ class ChallengeFlag(db.Model):
     challenge = db.relationship('Challenge', foreign_keys=[challenge_id], backref='flags')
     unlocks_challenge = db.relationship('Challenge', foreign_keys=[unlocks_challenge_id])
     
-    def check_flag(self, submitted_flag):
-        """Check if submitted flag matches this flag"""
+    def check_flag(self, submitted_flag, team_id=None, user_id=None):
+        """Check if submitted flag matches this flag
+        
+        Args:
+            submitted_flag: The flag submitted by the user
+            team_id: Optional team_id (for future use)
+            user_id: Optional user_id (for future use)
+            
+        Returns:
+            bool: True if flag matches, False otherwise
+        """
+        # Handle regex flags
+        if self.is_regex:
+            try:
+                if self.is_case_sensitive:
+                    pattern = re.compile(self.flag_value)
+                else:
+                    pattern = re.compile(self.flag_value, re.IGNORECASE)
+                return pattern.fullmatch(submitted_flag) is not None
+            except re.error:
+                # Invalid regex pattern, fall back to exact match
+                pass
+        
+        # Standard static flag comparison
         if self.is_case_sensitive:
             return submitted_flag == self.flag_value
         else:
@@ -47,7 +73,8 @@ class ChallengeFlag(db.Model):
             'label': self.flag_label,
             'unlocks_challenge_id': self.unlocks_challenge_id,
             'points_override': self.points_override,
-            'is_case_sensitive': self.is_case_sensitive
+            'is_case_sensitive': self.is_case_sensitive,
+            'is_regex': self.is_regex
         }
         
         if include_value:

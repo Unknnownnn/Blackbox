@@ -1,11 +1,3 @@
--- Migration: Add invite_code to teams table and update challenges
--- Date: 2025-10-14
--- Description: 
---   1. Add invite_code column to teams table
---   2. Update max_attempts default value in challenges table
---   3. Generate unique invite codes for existing teams
-
--- Add invite_code column to teams (temporarily nullable for migration)
 ALTER TABLE teams ADD COLUMN invite_code VARCHAR(8) NULL;
 
 -- Create index on invite_code for fast lookups

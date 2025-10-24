@@ -130,7 +130,8 @@
                                     </div>
                                     <div class="col-md-4 mb-3">
                                         <label class="form-label">Flag Value</label>
-                                        <input type="text" class="form-control" name="flag_value" placeholder="flag{example}" required>
+                                        <input type="text" class="form-control" name="flag_value" placeholder="flag{example} or regex pattern" required>
+                                        <small class="form-text text-muted">Static flag or regex (e.g., flag\{[A-Za-z0-9]{8,16}\})</small>
                                     </div>
                                     <div class="col-md-4 mb-3">
                                         <label class="form-label">Flag Label (Optional)</label>
@@ -147,11 +148,18 @@
                                             {% endfor %}
                                         </select>
                                     </div>
-                                    <div class="col-md-3 mb-3">
-                                        <label class="form-label">Points Override (Optional)</label>
-                                        <input type="number" class="form-control" name="points_override" placeholder="Leave blank for default">
+                                    <div class="col-md-2 mb-3">
+                                        <label class="form-label">Points Override</label>
+                                        <input type="number" class="form-control" name="points_override" placeholder="Optional">
                                     </div>
-                                    <div class="col-md-3 mb-3">
+                                    <div class="col-md-2 mb-3">
+                                        <label class="form-label">Is Regex</label>
+                                        <select class="form-select" name="is_regex">
+                                            <option value="0">No (Static)</option>
+                                            <option value="1">Yes (Pattern)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2 mb-3">
                                         <label class="form-label">Case Sensitive</label>
                                         <select class="form-select" name="is_case_sensitive">
                                             <option value="1">Yes</option>
@@ -505,7 +513,11 @@ async function loadFlags() {
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
                                 <h6 class="mb-1">${flag.challenge_name}</h6>
-                                <p class="mb-1"><code>${flag.flag_value}</code></p>
+                                <p class="mb-1">
+                                    <code>${flag.flag_value}</code>
+                                    ${flag.is_regex ? '<span class="badge bg-warning text-dark ms-2"><i class="bi bi-regex"></i> Regex</span>' : ''}
+                                    ${!flag.is_case_sensitive ? '<span class="badge bg-secondary ms-2">Case Insensitive</span>' : ''}
+                                </p>
                                 ${flag.label ? `<span class="badge bg-info">${flag.label}</span>` : ''}
                                 ${flag.unlocks_challenge_name ? `<span class="badge bg-success">Unlocks: ${flag.unlocks_challenge_name}</span>` : ''}
                                 ${flag.points_override ? `<span class="badge bg-warning">${flag.points_override} points</span>` : ''}

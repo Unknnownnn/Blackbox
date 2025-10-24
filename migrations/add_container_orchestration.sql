@@ -1,8 +1,3 @@
--- Add Container Orchestration Tables
--- Migration: add_container_orchestration.sql
--- Date: 2025-10-19
-
--- Create container_instances table
 CREATE TABLE IF NOT EXISTS container_instances (
     id INT AUTO_INCREMENT PRIMARY KEY,
     challenge_id INT NOT NULL,

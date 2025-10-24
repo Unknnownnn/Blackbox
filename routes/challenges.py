@@ -411,6 +411,18 @@ def submit_flag(challenge_id):
             
             # Log the flag sharing attempt
             if is_wrong_team:
+                # Analyze temporal patterns to determine severity
+                pattern_analysis = FlagAbuseAttempt.analyze_temporal_patterns(
+                    challenge_id=challenge_id,
+                    submitting_team_id=team_id,
+                    actual_team_id=actual_owner_team_id,
+                    time_window_minutes=15
+                )
+                
+                # Determine severity based on pattern analysis
+                severity = pattern_analysis.get('severity', 'warning')
+                pattern_notes = pattern_analysis.get('notes', '')
+                
                 # Resolve owner name for nicer notes/logs
                 owner_label = None
                 try:
@@ -424,6 +436,13 @@ def submit_flag(challenge_id):
                         owner_label = f"user {owner.username}" if owner else f"user {actual_owner_user_id}"
                 except Exception:
                     owner_label = f"team {actual_owner_team_id}" if actual_owner_team_id else f"user {actual_owner_user_id}"
+                
+                # Build comprehensive notes
+                base_note = f'Attempted to submit flag belonging to {owner_label}'
+                if pattern_notes:
+                    full_notes = f"{base_note}. {pattern_notes}"
+                else:
+                    full_notes = base_note
 
                 abuse_record = FlagAbuseAttempt(
                     user_id=current_user.id,
@@ -433,14 +452,27 @@ def submit_flag(challenge_id):
                     actual_team_id=actual_owner_team_id,
                     actual_user_id=actual_owner_user_id,
                     ip_address=request.remote_addr,
-                    severity='suspicious',
-                    notes=f'Attempted to submit flag belonging to {owner_label}'
+                    severity=severity,
+                    notes=full_notes
                 )
                 db.session.add(abuse_record)
-                current_app.logger.warning(
-                    f"FLAG SHARING ATTEMPT: User {current_user.id} (team {team_id}) "
-                    f"submitted flag for challenge {challenge_id} that belongs to {owner_label}"
-                )
+                
+                # Log with appropriate severity level
+                if severity == 'critical':
+                    current_app.logger.error(
+                        f"FLAG SHARING - CRITICAL PATTERN: User {current_user.id} (team {team_id}) "
+                        f"submitted flag for challenge {challenge_id} belonging to {owner_label}. {pattern_notes}"
+                    )
+                elif severity == 'suspicious':
+                    current_app.logger.warning(
+                        f"FLAG SHARING - SUSPICIOUS: User {current_user.id} (team {team_id}) "
+                        f"submitted flag for challenge {challenge_id} belonging to {owner_label}. {pattern_notes}"
+                    )
+                else:
+                    current_app.logger.warning(
+                        f"FLAG SHARING ATTEMPT: User {current_user.id} (team {team_id}) "
+                        f"submitted flag for challenge {challenge_id} that belongs to {owner_label}"
+                    )
     
     # Create submission record
     submission = Submission(

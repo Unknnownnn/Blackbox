@@ -1,8 +1,3 @@
--- Migration: Add CTF Control Features
--- Date: 2024
--- Description: Adds Settings table for CTF scheduling and control, and is_enabled field to challenges
-
--- Create settings table for persistent configuration
 CREATE TABLE IF NOT EXISTS settings (
     id INT AUTO_INCREMENT PRIMARY KEY,
     `key` VARCHAR(100) NOT NULL UNIQUE,

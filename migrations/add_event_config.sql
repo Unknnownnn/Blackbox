@@ -1,6 +1,3 @@
--- Add event configuration settings
--- These will be managed from admin panel instead of .env
-
 -- CTF Name
 INSERT INTO settings (key, value, value_type, description, created_at, updated_at)
 VALUES ('ctf_name', 'Capture The Flag', 'string', 'Name of the CTF event', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)

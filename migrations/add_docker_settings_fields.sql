@@ -1,6 +1,3 @@
--- Add missing fields to docker_settings table
--- Run this if you're getting errors about missing columns
-
 ALTER TABLE docker_settings 
 ADD COLUMN IF NOT EXISTS max_cpu_percent FLOAT DEFAULT 50.0;
 

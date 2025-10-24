@@ -1,8 +1,3 @@
--- Migration: Add Hints System and Team Requirements
--- Date: October 2025
--- Description: Adds hints table with costs, hint unlocks tracking, and team requirement option for challenges
-
--- Add requires_team field to challenges table
 ALTER TABLE challenges 
 ADD COLUMN IF NOT EXISTS requires_team BOOLEAN DEFAULT FALSE 
 AFTER is_enabled;

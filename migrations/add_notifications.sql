@@ -1,7 +1,3 @@
--- Migration: Add notifications table
--- Creates a table to store announcements/notifications sent by admins
-
--- Create table if it doesn't already exist (MariaDB/MySQL syntax)
 CREATE TABLE IF NOT EXISTS notifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(255) NOT NULL,

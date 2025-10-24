@@ -61,6 +61,70 @@
             </div>
         </div>
 
+        <!-- Severity Breakdown & Repeat Offenders -->
+        <div class="row mb-4">
+            <!-- Severity Breakdown -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-dark text-white">
+                        <h6 class="mb-0"><i class="bi bi-bar-chart"></i> Severity Breakdown</h6>
+                    </div>
+                    <div class="card-body">
+                        {% if severity_counts %}
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="p-2 border rounded">
+                                    <h4 class="text-danger">{{ severity_counts.get('critical', 0) }}</h4>
+                                    <small class="text-muted">Critical</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="p-2 border rounded">
+                                    <h4 class="text-warning">{{ severity_counts.get('suspicious', 0) }}</h4>
+                                    <small class="text-muted">Suspicious</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="p-2 border rounded">
+                                    <h4 class="text-secondary">{{ severity_counts.get('warning', 0) }}</h4>
+                                    <small class="text-muted">Warning</small>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <p class="text-muted mb-0">No attempts recorded</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Repeat Offenders -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-danger text-white">
+                        <h6 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Repeat Offenders (3+ attempts)</h6>
+                    </div>
+                    <div class="card-body" style="max-height: 200px; overflow-y: auto;">
+                        {% if repeat_offenders %}
+                        <div class="list-group list-group-flush">
+                            {% for offender in repeat_offenders %}
+                            <div class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ offender.team_name }}</strong>
+                                    <br><small class="text-muted">Last: {{ offender.time_ago }}</small>
+                                </div>
+                                <span class="badge bg-danger rounded-pill">{{ offender.attempt_count }} attempts</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="text-muted mb-0">No repeat offenders detected</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Filters -->
         <div class="card mb-4">
             <div class="card-body">

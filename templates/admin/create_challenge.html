@@ -79,12 +79,20 @@
                         </div>
                         <div class="card-body">
                             <div class="row">
-                                <div class="col-md-7 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label for="flag" class="form-label fw-bold">Primary Flag *</label>
                                     <input type="text" class="form-control form-control-lg" id="flag" name="flag" 
                                            placeholder="flag{example}" required>
+                                    <div class="form-text">Enter static flag or regex pattern (e.g., flag\{[A-Za-z0-9]{8,16}\})</div>
                                 </div>
-                                <div class="col-md-3 mb-3">
+                                <div class="col-md-2 mb-3">
+                                    <label for="is_regex" class="form-label">Is Regex</label>
+                                    <div class="form-check form-switch mt-2">
+                                        <input class="form-check-input" type="checkbox" id="is_regex" name="is_regex" value="true">
+                                        <label class="form-check-label" for="is_regex">Regex Pattern</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-2 mb-3">
                                     <label for="flag_case_sensitive" class="form-label">Case Sensitive</label>
                                     <select class="form-select" id="flag_case_sensitive" name="flag_case_sensitive">
                                         <option value="true">Yes</option>
@@ -345,12 +353,12 @@ function addFlag() {
     flagDiv.innerHTML = `
         <div class="card-body">
             <div class="row">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label">Flag Value</label>
                     <input type="text" class="form-control form-control-sm" 
                            name="additional_flags[]" placeholder="flag{alternative}" required>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label">Label (Optional)</label>
                     <input type="text" class="form-control form-control-sm" 
                            name="flag_labels[]" placeholder="Path A, Hard Route, etc.">
@@ -359,6 +367,13 @@ function addFlag() {
                     <label class="form-label">Points Override</label>
                     <input type="number" class="form-control form-control-sm" 
                            name="flag_points[]" placeholder="Leave blank for default">
+                </div>
+                <div class="col-md-1">
+                    <label class="form-label">Is Regex</label>
+                    <div class="form-check form-switch mt-1">
+                        <input class="form-check-input" type="checkbox" 
+                               name="flag_is_regex[]" value="true">
+                    </div>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Case Sensitive</label>

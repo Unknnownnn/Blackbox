@@ -99,7 +99,8 @@ def create_challenge():
             challenge_id=challenge.id,
             flag_value=data.get('flag'),
             flag_label='Primary Flag',
-            is_case_sensitive=data.get('flag_case_sensitive') == 'true'
+            is_case_sensitive=data.get('flag_case_sensitive') == 'true',
+            is_regex=data.get('is_regex') == 'true'
         )
         db.session.add(primary_flag)
         
@@ -108,6 +109,7 @@ def create_challenge():
         flag_labels = request.form.getlist('flag_labels[]')
         flag_points = request.form.getlist('flag_points[]')
         flag_cases = request.form.getlist('flag_case[]')
+        flag_is_regex = request.form.getlist('flag_is_regex[]')
         
         for i in range(len(additional_flags)):
             if additional_flags[i].strip():
@@ -123,7 +125,8 @@ def create_challenge():
                     flag_value=additional_flags[i].strip(),
                     flag_label=flag_labels[i].strip() if i < len(flag_labels) and flag_labels[i].strip() else None,
                     points_override=points_override,
-                    is_case_sensitive=flag_cases[i] == 'true' if i < len(flag_cases) else True
+                    is_case_sensitive=flag_cases[i] == 'true' if i < len(flag_cases) else True,
+                    is_regex=(i < len(flag_is_regex) and flag_is_regex[i] == 'true')
                 )
                 db.session.add(additional_flag)
         
@@ -285,13 +288,15 @@ def edit_challenge(challenge_id):
         if primary_flag:
             primary_flag.flag_value = data.get('flag')
             primary_flag.is_case_sensitive = data.get('flag_case_sensitive') == 'true'
+            primary_flag.is_regex = data.get('is_regex') == 'true'
         else:
             # Create primary flag if it doesn't exist
             primary_flag = ChallengeFlag(
                 challenge_id=challenge_id,
                 flag_value=data.get('flag'),
                 flag_label='Primary Flag',
-                is_case_sensitive=data.get('flag_case_sensitive') == 'true'
+                is_case_sensitive=data.get('flag_case_sensitive') == 'true',
+                is_regex=data.get('is_regex') == 'true'
             )
             db.session.add(primary_flag)
         
@@ -423,11 +428,19 @@ def edit_challenge(challenge_id):
     existing_images = ChallengeFile.query.filter_by(challenge_id=challenge_id, is_image=True).all()
     existing_hints = Hint.query.filter_by(challenge_id=challenge_id).order_by(Hint.order).all()
     
+    # Get primary flag to check is_regex status
+    from models.branching import ChallengeFlag
+    primary_flag = ChallengeFlag.query.filter_by(
+        challenge_id=challenge_id,
+        flag_label='Primary Flag'
+    ).first()
+    
     return render_template('admin/edit_challenge.html', 
                           challenge=challenge, 
                           existing_files=existing_files,
                           existing_images=existing_images,
-                          existing_hints=existing_hints)
+                          existing_hints=existing_hints,
+                          primary_flag=primary_flag)
 
 
 @admin_bp.route('/challenges/<int:challenge_id>/delete', methods=['POST'])
@@ -1254,6 +1267,7 @@ def get_flags():
 def add_flag():
     """Add a new flag to a challenge"""
     from models.branching import ChallengeFlag
+    import re
     
     challenge_id = request.form.get('challenge_id')
     flag_value = request.form.get('flag_value', '').strip()
@@ -1261,6 +1275,7 @@ def add_flag():
     unlocks_challenge_id = request.form.get('unlocks_challenge_id')
     points_override = request.form.get('points_override')
     is_case_sensitive = request.form.get('is_case_sensitive', '1') == '1'
+    is_regex = request.form.get('is_regex', '0') == '1'
     
     if not challenge_id or not flag_value:
         return jsonify({'success': False, 'message': 'Challenge and flag value are required'}), 400
@@ -1269,6 +1284,13 @@ def add_flag():
     challenge = Challenge.query.get(challenge_id)
     if not challenge:
         return jsonify({'success': False, 'message': 'Challenge not found'}), 404
+    
+    # For regex flags, validate the pattern
+    if is_regex:
+        try:
+            re.compile(flag_value)
+        except re.error as e:
+            return jsonify({'success': False, 'message': f'Invalid regex pattern: {str(e)}'}), 400
     
     # Validate unlocks_challenge exists if provided
     if unlocks_challenge_id:
@@ -1294,7 +1316,8 @@ def add_flag():
         flag_label=flag_label if flag_label else None,
         unlocks_challenge_id=unlocks_challenge_id,
         points_override=points_override,
-        is_case_sensitive=is_case_sensitive
+        is_case_sensitive=is_case_sensitive,
+        is_regex=is_regex
     )
     
     db.session.add(new_flag)
@@ -1302,7 +1325,7 @@ def add_flag():
     
     cache_service.invalidate_challenge(challenge_id)
     
-    return jsonify({'success': True, 'message': 'Flag added successfully', 'flag': new_flag.to_dict()})
+    return jsonify({'success': True, 'message': 'Flag added successfully', 'flag': new_flag.to_dict(include_value=True)})
 
 
 @admin_bp.route('/branching/flags/<int:flag_id>', methods=['DELETE'])
@@ -1640,6 +1663,16 @@ def flag_abuse():
         FlagAbuseAttempt.team_id.isnot(None)
     ).distinct().count()
     
+    # Get repeat offenders (teams with multiple attempts)
+    repeat_offenders = FlagAbuseAttempt.get_repeat_offenders(limit=10, min_attempts=3)
+    
+    # Count by severity
+    severity_counts = {
+        'warning': FlagAbuseAttempt.query.filter_by(severity='warning').count(),
+        'suspicious': FlagAbuseAttempt.query.filter_by(severity='suspicious').count(),
+        'critical': FlagAbuseAttempt.query.filter_by(severity='critical').count()
+    }
+    
     return render_template('admin/flag_abuse.html',
         attempts=attempts.items,
         pagination=attempts,
@@ -1649,6 +1682,8 @@ def flag_abuse():
         attempts_today=attempts_today,
         unique_users=unique_users,
         unique_teams=unique_teams,
+        repeat_offenders=repeat_offenders,
+        severity_counts=severity_counts,
         filters={
             'challenge_id': challenge_id,
             'team_id': team_id,

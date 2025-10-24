@@ -120,9 +120,9 @@ class Challenge(db.Model):
         # Get all flags for this challenge
         flags = ChallengeFlag.query.filter_by(challenge_id=self.id).all()
         
-        # Check each flag
+        # Check each flag (pass team_id and user_id for template-based flags)
         for flag in flags:
-            if flag.check_flag(submitted_flag):
+            if flag.check_flag(submitted_flag, team_id=team_id, user_id=user_id):
                 return flag  # Return the matching flag object
         
         # Check dynamic flags if docker is enabled

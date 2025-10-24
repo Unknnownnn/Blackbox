@@ -106,12 +106,21 @@
                         </div>
                         <div class="card-body">
                             <div class="row">
-                                <div class="col-md-7 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label for="flag" class="form-label fw-bold">Primary Flag *</label>
                                     <input type="text" class="form-control form-control-lg" id="flag" name="flag" 
                                            value="{{ challenge.flag }}" required>
+                                    <div class="form-text">Enter static flag or regex pattern (e.g., flag\{[A-Za-z0-9]{8,16}\})</div>
                                 </div>
-                                <div class="col-md-3 mb-3">
+                                <div class="col-md-2 mb-3">
+                                    <label for="is_regex" class="form-label">Is Regex</label>
+                                    <div class="form-check form-switch mt-2">
+                                        <input class="form-check-input" type="checkbox" id="is_regex" name="is_regex" value="true"
+                                               {% if primary_flag and primary_flag.is_regex %}checked{% endif %}>
+                                        <label class="form-check-label" for="is_regex">Regex Pattern</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-2 mb-3">
                                     <label for="flag_case_sensitive" class="form-label">Case Sensitive</label>
                                     <select class="form-select" id="flag_case_sensitive" name="flag_case_sensitive">
                                         <option value="true" {% if challenge.flag_case_sensitive %}selected{% endif %}>Yes</option>

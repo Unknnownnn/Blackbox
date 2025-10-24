@@ -1,6 +1,3 @@
--- Migration: Add first blood bonus and update scoring system
--- This enables dynamic scoring recalculation and first blood bonuses
-
 -- Add is_first_blood column to solves table
 ALTER TABLE solves 
 ADD COLUMN is_first_blood BOOLEAN DEFAULT FALSE AFTER points_earned;

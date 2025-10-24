@@ -1,4 +1,3 @@
--- Migration: create notification_reads table for per-user read tracking (MariaDB/MySQL syntax)
 CREATE TABLE IF NOT EXISTS notification_reads (
     id INT AUTO_INCREMENT PRIMARY KEY,
     notification_id INT NOT NULL,

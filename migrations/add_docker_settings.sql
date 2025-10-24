@@ -1,8 +1,3 @@
--- Add Docker configuration and challenge integration
--- Migration: add_docker_settings.sql
--- Date: 2025-10-19
-
--- Create docker_settings table
 CREATE TABLE IF NOT EXISTS docker_settings (
     id INT AUTO_INCREMENT PRIMARY KEY,
     hostname VARCHAR(256),
