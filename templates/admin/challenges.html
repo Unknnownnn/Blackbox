@@ -13,9 +13,22 @@
             <h2 class="mb-0">
                 <i class="bi bi-puzzle"></i> Challenges
             </h2>
-            <a href="{{ url_for('admin.create_challenge') }}" class="btn btn-primary">
+            <div class="d-flex align-items-center gap-2">
+                <form id="sortForm" method="get" class="d-flex align-items-center gap-2">
+                    <label for="sortSelect" class="visually-hidden">Sort</label>
+                    <select id="sortSelect" name="sort" class="form-select form-select-sm">
+                        <option value="name" {% if current_sort == 'name' %}selected{% endif %}>Name</option>
+                        <option value="act" {% if current_sort == 'act' %}selected{% endif %}>ACT</option>
+                    </select>
+                    <input type="hidden" name="order" id="orderInput" value="{{ current_order or 'asc' }}">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="toggleOrderBtn" title="Toggle order">
+                        <i class="bi bi-arrow-down-up" id="orderIcon"></i>
+                    </button>
+                </form>
+                <a href="{{ url_for('admin.create_challenge') }}" class="btn btn-primary">
                 <i class="bi bi-plus-circle"></i> Create Challenge
             </a>
+            </div>
         </div>
         
         {% if challenges %}
@@ -26,6 +39,7 @@
                         <thead>
                             <tr>
                                 <th>Name</th>
+                                <th>ACT</th>
                                 <th>Category</th>
                                 <th>Points</th>
                                 <th>Solves</th>
@@ -41,6 +55,9 @@
                                     {% if challenge.is_dynamic %}
                                     <span class="badge bg-info text-white ms-1">Dynamic</span>
                                     {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark">{{ challenge.act }}</span>
                                 </td>
                                 <td>
                                     <span class="badge bg-secondary">{{ challenge.category }}</span>
@@ -194,5 +211,38 @@ function showFlash(message, type) {
     flashContainer.insertBefore(alert, flashContainer.firstChild);
     setTimeout(() => alert.remove(), 5000);
 }
+
+// Sorting controls
+document.addEventListener('DOMContentLoaded', function() {
+    const sortSelect = document.getElementById('sortSelect');
+    const sortForm = document.getElementById('sortForm');
+    const orderInput = document.getElementById('orderInput');
+    const toggleOrderBtn = document.getElementById('toggleOrderBtn');
+    const orderIcon = document.getElementById('orderIcon');
+
+    if (sortSelect) {
+        sortSelect.addEventListener('change', () => sortForm.submit());
+    }
+
+    if (toggleOrderBtn) {
+        toggleOrderBtn.addEventListener('click', () => {
+            const current = orderInput.value === 'desc' ? 'desc' : 'asc';
+            const next = current === 'asc' ? 'desc' : 'asc';
+            orderInput.value = next;
+            // update icon orientation
+            if (next === 'desc') {
+                orderIcon.className = 'bi bi-arrow-down';
+            } else {
+                orderIcon.className = 'bi bi-arrow-up';
+            }
+            sortForm.submit();
+        });
+    }
+    // initialize icon based on current order
+    try {
+        const currentOrder = '{{ current_order or "asc" }}';
+        if (currentOrder === 'desc') orderIcon.className = 'bi bi-arrow-down'; else orderIcon.className = 'bi bi-arrow-up';
+    } catch (e) {}
+});
 </script>
 {% endblock %}

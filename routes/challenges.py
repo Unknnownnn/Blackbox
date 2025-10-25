@@ -48,7 +48,8 @@ def list_challenges():
         act_system_enabled = False
     
     # Get unlocked ACTs for user/team (only if ACT system is enabled)
-    unlocked_acts = []
+    # ACT I is always unlocked by default
+    unlocked_acts = ['ACT I']
     if act_system_enabled:
         try:
             from models.act_unlock import ActUnlock
@@ -59,6 +60,7 @@ def list_challenges():
         except Exception:
             # If ActUnlock doesn't work, treat as ACT system disabled
             act_system_enabled = False
+            unlocked_acts = ['ACT I']  # Ensure ACT I is always available
     
     # Batch check which challenges are solved (single query instead of N queries)
     # This is the key optimization - replaces N individual queries with 1 batch query
@@ -666,6 +668,9 @@ def submit_flag(challenge_id):
             # Get the unlocked challenge details
             unlocked_challenge = Challenge.query.get(matched_flag.unlocks_challenge_id)
             if unlocked_challenge:
+                # Make the newly-unlocked challenge visible to users and mark it as not hidden
+                unlocked_challenge.is_hidden = False
+                unlocked_challenge.is_visible = True
                 unlocked_challenges.append({
                     'id': unlocked_challenge.id,
                     'name': unlocked_challenge.name,
@@ -726,7 +731,7 @@ def submit_flag(challenge_id):
         # Add ACT unlock notification
         if unlocked_act:
             response_data['unlocked_act'] = unlocked_act
-            response_data['message'] += f' 🎉 {unlocked_act} has been unlocked!'
+            response_data['message'] += f'{unlocked_act} has been unlocked!'
         
         if unlocked_challenges:
             unlocked_names = ', '.join([c['name'] for c in unlocked_challenges])
@@ -884,6 +889,8 @@ def explore_flag(challenge_id):
     # Optionally auto-configure the unlocked challenge to be visible
     if unlocked_challenge and unlocked_challenge.unlock_mode == 'flag_unlock':
         unlocked_challenge.is_hidden = False
+        # Make it visible in the public list when unlocked
+        unlocked_challenge.is_visible = True
     
     db.session.commit()
     

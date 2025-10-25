@@ -54,8 +54,25 @@ def dashboard():
 @admin_required
 def manage_challenges():
     """Manage challenges page"""
-    challenges = Challenge.query.all()
-    return render_template('admin/challenges.html', challenges=challenges)
+    # Support sorting by query parameter e.g. ?sort=act&order=asc
+    sort = request.args.get('sort', 'name')
+    order = request.args.get('order', 'asc')
+
+    query = Challenge.query
+    if sort == 'act':
+        if order == 'desc':
+            query = query.order_by(Challenge.act.desc(), Challenge.name.asc())
+        else:
+            query = query.order_by(Challenge.act.asc(), Challenge.name.asc())
+    else:
+        # Default: sort by name
+        if order == 'desc':
+            query = query.order_by(Challenge.name.desc())
+        else:
+            query = query.order_by(Challenge.name.asc())
+
+    challenges = query.all()
+    return render_template('admin/challenges.html', challenges=challenges, current_sort=sort, current_order=order)
 
 
 @admin_bp.route('/challenges/create', methods=['GET', 'POST'])
@@ -1420,6 +1437,9 @@ def add_prerequisite():
     if challenge.unlock_mode != 'prerequisite':
         challenge.unlock_mode = 'prerequisite'
         challenge.is_hidden = True
+        # When a challenge is hidden due to prerequisites, also mark it not visible
+        # so normal users won't see it in the public challenges list.
+        challenge.is_visible = False
     
     db.session.commit()
     
@@ -1465,7 +1485,11 @@ def update_unlock_mode(challenge_id):
         return jsonify({'success': False, 'message': 'Invalid unlock mode'}), 400
     
     challenge.unlock_mode = unlock_mode
-    challenge.is_hidden = is_hidden
+    # Persist hidden state and ensure visibility matches hidden flag
+    challenge.is_hidden = bool(is_hidden)
+    # If admin marks challenge as hidden, it should not be visible to regular users.
+    # Conversely, un-hiding should make it visible again by default.
+    challenge.is_visible = not bool(is_hidden)
     
     db.session.commit()
     
@@ -1508,6 +1532,8 @@ def update_flag_unlock(flag_id):
         if unlocks_challenge.unlock_mode != 'flag_unlock':
             unlocks_challenge.unlock_mode = 'flag_unlock'
             unlocks_challenge.is_hidden = True
+            # Hide the target challenge from public view until unlocked
+            unlocks_challenge.is_visible = False
     
     flag.unlocks_challenge_id = unlocks_challenge_id
     db.session.commit()

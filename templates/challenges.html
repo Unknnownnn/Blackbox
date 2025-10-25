@@ -157,7 +157,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0;
+    gap: 0.75rem; /* increase spacing between nodes for a longer thermometer */
 }
 
 .act-node {
@@ -236,9 +236,9 @@
 
 .node-connector {
     position: absolute;
-    top: 18px;
+    top: 20px;
     width: 4px;
-    height: 24px;
+    height: 48px; /* increased height to lengthen the connecting line */
     border-radius: 2px;
     transition: all 0.3s ease;
     z-index: 1;
