@@ -39,7 +39,26 @@ def list_challenges():
     
     # Load all visible challenges (single query)
     # Note: solves relationship is lazy='dynamic', so we can't eager load it
-    challenges = Challenge.query.filter_by(is_visible=True).all()
+    try:
+        challenges = Challenge.query.filter_by(is_visible=True).order_by(Challenge.act, Challenge.category, Challenge.name).all()
+        act_system_enabled = True
+    except Exception as e:
+        # Fallback if ACT column doesn't exist yet (migration not run)
+        challenges = Challenge.query.filter_by(is_visible=True).order_by(Challenge.category, Challenge.name).all()
+        act_system_enabled = False
+    
+    # Get unlocked ACTs for user/team (only if ACT system is enabled)
+    unlocked_acts = []
+    if act_system_enabled:
+        try:
+            from models.act_unlock import ActUnlock
+            unlocked_acts = ActUnlock.get_unlocked_acts(
+                user_id=current_user.id if not team else None,
+                team_id=team.id if team else None
+            )
+        except Exception:
+            # If ActUnlock doesn't work, treat as ACT system disabled
+            act_system_enabled = False
     
     # Batch check which challenges are solved (single query instead of N queries)
     # This is the key optimization - replaces N individual queries with 1 batch query
@@ -55,9 +74,16 @@ def list_challenges():
             Solve.challenge_id.in_(challenge_ids)
         ).all())
     
-    # Organize challenges by category
-    categories = {}
+    # Organize challenges by ACT, then by category within each ACT (or just by category if ACT system disabled)
+    acts = {}
     for challenge in challenges:
+        # Get ACT name (default to 'ACT I' if ACT system not enabled)
+        act_name = getattr(challenge, 'act', 'ACT I') if act_system_enabled else 'ACT I'
+        
+        # Check if ACT is unlocked (skip if not, unless admin) - only if ACT system enabled
+        if act_system_enabled and not current_user.is_admin and act_name not in unlocked_acts:
+            continue
+        
         # Check if this specific challenge requires a team (only enforce if teams are enabled)
         if teams_enabled and challenge.requires_team and not team and not current_user.is_admin:
             continue  # Skip this challenge if it requires team and user has no team
@@ -67,8 +93,13 @@ def list_challenges():
             if not challenge.is_unlocked_for_user(current_user.id, team.id if team else None):
                 continue  # Skip hidden/locked challenges
         
-        if challenge.category not in categories:
-            categories[challenge.category] = []
+        # Initialize ACT dict if needed
+        if challenge.act not in acts:
+            acts[challenge.act] = {}
+        
+        # Initialize category within ACT if needed
+        if challenge.category not in acts[challenge.act]:
+            acts[challenge.act][challenge.category] = []
         
         # Check if solved (using pre-loaded data)
         solved = challenge.id in solved_ids
@@ -84,9 +115,9 @@ def list_challenges():
                 challenge_data['locked'] = True
                 challenge_data['missing_prerequisites'] = [c.name for c in missing]
         
-        categories[challenge.category].append(challenge_data)
+        acts[challenge.act][challenge.category].append(challenge_data)
     
-    return render_template('challenges.html', categories=categories, team=team)
+    return render_template('challenges.html', acts=acts, unlocked_acts=unlocked_acts, team=team)
 
 
 @challenges_bp.route('/<int:challenge_id>')
@@ -586,6 +617,24 @@ def submit_flag(challenge_id):
         # Handle challenge unlocking via flags
         from models.branching import ChallengeUnlock
         unlocked_challenges = []
+        unlocked_act = None
+        
+        # Handle ACT unlocking if this challenge unlocks a new ACT
+        if challenge.unlocks_act:
+            from models.act_unlock import ActUnlock
+            act_unlocked = ActUnlock.unlock_act(
+                act=challenge.unlocks_act,
+                user_id=current_user.id if not team_id else None,
+                team_id=team_id,
+                challenge_id=challenge_id
+            )
+            if act_unlocked:
+                unlocked_act = challenge.unlocks_act
+                current_app.logger.info(
+                    f"ACT {challenge.unlocks_act} unlocked for "
+                    f"{'team ' + str(team_id) if team_id else 'user ' + str(current_user.id)} "
+                    f"by solving challenge {challenge_id} ({challenge.name})"
+                )
         
         if hasattr(matched_flag, 'unlocks_challenge_id') and matched_flag.unlocks_challenge_id:
             # Check if this specific path/challenge was already unlocked by this user/team
@@ -673,6 +722,11 @@ def submit_flag(challenge_id):
             'message': message,
             'points': points
         }
+        
+        # Add ACT unlock notification
+        if unlocked_act:
+            response_data['unlocked_act'] = unlocked_act
+            response_data['message'] += f' 🎉 {unlocked_act} has been unlocked!'
         
         if unlocked_challenges:
             unlocked_names = ', '.join([c['name'] for c in unlocked_challenges])

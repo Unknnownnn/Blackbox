@@ -72,6 +72,7 @@ def create_challenge():
             name=data.get('name'),
             description=data.get('description'),
             category=data.get('category'),
+            act=data.get('act', 'ACT I'),
             flag=data.get('flag'),
             flag_case_sensitive=data.get('flag_case_sensitive') == 'true',
             connection_info=data.get('connection_info'),
@@ -84,6 +85,7 @@ def create_challenge():
             requires_team=data.get('requires_team') == 'true',
             author=data.get('author'),
             difficulty=data.get('difficulty'),
+            unlocks_act=data.get('unlocks_act') if data.get('unlocks_act') else None,
             # Docker fields
             docker_enabled=data.get('docker_enabled') == 'true',
             docker_image=data.get('docker_image') if data.get('docker_enabled') == 'true' else None,
@@ -250,6 +252,7 @@ def edit_challenge(challenge_id):
         challenge.name = data.get('name')
         challenge.description = data.get('description')
         challenge.category = data.get('category')
+        challenge.act = data.get('act', 'ACT I')
         challenge.flag = data.get('flag')
         challenge.flag_case_sensitive = data.get('flag_case_sensitive') == 'true'
         challenge.connection_info = data.get('connection_info')
@@ -262,6 +265,7 @@ def edit_challenge(challenge_id):
         challenge.requires_team = data.get('requires_team') == 'true'
         challenge.author = data.get('author')
         challenge.difficulty = data.get('difficulty')
+        challenge.unlocks_act = data.get('unlocks_act') if data.get('unlocks_act') else None
         
         # Handle Docker container settings
         challenge.docker_enabled = data.get('docker_enabled') == 'true'

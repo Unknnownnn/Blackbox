@@ -3,6 +3,69 @@
 {% block title %}{{ challenge.name }} - {{ ctf_name }}{% endblock %}
 
 {% block content %}
+<style>
+.act-unlock-toast {
+    min-width: 320px;
+    max-width: 400px;
+    border-left: 4px solid #0d6efd;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    pointer-events: auto;
+}
+
+.act-unlock-toast .toast-header {
+    background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+    border: none;
+}
+
+.act-unlock-toast .toast-body {
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    padding: 1rem;
+    font-size: 0.95rem;
+}
+
+.act-unlock-toast .toast-body h6 {
+    color: #0d6efd;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+/* Toast container that doesn't block interactions */
+.toast-container {
+    pointer-events: none;
+}
+
+@keyframes slideInFromRight {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutToRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+}
+
+.act-unlock-toast.show {
+    animation: slideInFromRight 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.act-unlock-toast.hiding {
+    animation: slideOutToRight 0.3s cubic-bezier(0.55, 0.055, 0.675, 0.19);
+}
+</style>
+
 <div class="row">
     <div class="col-lg-8">
         <div class="card">
@@ -345,6 +408,11 @@ async function submitFlag(event) {
                 </div>
             `;
             
+            // Show ACT unlock toast notification if present
+            if (data.unlocked_act) {
+                showActUnlockToast(data.unlocked_act);
+            }
+            
             // Reload page after 2 seconds to show solved status
             setTimeout(() => {
                 window.location.reload();
@@ -453,6 +521,55 @@ async function submitExploreFlag(event) {
             </div>
         `;
     }
+}
+
+// Function to show ACT unlock toast notification
+function showActUnlockToast(actName) {
+    // Create toast container if it doesn't exist
+    let toastContainer = document.getElementById('actUnlockToastContainer');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'actUnlockToastContainer';
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
+    
+    // Create toast element
+    const toastId = 'actUnlockToast-' + Date.now();
+    const toastHTML = `
+        <div id="${toastId}" class="toast act-unlock-toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header text-white">
+                <i class="bi bi-unlock-fill me-2"></i>
+                <strong class="me-auto">New Chapter Unlocked!</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                <h6>${actName} Unlocked!</h6>
+                <p class="mb-0 small">Check the sidebar to explore new challenges!</p>
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    
+    // Initialize and show the toast
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement, {
+        autohide: true,
+        delay: 4500
+    });
+    toast.show();
+    
+    // Add hiding class before removal for smooth exit animation
+    toastElement.addEventListener('hide.bs.toast', () => {
+        toastElement.classList.add('hiding');
+    });
+    
+    // Remove toast element after it's hidden
+    toastElement.addEventListener('hidden.bs.toast', () => {
+        toastElement.remove();
+    });
 }
 </script>
 {% endblock %}

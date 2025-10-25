@@ -3,66 +3,372 @@
 {% block title %}Challenges - {{ ctf_name }}{% endblock %}
 
 {% block content %}
-<h2 class="mb-4">
-    <i class="bi bi-puzzle-fill"></i> Challenges
-</h2>
-
-{% if not categories %}
-<div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> No challenges available yet. Check back later!
-</div>
-{% else %}
-    {% for category, challenges in categories.items() %}
-    <div class="mb-5">
-        <h3 class="mb-3">
-            <span class="badge bg-primary">{{ category|upper }}</span>
-            <!-- <small class="text-muted">({{ challenges|length }} challenges)</small> -->
-        </h3>
+<div class="challenges-container">
+    <!-- Thermometer Sidebar -->
+    <div class="act-thermometer">
+        <div class="thermometer-title">
+            <i class="bi bi-map"></i>
+            <span>Story Progress</span>
+        </div>
         
-        <div class="row">
-            {% for challenge in challenges %}
-            <div class="col-md-6 col-lg-4 mb-3">
-                <div class="card h-100 {% if challenge.solved %}border-success{% endif %}">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h5 class="card-title mb-0">
-                                {{ challenge.name }}
-                                {% if challenge.solved %}
-                                <i class="bi bi-check-circle-fill text-success"></i>
-                                {% endif %}
-                            </h5>
-                            <span class="badge bg-warning text-dark">{{ challenge.points }} pts</span>
-                        </div>
-                        
-                        {% if challenge.difficulty %}
-                        <span class="badge 
-                            {% if challenge.difficulty == 'easy' %}bg-success
-                            {% elif challenge.difficulty == 'medium' %}bg-warning
-                            {% else %}bg-danger
-                            {% endif %} mb-2">
-                            {{ challenge.difficulty|upper }}
-                        </span>
-                        {% endif %}
-                        
-                        <p class="card-text text-muted small">
-                            {{ challenge.description[:100] }}{% if challenge.description|length > 100 %}...{% endif %}
-                        </p>
-                        
-                        <div class="d-flex justify-content-between align-items-center">
-                            <small class="text-muted">
-                                <i class="bi bi-trophy"></i> {{ challenge.solves }} solves
-                            </small>
-                            <a href="{{ url_for('challenges.view_challenge', challenge_id=challenge.id) }}" 
-                               class="btn btn-sm btn-outline-primary">
-                                View Challenge
-                            </a>
-                        </div>
-                    </div>
+        <div class="thermometer-track">
+            {% set act_order = ['ACT I', 'ACT II', 'ACT III', 'ACT IV', 'ACT V'] %}
+            {% for act in act_order %}
+                {% set act_unlocked = act in unlocked_acts %}
+                {% set is_active = loop.first %}
+                <div class="act-node {% if act_unlocked %}unlocked{% else %}locked{% endif %} {% if is_active %}active{% endif %}" 
+                     data-act="{{ act }}" 
+                     onclick="{% if act_unlocked %}switchToAct('{{ act }}'){% endif %}">
+                    <div class="node-bubble"></div>
+                    <div class="node-label">{{ act }}</div>
+                    {% if not loop.last %}
+                    <div class="node-connector {% if act_unlocked %}unlocked{% else %}locked{% endif %}"></div>
+                    {% endif %}
                 </div>
-            </div>
             {% endfor %}
         </div>
     </div>
-    {% endfor %}
-{% endif %}
+
+    <!-- Main Content Area -->
+    <div class="challenges-content">
+        <h2 class="mb-4">
+            <i class="bi bi-puzzle-fill"></i> <span id="current-act-title">ACT I</span>
+        </h2>
+
+        {% if not acts %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> No challenges available yet. Check back later!
+        </div>
+        {% else %}
+            {% set act_order = ['ACT I', 'ACT II', 'ACT III', 'ACT IV', 'ACT V'] %}
+            {% for act in act_order %}
+                {% if act in acts %}
+                {% set act_unlocked = act in unlocked_acts %}
+                <div class="act-content {% if loop.first %}active{% endif %}" id="content-{{ act.replace(' ', '-') }}" data-act="{{ act }}">
+                    {% if act_unlocked %}
+                        {% for category, challenges in acts[act].items() %}
+                        <div class="category-section mb-4">
+                            <h4 class="mb-3">
+                                <span class="badge bg-secondary">{{ category|upper }}</span>
+                            </h4>
+                            
+                            <div class="row">
+                                {% for challenge in challenges %}
+                                <div class="col-md-6 col-lg-4 mb-3">
+                                    <div class="card h-100 {% if challenge.solved %}border-success{% endif %} challenge-card">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <h5 class="card-title mb-0">
+                                                    {{ challenge.name }}
+                                                    {% if challenge.solved %}
+                                                    <i class="bi bi-check-circle-fill text-success"></i>
+                                                    {% endif %}
+                                                </h5>
+                                                <span class="badge bg-warning text-dark">{{ challenge.points }} pts</span>
+                                            </div>
+                                            
+                                            {% if challenge.difficulty %}
+                                            <span class="badge 
+                                                {% if challenge.difficulty == 'easy' %}bg-success
+                                                {% elif challenge.difficulty == 'medium' %}bg-warning
+                                                {% else %}bg-danger
+                                                {% endif %} mb-2">
+                                                {{ challenge.difficulty|upper }}
+                                            </span>
+                                            {% endif %}
+                                            
+                                            <p class="card-text text-muted small">
+                                                {{ challenge.description[:100] }}{% if challenge.description|length > 100 %}...{% endif %}
+                                            </p>
+                                            
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <small class="text-muted">
+                                                    <i class="bi bi-trophy"></i> {{ challenge.solves }} solves
+                                                </small>
+                                                <a href="{{ url_for('challenges.view_challenge', challenge_id=challenge.id) }}" 
+                                                   class="btn btn-sm btn-outline-primary">
+                                                    View Challenge
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="locked-act-message">
+                            <div class="text-center text-muted">
+                                <i class="bi bi-lock-fill" style="font-size: 4rem;"></i>
+                                <h3 class="mt-3">{{ act }} is Locked</h3>
+                                <p class="lead">Complete challenges in previous ACTs to unlock this story chapter!</p>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+    </div>
+</div>
+
+<style>
+/* Main Layout */
+.challenges-container {
+    display: flex;
+    gap: 1.5rem;
+    min-height: 70vh;
+}
+
+/* Thermometer Sidebar */
+.act-thermometer {
+    position: sticky;
+    top: 80px;
+    width: 80px;
+    min-width: 80px;
+    height: fit-content;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    padding: 1.25rem 0.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.thermometer-title {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    font-weight: bold;
+    font-size: 0.75rem;
+    color: var(--bs-body-color);
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid var(--bs-border-color);
+    text-align: center;
+}
+
+.thermometer-title i {
+    font-size: 1rem;
+}
+
+.thermometer-track {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+}
+
+.act-node {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.18rem;
+    transition: all 0.3s ease;
+}
+
+.act-node.unlocked {
+    cursor: pointer;
+}
+
+.node-bubble {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    transition: all 0.3s ease;
+    z-index: 2;
+}
+
+.act-node.unlocked .node-bubble {
+    background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+}
+
+.act-node.locked .node-bubble {
+    background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+}
+
+.act-node.active .node-bubble {
+    width: 20px;
+    height: 20px;
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.2);
+}
+
+.act-node.unlocked:hover .node-bubble {
+    width: 20px;
+    height: 20px;
+    box-shadow: 0 4px 8px rgba(13, 110, 253, 0.4);
+}
+
+.node-label {
+    position: absolute;
+    right: 32px; /* show label to the left of the sidebar bubble */
+    left: auto;
+    top: 50%;
+    transform: translateY(-50%);
+    white-space: nowrap;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--bs-body-color);
+    background: var(--bs-body-bg);
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--bs-border-color);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.12s ease;
+    z-index: 10;
+}
+
+.act-node:hover .node-label {
+    opacity: 1;
+    transform: translateY(-50%) translateX(-6px);
+}
+
+.act-node.unlocked .node-label {
+    color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.node-connector {
+    position: absolute;
+    top: 18px;
+    width: 4px;
+    height: 24px;
+    border-radius: 2px;
+    transition: all 0.3s ease;
+    z-index: 1;
+}
+
+.node-connector.unlocked {
+    background: linear-gradient(180deg, #0d6efd 0%, #0a58ca 100%);
+}
+
+.node-connector.locked {
+    background: linear-gradient(180deg, #6c757d 0%, #5a6268 100%);
+}
+
+/* Main Content */
+.challenges-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.act-content {
+    display: none;
+    animation: fadeIn 0.4s ease;
+}
+
+.act-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.challenge-card {
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.challenge-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+}
+
+.locked-act-message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    padding: 3rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .challenges-container {
+        flex-direction: column;
+    }
+    
+    .act-thermometer {
+        position: relative;
+        top: 0;
+        width: 100%;
+        max-width: 100%;
+    }
+    
+    .thermometer-track {
+        flex-direction: row;
+        overflow-x: auto;
+        padding-bottom: 0.5rem;
+    }
+    
+    .node-connector {
+        display: none;
+    }
+
+    /* On small screens show labels centered under bubbles to avoid blocking content */
+    .node-label {
+        position: absolute;
+        top: 36px;
+        left: 50%;
+        transform: translateX(-50%);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.12s ease, transform 0.12s ease;
+    }
+
+    .act-node:hover .node-label {
+        opacity: 1;
+        transform: translateX(-50%) translateY(4px);
+    }
+}
+</style>
+
+<script>
+function switchToAct(actName) {
+    // Update active state in sidebar
+    document.querySelectorAll('.act-node').forEach(node => {
+        node.classList.remove('active');
+    });
+    document.querySelector(`.act-node[data-act="${actName}"]`).classList.add('active');
+    
+    // Switch content
+    document.querySelectorAll('.act-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    const targetContent = document.getElementById(`content-${actName.replace(' ', '-')}`);
+    if (targetContent) {
+        targetContent.classList.add('active');
+    }
+    
+    // Update title
+    document.getElementById('current-act-title').textContent = actName;
+    
+    // Smooth scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Find first unlocked act and make it active
+    const firstUnlocked = document.querySelector('.act-node.unlocked');
+    if (firstUnlocked) {
+        const actName = firstUnlocked.getAttribute('data-act');
+        switchToAct(actName);
+    }
+});
+</script>
 {% endblock %}

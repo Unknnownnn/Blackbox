@@ -24,12 +24,12 @@
                         </div>
                         <div class="card-body">
                             <div class="row">
-                                <div class="col-md-8 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label for="name" class="form-label fw-bold">Challenge Name *</label>
                                     <input type="text" class="form-control form-control-lg" id="name" name="name" 
                                            value="{{ challenge.name }}" required>
                                 </div>
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-3 mb-3">
                                     <label for="category" class="form-label fw-bold">Category *</label>
                                     <select class="form-select form-select-lg" id="category" name="category" required>
                                         <option value="web" {% if challenge.category == 'web' %}selected{% endif %}>Web</option>
@@ -39,6 +39,16 @@
                                         <option value="forensics" {% if challenge.category == 'forensics' %}selected{% endif %}>Forensics</option>
                                         <option value="misc" {% if challenge.category == 'misc' %}selected{% endif %}>Misc</option>
                                         <option value="osint" {% if challenge.category == 'osint' %}selected{% endif %}>OSINT</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <label for="act" class="form-label fw-bold">ACT *</label>
+                                    <select class="form-select form-select-lg" id="act" name="act" required>
+                                        <option value="ACT I" {% if challenge.act == 'ACT I' %}selected{% endif %}>ACT I</option>
+                                        <option value="ACT II" {% if challenge.act == 'ACT II' %}selected{% endif %}>ACT II</option>
+                                        <option value="ACT III" {% if challenge.act == 'ACT III' %}selected{% endif %}>ACT III</option>
+                                        <option value="ACT IV" {% if challenge.act == 'ACT IV' %}selected{% endif %}>ACT IV</option>
+                                        <option value="ACT V" {% if challenge.act == 'ACT V' %}selected{% endif %}>ACT V</option>
                                     </select>
                                 </div>
                             </div>
@@ -216,6 +226,21 @@
                                         <option value="false" {% if not challenge.requires_team %}selected{% endif %}>No</option>
                                         <option value="true" {% if challenge.requires_team %}selected{% endif %}>Yes</option>
                                     </select>
+                                </div>
+                            </div>
+                            
+                            <!-- ACT Unlocking Row -->
+                            <div class="row">
+                                <div class="col-md-12 mb-3">
+                                    <label for="unlocks_act" class="form-label">Unlocks ACT</label>
+                                    <select class="form-select" id="unlocks_act" name="unlocks_act">
+                                        <option value="" {% if not challenge.unlocks_act %}selected{% endif %}>None (doesn't unlock any ACT)</option>
+                                        <option value="ACT II" {% if challenge.unlocks_act == 'ACT II' %}selected{% endif %}>ACT II</option>
+                                        <option value="ACT III" {% if challenge.unlocks_act == 'ACT III' %}selected{% endif %}>ACT III</option>
+                                        <option value="ACT IV" {% if challenge.unlocks_act == 'ACT IV' %}selected{% endif %}>ACT IV</option>
+                                        <option value="ACT V" {% if challenge.unlocks_act == 'ACT V' %}selected{% endif %}>ACT V</option>
+                                    </select>
+                                    <div class="form-text">If set, solving this challenge will unlock the selected ACT for the player/team</div>
                                 </div>
                             </div>
                         </div>
