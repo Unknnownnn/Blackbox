@@ -28,19 +28,35 @@ class ActUnlock(db.Model):
         # ACT I is always unlocked
         if act == 'ACT I':
             return True
-        
+        # Admin bypass: if current user is admin, treat as unlocked
+        try:
+            from flask_login import current_user
+            if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated and getattr(current_user, 'is_admin', False):
+                return True
+        except Exception:
+            # If no request context / current_user not available, continue to DB check
+            pass
+
         if team_id:
             return ActUnlock.query.filter_by(act=act, team_id=team_id).first() is not None
         elif user_id:
             return ActUnlock.query.filter_by(act=act, user_id=user_id).first() is not None
-        
+
         return False
     
     @staticmethod
     def unlock_act(act, user_id=None, team_id=None, challenge_id=None):
         """Unlock an ACT for a user or team"""
         from models import db
-        
+        # Admin bypass: do not create records for admins (they have all acts by default)
+        try:
+            from flask_login import current_user
+            if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated and getattr(current_user, 'is_admin', False):
+                return False
+        except Exception:
+            # No request context; fall back to normal behavior
+            pass
+
         # Check if already unlocked
         if ActUnlock.is_act_unlocked(act, user_id=user_id, team_id=team_id):
             return False
@@ -61,18 +77,26 @@ class ActUnlock(db.Model):
         """Get list of unlocked ACTs for a user or team"""
         # ACT I is always unlocked
         unlocked = ['ACT I']
-        
+
+        # Admin bypass: return all acts for admins
+        try:
+            from flask_login import current_user
+            if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated and getattr(current_user, 'is_admin', False):
+                return ['ACT I', 'ACT II', 'ACT III', 'ACT IV', 'ACT V']
+        except Exception:
+            pass
+
         if team_id:
             acts = ActUnlock.query.filter_by(team_id=team_id).order_by(ActUnlock.unlocked_at).all()
         elif user_id:
             acts = ActUnlock.query.filter_by(user_id=user_id).order_by(ActUnlock.unlocked_at).all()
         else:
             return unlocked
-        
+
         for act_unlock in acts:
             if act_unlock.act not in unlocked:
                 unlocked.append(act_unlock.act)
-        
+
         return unlocked
     
     def __repr__(self):
