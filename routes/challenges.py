@@ -9,6 +9,7 @@ from services.scoring import ScoringService
 from services.cache import cache_service
 from services.websocket import WebSocketService
 from datetime import datetime
+import re
 
 challenges_bp = Blueprint('challenges', __name__, url_prefix='/challenges')
 
@@ -550,12 +551,22 @@ def submit_flag(challenge_id):
                     actual_owner_team_id = prior.team_id
                     actual_owner_user_id = prior.user_id
 
+                    # Resolve owner label (team name or username) for nicer notes/logs
+                    owner_label = None
+                    try:
+                        if actual_owner_team_id:
+                            from models.team import Team
+                            owner = Team.query.get(actual_owner_team_id)
+                            owner_label = f"team {owner.name}" if owner and owner.name else f"team {actual_owner_team_id}"
+                        elif actual_owner_user_id:
+                            from models.user import User
+                            owner = User.query.get(actual_owner_user_id)
+                            owner_label = f"user {owner.username}" if owner and owner.username else f"user {actual_owner_user_id}"
+                    except Exception:
+                        owner_label = f"team {actual_owner_team_id}" if actual_owner_team_id else f"user {actual_owner_user_id}"
+
                     # Record a FlagAbuseAttempt for this exact-match regex sharing
-                    notes = f'Exact regex-derived flag "{submitted_flag}" previously submitted by '
-                    if actual_owner_team_id:
-                        notes += f'team {actual_owner_team_id} at {prior.submitted_at.isoformat()}'
-                    else:
-                        notes += f'user {actual_owner_user_id} at {prior.submitted_at.isoformat()}'
+                    notes = f'Exact regex-derived flag "{submitted_flag}" previously submitted by {owner_label} at {prior.submitted_at.isoformat()}'
 
                     abuse_record = FlagAbuseAttempt(
                         user_id=current_user.id,
@@ -570,6 +581,76 @@ def submit_flag(challenge_id):
                     )
                     db.session.add(abuse_record)
                     current_app.logger.warning(f"Regex-sharing detected: {notes}")
+                else:
+                    # If no exact-match prior submission was found, also check for prior
+                    # submissions that match the same regex pattern (different concrete strings).
+                    try:
+                        flags_pattern = None
+                        if matched_flag.is_case_sensitive:
+                            flags_pattern = re.compile(matched_flag.flag_value)
+                        else:
+                            flags_pattern = re.compile(matched_flag.flag_value, re.IGNORECASE)
+
+                        broader_query = Submission.query.filter(
+                            Submission.challenge_id == challenge_id,
+                            Submission.is_correct == True,
+                            Submission.submitted_at >= cutoff
+                        )
+
+                        # Exclude current team/user
+                        if team_id:
+                            broader_query = broader_query.filter(Submission.team_id.isnot(None), Submission.team_id != team_id)
+                        else:
+                            broader_query = broader_query.filter(Submission.user_id.isnot(None), Submission.user_id != current_user.id)
+
+                        # Iterate prior correct submissions and check whether their submitted_flag
+                        # would also match the same regex pattern. This detects when different
+                        # users submitted different concrete values that both match the same regex.
+                        for prior_row in broader_query.order_by(Submission.submitted_at.asc()).limit(50).all():
+                            try:
+                                if flags_pattern.fullmatch(prior_row.submitted_flag or ''):
+                                    actual_owner_team_id = prior_row.team_id
+                                    actual_owner_user_id = prior_row.user_id
+
+                                    # Resolve owner label (team name or username) for nicer notes/logs
+                                    owner_label = None
+                                    try:
+                                        if actual_owner_team_id:
+                                            from models.team import Team
+                                            owner = Team.query.get(actual_owner_team_id)
+                                            owner_label = f"team {owner.name}" if owner and owner.name else f"team {actual_owner_team_id}"
+                                        elif actual_owner_user_id:
+                                            from models.user import User
+                                            owner = User.query.get(actual_owner_user_id)
+                                            owner_label = f"user {owner.username}" if owner and owner.username else f"user {actual_owner_user_id}"
+                                    except Exception:
+                                        owner_label = f"team {actual_owner_team_id}" if actual_owner_team_id else f"user {actual_owner_user_id}"
+
+                                    notes = (
+                                        f'Regex-derived flag pattern "{matched_flag.flag_value}" matched prior submission "{prior_row.submitted_flag}" '
+                                        f'by {owner_label} at {prior_row.submitted_at.isoformat()}'
+                                    )
+
+                                    abuse_record = FlagAbuseAttempt(
+                                        user_id=current_user.id,
+                                        team_id=team_id,
+                                        challenge_id=challenge_id,
+                                        submitted_flag=submitted_flag,
+                                        actual_team_id=actual_owner_team_id,
+                                        actual_user_id=actual_owner_user_id,
+                                        ip_address=request.remote_addr,
+                                        severity='suspicious',
+                                        notes=notes
+                                    )
+                                    db.session.add(abuse_record)
+                                    current_app.logger.warning(f"Regex-sharing (pattern match) detected: {notes}")
+                                    break
+                            except Exception:
+                                # ignore per-row match errors and continue
+                                continue
+                    except re.error:
+                        # Invalid regex - nothing to do here (should be validated earlier)
+                        pass
         except Exception as e:
             current_app.logger.debug(f"Regex-sharing detection error: {e}")
         # Calculate points at time of solve
