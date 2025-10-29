@@ -38,14 +38,25 @@ def list_challenges():
         flash('You must join a team to view and solve challenges. Please join or create a team first.', 'warning')
         return redirect(url_for('teams.list_teams'))
     
-    # Load all visible challenges (single query)
+    # Load all challenges that are either visible OR hidden but potentially unlockable
     # Note: solves relationship is lazy='dynamic', so we can't eager load it
+    # We query both visible and hidden challenges, then filter by is_unlocked_for_user() later
     try:
-        challenges = Challenge.query.filter_by(is_visible=True).order_by(Challenge.act, Challenge.category, Challenge.name).all()
+        challenges = Challenge.query.filter(
+            db.or_(
+                Challenge.is_visible == True,
+                Challenge.is_hidden == True  # Include hidden challenges (prerequisites, flag unlocks)
+            )
+        ).order_by(Challenge.act, Challenge.category, Challenge.name).all()
         act_system_enabled = True
     except Exception as e:
         # Fallback if ACT column doesn't exist yet (migration not run)
-        challenges = Challenge.query.filter_by(is_visible=True).order_by(Challenge.category, Challenge.name).all()
+        challenges = Challenge.query.filter(
+            db.or_(
+                Challenge.is_visible == True,
+                Challenge.is_hidden == True
+            )
+        ).order_by(Challenge.category, Challenge.name).all()
         act_system_enabled = False
     
     # Get unlocked ACTs for user/team (only if ACT system is enabled)
@@ -131,12 +142,16 @@ def view_challenge(challenge_id):
     
     challenge = Challenge.query.get_or_404(challenge_id)
     
-    if not challenge.is_visible and not current_user.is_admin:
-        flash('Challenge not found', 'error')
-        return redirect(url_for('challenges.list_challenges'))
-    
-    # Get user's team
+    # Get user's team first (needed for unlock checks)
     team = current_user.get_team()
+    team_id = team.id if team else None
+    
+    # Check if challenge is unlocked for this specific user/team
+    # This handles both visible challenges and hidden/prerequisite/flag-unlocked challenges
+    if not current_user.is_admin:
+        if not challenge.is_unlocked_for_user(current_user.id, team_id):
+            flash('Challenge not found', 'error')
+            return redirect(url_for('challenges.list_challenges'))
     
     # Check if teams are enabled
     teams_enabled = Settings.get('teams_enabled', default=True, type='bool')
@@ -313,8 +328,14 @@ def submit_flag(challenge_id):
     
     challenge = Challenge.query.get_or_404(challenge_id)
     
-    if not challenge.is_visible and not current_user.is_admin:
-        return jsonify({'success': False, 'message': 'Challenge not found'}), 404
+    # Get user's team first (needed for unlock checks)
+    team = current_user.get_team()
+    team_id = team.id if team else None
+    
+    # Check if challenge is unlocked for this specific user/team
+    if not current_user.is_admin:
+        if not challenge.is_unlocked_for_user(current_user.id, team_id):
+            return jsonify({'success': False, 'message': 'Challenge not found'}), 404
     
     # Check if challenge is enabled
     if not challenge.is_enabled and not current_user.is_admin:
@@ -322,10 +343,6 @@ def submit_flag(challenge_id):
             'success': False, 
             'message': 'This challenge is temporarily disabled. Please try again later.'
         }), 403
-    
-    # Get user's team
-    team = current_user.get_team()
-    team_id = team.id if team else None
     
     # Check if teams are enabled
     teams_enabled = Settings.get('teams_enabled', default=True, type='bool')
@@ -348,10 +365,6 @@ def submit_flag(challenge_id):
     
     if not submitted_flag:
         return jsonify({'success': False, 'message': 'Please enter a flag'}), 400
-    
-    # Get user's team
-    team = current_user.get_team()
-    team_id = team.id if team else None
     
     # Check if already solved (by user or team)
     if team:
@@ -697,8 +710,8 @@ def submit_flag(challenge_id):
             except Exception as e:
                 current_app.logger.error(f"Error auto-stopping container for solved challenge {challenge_id}: {e}")
         
-        # Handle challenge unlocking via flags
-        from models.branching import ChallengeUnlock
+        # Handle challenge unlocking via flags and prerequisites
+        from models.branching import ChallengeUnlock, ChallengePrerequisite
         unlocked_challenges = []
         unlocked_act = None
         
@@ -719,6 +732,29 @@ def submit_flag(challenge_id):
                     f"by solving challenge {challenge_id} ({challenge.name})"
                 )
         
+        # Check if solving this challenge unlocks any prerequisite-gated challenges
+        prerequisite_dependents = ChallengePrerequisite.query.filter_by(
+            prerequisite_challenge_id=challenge_id
+        ).all()
+        
+        for dependent in prerequisite_dependents:
+            dependent_challenge = dependent.challenge
+            
+            # Check if all prerequisites are now met for this dependent challenge
+            if dependent_challenge.unlock_mode == 'prerequisite':
+                # Use the model's method to check if now unlocked
+                if dependent_challenge.is_unlocked_for_user(current_user.id, team_id):
+                    unlocked_challenges.append({
+                        'id': dependent_challenge.id,
+                        'name': dependent_challenge.name,
+                        'category': dependent_challenge.category
+                    })
+                    current_app.logger.info(
+                        f"Challenge {dependent_challenge.id} ({dependent_challenge.name}) now visible for "
+                        f"{'team ' + str(team_id) if team_id else 'user ' + str(current_user.id)} "
+                        f"after completing prerequisite {challenge_id} ({challenge.name})"
+                    )
+        
         if hasattr(matched_flag, 'unlocks_challenge_id') and matched_flag.unlocks_challenge_id:
             # Check if this specific path/challenge was already unlocked by this user/team
             existing_unlock = ChallengeUnlock.query.filter(
@@ -737,7 +773,7 @@ def submit_flag(challenge_id):
                     'message': f'You have already unlocked the path to "{unlocked_challenge.name if unlocked_challenge else "this challenge"}" with a different flag.'
                 }), 400
             
-            # This flag unlocks another challenge - create unlock record
+            # This flag unlocks another challenge - create unlock record (per-user/team)
             unlock_record = ChallengeUnlock(
                 user_id=current_user.id,
                 team_id=team_id,
@@ -749,14 +785,18 @@ def submit_flag(challenge_id):
             # Get the unlocked challenge details
             unlocked_challenge = Challenge.query.get(matched_flag.unlocks_challenge_id)
             if unlocked_challenge:
-                # Make the newly-unlocked challenge visible to users and mark it as not hidden
-                unlocked_challenge.is_hidden = False
-                unlocked_challenge.is_visible = True
+                # Do NOT modify is_hidden/is_visible - challenge stays hidden globally
+                # Visibility is controlled per-user/team via ChallengeUnlock + is_unlocked_for_user()
                 unlocked_challenges.append({
                     'id': unlocked_challenge.id,
                     'name': unlocked_challenge.name,
                     'category': unlocked_challenge.category
                 })
+                current_app.logger.info(
+                    f"Challenge {unlocked_challenge.id} ({unlocked_challenge.name}) unlocked for "
+                    f"{'team ' + str(team_id) if team_id else 'user ' + str(current_user.id)} "
+                    f"via flag {matched_flag.id}"
+                )
         
         # Scores are automatically calculated from Solve records
         # No need to update user.score or team.score (they don't exist as columns)

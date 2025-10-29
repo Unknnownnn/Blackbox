@@ -8,7 +8,7 @@ services:
       - "8000:8000"
       - "30000-30100:30000-30100"  # Port range for challenge containers
     environment:
-      - FLASK_ENV=production
+      - FLASK_ENV=development
       - SECRET_KEY=${SECRET_KEY:-change-this-secret-key-in-production}
       - DATABASE_URL=mysql+pymysql://${DATABASE_USER:-blackbox_user}:${DATABASE_PASSWORD:-blackbox_password}@db:3306/${DATABASE_NAME:-ctf_platform}
       - REDIS_URL=redis://cache:6379/0

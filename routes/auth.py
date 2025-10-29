@@ -36,9 +36,11 @@ def login():
             if next_page:
                 return redirect(next_page)
             
+            # Redirect based on admin status
             if user.is_admin:
                 return redirect(url_for('admin.dashboard'))
-            return redirect(url_for('challenges.list_challenges'))
+            else:
+                return redirect(url_for('challenges.list_challenges'))
         else:
             flash('Invalid username or password', 'error')
     
