@@ -239,11 +239,20 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             try {
-                const socket = io('/live');
+                // Only initialize notifications if user is authenticated and notification elements exist
                 const notifBadge = document.getElementById('notifBadge');
                 const notifList = document.getElementById('notifList');
+                const notificationsDropdown = document.getElementById('notificationsDropdown');
                 const toastContainer = document.getElementById('toastContainer');
                 const notificationSound = document.getElementById('notificationSound');
+
+                // Skip if not authenticated (notification UI not present)
+                if (!notifBadge || !notifList || !notificationsDropdown) {
+                    console.debug('Notifications UI not available; skipping notification setup (likely unauthenticated page)');
+                    return;
+                }
+
+                const socket = io('/live');
                 let unread = 0;
 
                 function showToast(title, body) {
@@ -325,7 +334,7 @@
                 });
 
                 // When the notifications dropdown is shown, mark unread notifications as read
-                document.getElementById('notificationsDropdown').addEventListener('shown.bs.dropdown', function() {
+                notificationsDropdown.addEventListener('shown.bs.dropdown', function() {
                     // find unread items and mark read via API
                     const items = notifList.querySelectorAll('[data-notif-id]');
                     items.forEach(item => {
