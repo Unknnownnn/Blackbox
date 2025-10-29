@@ -36,7 +36,7 @@ class SecurityHeaders:
             "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
             "img-src 'self' data: https:; "
             "font-src 'self' https://cdn.jsdelivr.net; "
-            "connect-src 'self' ws: wss:; "
+            "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://cdn.socket.io; "
             "frame-ancestors 'none';"
         )
         response.headers['Content-Security-Policy'] = csp
