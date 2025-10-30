@@ -447,7 +447,34 @@ function showRunning(container) {
                 const text = anchor ? anchor.textContent.trim() : (code ? code.textContent.trim() : '');
                 if (!text) return;
                 
-                navigator.clipboard.writeText(text).then(() => {
+                // Try modern clipboard API first, fallback to legacy method
+                const copyToClipboard = (text) => {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        return navigator.clipboard.writeText(text);
+                    } else {
+                        // Fallback for older browsers or HTTP
+                        const textArea = document.createElement('textarea');
+                        textArea.value = text;
+                        textArea.style.position = 'fixed';
+                        textArea.style.left = '-999999px';
+                        textArea.style.top = '-999999px';
+                        document.body.appendChild(textArea);
+                        textArea.focus();
+                        textArea.select();
+                        try {
+                            const successful = document.execCommand('copy');
+                            document.body.removeChild(textArea);
+                            if (!successful) {
+                                throw new Error('Fallback copy failed');
+                            }
+                        } catch (err) {
+                            document.body.removeChild(textArea);
+                            throw err;
+                        }
+                    }
+                };
+                
+                copyToClipboard(text).then(() => {
                     // Change button to show "Copied" temporarily
                     const originalHTML = btn.innerHTML;
                     btn.innerHTML = '<i class="bi bi-check"></i> Copied';
@@ -461,7 +488,7 @@ function showRunning(container) {
                     }, 2000);
                 }).catch(err => {
                     console.error('Copy failed:', err);
-                    showError('Failed to copy to clipboard');
+                    showError('Failed to copy to clipboard. Please copy manually.');
                 });
             });
         });
