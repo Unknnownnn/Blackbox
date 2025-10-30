@@ -922,13 +922,14 @@ def explore_flag(challenge_id):
         }), 403
     
     challenge = Challenge.query.get_or_404(challenge_id)
-    
-    if not challenge.is_visible and not current_user.is_admin:
-        return jsonify({'success': False, 'message': 'Challenge not found'}), 404
-    
-    # Get user's team
+    # Get user's team (needed for unlock checks)
     team = current_user.get_team()
     team_id = team.id if team else None
+
+    # Only allow access if challenge is unlocked for this user/team or user is admin
+    if not current_user.is_admin:
+        if not challenge.is_unlocked_for_user(current_user.id, team_id):
+            return jsonify({'success': False, 'message': 'Challenge not found'}), 404
     
     # Check if already solved (must be solved to explore)
     if team:
