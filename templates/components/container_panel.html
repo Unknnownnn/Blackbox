@@ -446,8 +446,19 @@ function showRunning(container) {
                 const code = block.querySelector('code');
                 const text = anchor ? anchor.textContent.trim() : (code ? code.textContent.trim() : '');
                 if (!text) return;
+                
                 navigator.clipboard.writeText(text).then(() => {
-                    showSuccess('Connection info copied to clipboard');
+                    // Change button to show "Copied" temporarily
+                    const originalHTML = btn.innerHTML;
+                    btn.innerHTML = '<i class="bi bi-check"></i> Copied';
+                    btn.classList.remove('btn-outline-success');
+                    btn.classList.add('btn-success');
+                    
+                    setTimeout(() => {
+                        btn.innerHTML = originalHTML;
+                        btn.classList.remove('btn-success');
+                        btn.classList.add('btn-outline-success');
+                    }, 2000);
                 }).catch(err => {
                     console.error('Copy failed:', err);
                     showError('Failed to copy to clipboard');
