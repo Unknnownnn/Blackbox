@@ -54,36 +54,34 @@
 
 <style>
 .countdown-box {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 10px;
-    padding: 20px 30px;
-    min-width: 120px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .countdown-value {
-    font-size: 3rem;
+    font-size: 3.5rem;
     font-weight: bold;
-    color: white;
+    color: #0d6efd;
     line-height: 1;
     margin-bottom: 5px;
 }
 
 .countdown-label {
     font-size: 0.9rem;
-    color: rgba(255, 255, 255, 0.9);
+    color: #6c757d;
     text-transform: uppercase;
     letter-spacing: 1px;
+    font-weight: 500;
 }
 
 @media (max-width: 576px) {
-    .countdown-box {
-        min-width: 90px;
-        padding: 15px 20px;
+    .countdown-value {
+        font-size: 2.5rem;
     }
     
-    .countdown-value {
-        font-size: 2rem;
+    .countdown-label {
+        font-size: 0.8rem;
     }
 }
 </style>
@@ -92,13 +90,27 @@
 // Parse start time from server (converted to platform timezone, then to ISO for JS)
 const startTime = new Date("{{ (start_time|to_platform_tz).strftime('%Y-%m-%dT%H:%M:%S') }}");
 
+let countdownInterval = null;
+let pollInterval = null;
+let hasRedirected = false;
+let lastRedirectTime = 0;
+
 function updateCountdown() {
     const now = new Date();
     const diff = startTime - now;
     
     if (diff <= 0) {
-        // Event has started! Reload the page
-        window.location.href = "{{ return_url }}";
+        // Event has started! Stop all intervals and redirect once
+        if (!hasRedirected) {
+            hasRedirected = true;
+            lastRedirectTime = Date.now();
+            if (countdownInterval) clearInterval(countdownInterval);
+            if (pollInterval) clearInterval(pollInterval);
+            // Add a small delay to allow server to catch up
+            setTimeout(() => {
+                window.location.href = "{{ return_url }}";
+            }, 1000);
+        }
         return;
     }
     
@@ -117,17 +129,36 @@ function updateCountdown() {
 
 // Update countdown immediately and every second
 updateCountdown();
-setInterval(updateCountdown, 1000);
+countdownInterval = setInterval(updateCountdown, 1000);
 
 // Also check every 30 seconds if we should reload (in case of clock skew)
-setInterval(() => {
-    fetch("{{ return_url }}")
-        .then(response => {
-            if (response.ok && !response.url.includes('countdown')) {
-                window.location.href = "{{ return_url }}";
-            }
-        })
-        .catch(() => {});
+pollInterval = setInterval(() => {
+    if (!hasRedirected) {
+        fetch("{{ return_url }}")
+            .then(response => {
+                if (response.ok && !response.url.includes('countdown')) {
+                    if (!hasRedirected) {
+                        hasRedirected = true;
+                        lastRedirectTime = Date.now();
+                        clearInterval(countdownInterval);
+                        clearInterval(pollInterval);
+                        // Add a small delay to allow page to load
+                        setTimeout(() => {
+                            window.location.href = "{{ return_url }}";
+                        }, 1000);
+                    }
+                }
+            })
+            .catch(() => {});
+    }
 }, 30000);
+
+// Prevent back-navigation to countdown page after redirect
+window.addEventListener('load', function() {
+    if (hasRedirected) {
+        // Replace history so back button doesn't return to countdown
+        history.replaceState(null, null, "{{ return_url }}");
+    }
+});
 </script>
 {% endblock %}
