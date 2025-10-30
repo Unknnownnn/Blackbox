@@ -1007,11 +1007,8 @@ def explore_flag(challenge_id):
     # Get the unlocked challenge details
     unlocked_challenge = Challenge.query.get(matched_flag.unlocks_challenge_id)
     
-    # Optionally auto-configure the unlocked challenge to be visible
-    if unlocked_challenge and unlocked_challenge.unlock_mode == 'flag_unlock':
-        unlocked_challenge.is_hidden = False
-        # Make it visible in the public list when unlocked
-        unlocked_challenge.is_visible = True
+    # Do NOT modify is_hidden/is_visible - challenge stays hidden globally
+    # Visibility is controlled per-user/team via ChallengeUnlock + is_unlocked_for_user()
     
     db.session.commit()
     
