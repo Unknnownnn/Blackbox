@@ -13,6 +13,15 @@ import re
 
 challenges_bp = Blueprint('challenges', __name__, url_prefix='/challenges')
 
+
+# Blueprint-level exception handler to ensure AJAX calls get JSON errors
+@challenges_bp.errorhandler(Exception)
+def _handle_challenges_exception(error):
+    import traceback
+    current_app.logger.error(f"Unhandled exception in challenges blueprint: {error}\n{traceback.format_exc()}")
+    # Return JSON for AJAX/Fetch callers to avoid JSON.parse errors on HTML 500 pages
+    return jsonify({'success': False, 'message': 'Internal server error'}), 500
+
 @challenges_bp.route('/')
 @login_required
 def list_challenges():
@@ -781,22 +790,16 @@ def submit_flag(challenge_id):
                 }), 400
             
             # This flag unlocks another challenge - create unlock record (per-user/team)
-            if team_id:
-                # Team-based unlock: set team_id and leave user_id null
-                unlock_record = ChallengeUnlock(
-                    user_id=None,
-                    team_id=team_id,
-                    challenge_id=matched_flag.unlocks_challenge_id,
-                    unlocked_by_flag_id=matched_flag.id
-                )
-            else:
-                # Individual unlock
-                unlock_record = ChallengeUnlock(
-                    user_id=current_user.id,
-                    team_id=None,
-                    challenge_id=matched_flag.unlocks_challenge_id,
-                    unlocked_by_flag_id=matched_flag.id
-                )
+            # Create unlock record. The DB requires a non-null user_id, so
+            # always store the current user as the actor. We also include
+            # team_id when this is a team-based unlock so it can be treated
+            # as a team-wide unlock semantically (team_id != None).
+            unlock_record = ChallengeUnlock(
+                user_id=current_user.id,
+                team_id=team_id if team_id else None,
+                challenge_id=matched_flag.unlocks_challenge_id,
+                unlocked_by_flag_id=matched_flag.id
+            )
             db.session.add(unlock_record)
             
             # Get the unlocked challenge details
@@ -1013,23 +1016,15 @@ def explore_flag(challenge_id):
             'message': 'You have already unlocked this path'
         }), 400
     
-    # Create unlock record (no points, no solve record - just unlocking)
-    if team_id:
-        # Team-based unlock: set team_id and leave user_id null
-        unlock_record = ChallengeUnlock(
-            user_id=None,
-            team_id=team_id,
-            challenge_id=matched_flag.unlocks_challenge_id,
-            unlocked_by_flag_id=matched_flag.id
-        )
-    else:
-        # Individual unlock
-        unlock_record = ChallengeUnlock(
-            user_id=current_user.id,
-            team_id=None,
-            challenge_id=matched_flag.unlocks_challenge_id,
-            unlocked_by_flag_id=matched_flag.id
-        )
+    # Create unlock record (no points, no solve record - just unlocking).
+    # The DB schema requires `user_id` to be non-null, so store the current
+    # user as the actor while also setting team_id for team-scoped unlocks.
+    unlock_record = ChallengeUnlock(
+        user_id=current_user.id,
+        team_id=team_id if team_id else None,
+        challenge_id=matched_flag.unlocks_challenge_id,
+        unlocked_by_flag_id=matched_flag.id
+    )
     db.session.add(unlock_record)
     
     # Get the unlocked challenge details
