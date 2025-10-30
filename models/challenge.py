@@ -195,10 +195,12 @@ class Challenge(db.Model):
         # Check flag unlock mode
         if self.unlock_mode == 'flag_unlock':
             # Check if challenge was unlocked by a flag
-            unlock = ChallengeUnlock.query.filter_by(
-                user_id=user_id,
-                team_id=team_id,
-                challenge_id=self.id
+            unlock = ChallengeUnlock.query.filter(
+                ChallengeUnlock.challenge_id == self.id,
+                db.or_(
+                    ChallengeUnlock.user_id == user_id,
+                    ChallengeUnlock.team_id == team_id
+                )
             ).first()
             return unlock is not None
         

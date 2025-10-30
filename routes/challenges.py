@@ -774,12 +774,22 @@ def submit_flag(challenge_id):
                 }), 400
             
             # This flag unlocks another challenge - create unlock record (per-user/team)
-            unlock_record = ChallengeUnlock(
-                user_id=current_user.id,
-                team_id=team_id,
-                challenge_id=matched_flag.unlocks_challenge_id,
-                unlocked_by_flag_id=matched_flag.id
-            )
+            if team_id:
+                # Team-based unlock: set team_id and leave user_id null
+                unlock_record = ChallengeUnlock(
+                    user_id=None,
+                    team_id=team_id,
+                    challenge_id=matched_flag.unlocks_challenge_id,
+                    unlocked_by_flag_id=matched_flag.id
+                )
+            else:
+                # Individual unlock
+                unlock_record = ChallengeUnlock(
+                    user_id=current_user.id,
+                    team_id=None,
+                    challenge_id=matched_flag.unlocks_challenge_id,
+                    unlocked_by_flag_id=matched_flag.id
+                )
             db.session.add(unlock_record)
             
             # Get the unlocked challenge details
@@ -997,12 +1007,22 @@ def explore_flag(challenge_id):
         }), 400
     
     # Create unlock record (no points, no solve record - just unlocking)
-    unlock_record = ChallengeUnlock(
-        user_id=current_user.id,
-        team_id=team_id,
-        challenge_id=matched_flag.unlocks_challenge_id,
-        unlocked_by_flag_id=matched_flag.id
-    )
+    if team_id:
+        # Team-based unlock: set team_id and leave user_id null
+        unlock_record = ChallengeUnlock(
+            user_id=None,
+            team_id=team_id,
+            challenge_id=matched_flag.unlocks_challenge_id,
+            unlocked_by_flag_id=matched_flag.id
+        )
+    else:
+        # Individual unlock
+        unlock_record = ChallengeUnlock(
+            user_id=current_user.id,
+            team_id=None,
+            challenge_id=matched_flag.unlocks_challenge_id,
+            unlocked_by_flag_id=matched_flag.id
+        )
     db.session.add(unlock_record)
     
     # Get the unlocked challenge details
