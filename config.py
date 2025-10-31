@@ -39,12 +39,19 @@ class Config:
         'pool_size': 20,             # Increased from 5 to 20 persistent connections per worker
         'max_overflow': 30,          # Increased from 10 to 30 (total = 50 per worker)
         'pool_timeout': 60,          # Increased wait time from 30s to 60s
-        'pool_recycle': 1800,        # Recycle connections after 30 minutes (was 3600)
+        'pool_recycle': 600,         # Recycle connections after 10 minutes (detect stale connections faster)
         'pool_pre_ping': True,       # Test connection before use (detect stale connections)
         
         # Critical for multi-worker deployments
         'pool_reset_on_return': 'rollback',  # Reset connection state on return to pool
         'echo_pool': False,          # Disable pool logging for performance
+        
+        # Connection parameters for better reliability
+        'connect_args': {
+            'connect_timeout': 10,   # 10 second connection timeout
+            'read_timeout': 30,      # 30 second read timeout
+            'write_timeout': 30,     # 30 second write timeout
+        }
     }
     
     # Redis

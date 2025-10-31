@@ -95,11 +95,26 @@ def create_app(config_name=None):
             if not is_setup_complete():
                 from flask import redirect, url_for
                 return redirect(url_for('setup.initial_setup'))
-        except:
-            # Database might not be initialized yet
-            pass
+        except Exception as e:
+            # Database might not be initialized yet or connection lost
+            app.logger.error(f"Setup check failed: {e}")
+            try:
+                db.session.rollback()
+                db.session.remove()
+            except:
+                pass
         
         return None
+    
+    @app.teardown_appcontext
+    def shutdown_session(exception=None):
+        """Remove database session at end of request"""
+        try:
+            if exception:
+                db.session.rollback()
+            db.session.remove()
+        except Exception as e:
+            app.logger.error(f"Error during session cleanup: {e}")
     
     # Main routes
     @app.route('/')
@@ -185,9 +200,20 @@ def create_app(config_name=None):
         """Health check endpoint for load balancers and monitoring"""
         from datetime import datetime
         try:
-            # Check database connectivity
-            db.session.execute(db.text('SELECT 1'))
+            # Check database connectivity with timeout
+            from sqlalchemy import text
+            db.session.execute(text('SELECT 1'))
+            db.session.commit()
             db_status = 'healthy'
+        except Exception as e:
+            app.logger.error(f"Database health check failed: {e}")
+            # Try to recover connection
+            try:
+                db.session.rollback()
+                db.session.remove()
+            except:
+                pass
+            db_status = f'unhealthy: {str(e)[:100]}'
         except Exception as e:
             db_status = f'unhealthy: {str(e)}'
         
