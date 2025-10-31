@@ -12,6 +12,8 @@ flask-caching==2.0.2
 python-socketio==5.9.0
 python-engineio==4.7.1
 eventlet==0.33.3
+gevent==24.2.1
+gevent-websocket==0.10.1
 dnspython<2.3.0 
 Werkzeug==2.3.7
 bcrypt==4.0.1

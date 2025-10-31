@@ -8,12 +8,14 @@ backlog = 2048
 
 # Worker processes
 # For 200+ users: Use more workers to handle concurrent load
-# Eventlet is async, so each worker handles many connections
+# Using gevent instead of eventlet - more stable under high database load
 workers = int(os.getenv('WORKERS', max(8, multiprocessing.cpu_count() * 2)))
-worker_class = 'eventlet'
+worker_class = 'gevent'  # Changed from eventlet to gevent for better stability
 worker_connections = 2000  # Increased from 1000 to handle more concurrent connections per worker
 timeout = 300  # Increased from 120 to prevent worker timeout under high load
 keepalive = 10  # Increased to reduce connection overhead
+max_requests = 5000  # Reduced from 50000 - restart workers more frequently to prevent memory leaks
+max_requests_jitter = 500  # Jitter for graceful restart spread
 
 # Logging
 accesslog = os.getenv('ACCESS_LOG', '-')
@@ -43,6 +45,18 @@ max_requests_jitter = 5000  # Increased jitter to spread restarts better
 
 # Restart workers gracefully
 graceful_timeout = 30
+
+# Worker lifecycle callbacks for debugging
+def worker_int(worker):
+    """Called when a worker receives SIGINT or SIGQUIT"""
+    print(f"Worker {worker.pid} received interrupt signal")
+
+def worker_abort(worker):
+    """Called when a worker times out"""
+    print(f"Worker {worker.pid} timed out and is being killed")
+    import traceback
+    import sys
+    traceback.print_stack(file=sys.stderr)
 
 def on_starting(server):
     """Called just before the master process is initialized."""

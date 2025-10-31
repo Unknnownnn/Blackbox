@@ -2,7 +2,7 @@ services:
   blackbox:
     container_name: blackbox-ctf
     build: .
-    restart: always
+    restart: unless-stopped  # Changed from 'always' - will auto-restart on crash
     user: "1001:${DOCKER_GID:-999}"  # Use host's docker group ID
     ports:
       - "8000:8000"
@@ -17,7 +17,6 @@ services:
       - WORKERS=8
       - LOG_FOLDER=/var/log/blackbox
       - REVERSE_PROXY=true
-      - EVENTLET_NO_GREENDNS=yes
     volumes:
       - .:/opt/blackbox:ro
       - uploads:/var/uploads
@@ -33,11 +32,12 @@ services:
       internal:
       challenge_network:  # Network for challenge containers
     healthcheck:
-      test: ["CMD", "curl", "-f", "--max-time", "15", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 15s
-      retries: 5
-      start_period: 60s
+      test: ["CMD", "curl", "-f", "--max-time", "10", "http://localhost:8000/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped  # Auto-restart on crash
 
   nginx:
     container_name: blackbox-nginx
