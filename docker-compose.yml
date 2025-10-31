@@ -14,7 +14,7 @@ services:
       - REDIS_URL=redis://cache:6379/0
       - UPLOAD_FOLDER=/var/uploads
       - CTF_NAME=${CTF_NAME:-BlackBox CTF}
-      - WORKERS=4
+      - WORKERS=8
       - LOG_FOLDER=/var/log/blackbox
       - REVERSE_PROXY=true
       - EVENTLET_NO_GREENDNS=yes
@@ -76,8 +76,11 @@ services:
       '--collation-server=utf8mb4_unicode_ci',
       '--wait_timeout=28800',
       '--log-warnings=0',
-      '--max_connections=300',
-      '--innodb-buffer-pool-size=256M'
+      '--max_connections=500',
+      '--innodb-buffer-pool-size=512M',
+      '--innodb-log-file-size=128M',
+      '--innodb-flush-log-at-trx-commit=2',
+      '--innodb-flush-method=O_DIRECT'
     ]
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
@@ -94,7 +97,7 @@ services:
       - redis_data:/data
     networks:
       internal:
-    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru --maxclients 10000
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru --maxclients 20000 --tcp-backlog 511 --timeout 300
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s

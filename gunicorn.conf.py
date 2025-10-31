@@ -7,11 +7,13 @@ bind = "0.0.0.0:5000"
 backlog = 2048
 
 # Worker processes
-workers = int(os.getenv('WORKERS', multiprocessing.cpu_count() * 2 + 1))
+# For 200+ users: Use more workers to handle concurrent load
+# Eventlet is async, so each worker handles many connections
+workers = int(os.getenv('WORKERS', max(8, multiprocessing.cpu_count() * 2)))
 worker_class = 'eventlet'
-worker_connections = 1000
-timeout = 120
-keepalive = 5
+worker_connections = 2000  # Increased from 1000 to handle more concurrent connections per worker
+timeout = 300  # Increased from 120 to prevent worker timeout under high load
+keepalive = 10  # Increased to reduce connection overhead
 
 # Logging
 accesslog = os.getenv('ACCESS_LOG', '-')
@@ -36,8 +38,8 @@ tmp_upload_dir = None
 
 # Performance
 preload_app = True
-max_requests = 10000  # Increased from 1000 to prevent frequent restarts
-max_requests_jitter = 500  # Increased jitter for better spread
+max_requests = 50000  # Increased to reduce frequent worker restarts (was 10000)
+max_requests_jitter = 5000  # Increased jitter to spread restarts better
 
 # Restart workers gracefully
 graceful_timeout = 30

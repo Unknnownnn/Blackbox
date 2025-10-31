@@ -33,12 +33,13 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # Connection pooling for high concurrency (safe with eventlet)
     # Each worker process gets its own pool (workers are separate processes, not threads)
+    # For 200+ users with 8+ workers: Need larger pool per worker
     SQLALCHEMY_ENGINE_OPTIONS = {
         # Connection pool settings (per worker)
-        'pool_size': 5,              # Persistent connections per worker
-        'max_overflow': 10,          # Additional connections when busy (total = 15 per worker)
-        'pool_timeout': 30,          # Wait 30s for available connection
-        'pool_recycle': 3600,        # Recycle connections after 1 hour
+        'pool_size': 20,             # Increased from 5 to 20 persistent connections per worker
+        'max_overflow': 30,          # Increased from 10 to 30 (total = 50 per worker)
+        'pool_timeout': 60,          # Increased wait time from 30s to 60s
+        'pool_recycle': 1800,        # Recycle connections after 30 minutes (was 3600)
         'pool_pre_ping': True,       # Test connection before use (detect stale connections)
         
         # Critical for multi-worker deployments
