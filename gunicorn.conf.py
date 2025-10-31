@@ -15,6 +15,10 @@ worker_connections = 2000  # Increased from 1000 to handle more concurrent conne
 timeout = 300  # Increased from 120 to prevent worker timeout under high load
 keepalive = 10  # Increased to reduce connection overhead
 
+# CRITICAL: Graceful worker restart to prevent deadlocks
+graceful_timeout = 60  # Force kill workers after 60s if they don't exit gracefully
+worker_tmp_dir = '/dev/shm'  # Use shared memory for worker heartbeat (prevents false timeouts)
+
 # Logging
 accesslog = os.getenv('ACCESS_LOG', '-')
 errorlog = os.getenv('ERROR_LOG', '-')

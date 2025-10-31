@@ -33,11 +33,18 @@ services:
       internal:
       challenge_network:  # Network for challenge containers
     healthcheck:
-      test: ["CMD", "curl", "-f", "--max-time", "15", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 15s
-      retries: 5
-      start_period: 60s
+      test: ["CMD", "curl", "-f", "--max-time", "10", "http://localhost:8000/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: always
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 10
+        window: 120s
 
   nginx:
     container_name: blackbox-nginx
