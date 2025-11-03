@@ -24,11 +24,11 @@
                         </div>
                         <div class="card-body">
                             <div class="row">
-                                <div class="col-md-8 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label for="name" class="form-label fw-bold">Challenge Name *</label>
                                     <input type="text" class="form-control form-control-lg" id="name" name="name" required>
                                 </div>
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-3 mb-3">
                                     <label for="category" class="form-label fw-bold">Category *</label>
                                     <select class="form-select form-select-lg" id="category" name="category" required>
                                         <option value="web">Web</option>
@@ -40,6 +40,18 @@
                                         <option value="osint">OSINT</option>
                                     </select>
                                 </div>
+                                {% if act_system_enabled %}
+                                <div class="col-md-3 mb-3">
+                                    <label for="act" class="form-label fw-bold">ACT *</label>
+                                    <select class="form-select form-select-lg" id="act" name="act" required>
+                                        <option value="ACT I" selected>ACT I</option>
+                                        <option value="ACT II">ACT II</option>
+                                        <option value="ACT III">ACT III</option>
+                                        <option value="ACT IV">ACT IV</option>
+                                        <option value="ACT V">ACT V</option>
+                                    </select>
+                                </div>
+                                {% endif %}
                             </div>
                             
                             <div class="mb-3">
@@ -209,6 +221,25 @@
                                     </select>
                                 </div>
                             </div>
+                            {% if act_system_enabled %}
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="unlocks_act" class="form-label">
+                                        <i class="bi bi-unlock-fill"></i> Unlocks ACT (Optional)
+                                    </label>
+                                    <select class="form-select" id="unlocks_act" name="unlocks_act">
+                                        <option value="">None</option>
+                                        <option value="ACT II">ACT II</option>
+                                        <option value="ACT III">ACT III</option>
+                                        <option value="ACT IV">ACT IV</option>
+                                        <option value="ACT V">ACT V</option>
+                                    </select>
+                                    <div class="form-text">
+                                        When this challenge is solved, the selected ACT will become visible to the user/team
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
                     

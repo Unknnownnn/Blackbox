@@ -9,6 +9,7 @@ class Challenge(db.Model):
     name = db.Column(db.String(100), nullable=False, index=True)
     description = db.Column(db.Text, nullable=False)
     category = db.Column(db.String(50), nullable=False, index=True)
+    act = db.Column(db.String(20), default='ACT I', index=True)  # Story act grouping
     
     # Challenge content
     flag = db.Column(db.String(255), nullable=False)
@@ -39,6 +40,7 @@ class Challenge(db.Model):
     is_visible = db.Column(db.Boolean, default=True)
     is_hidden = db.Column(db.Boolean, default=False)  # Hidden until unlocked
     unlock_mode = db.Column(db.String(20), default='none')  # none, prerequisite, flag_unlock
+    unlocks_act = db.Column(db.String(20), nullable=True)  # Which ACT this challenge unlocks when solved
     is_enabled = db.Column(db.Boolean, default=True)  # Temporarily disable challenge
     is_dynamic = db.Column(db.Boolean, default=True)  # Use dynamic scoring
     requires_team = db.Column(db.Boolean, default=False)  # Require user to be in a team to solve
@@ -143,7 +145,25 @@ class Challenge(db.Model):
                 expected_flag = cache_service.get(cache_key)
                 
                 if expected_flag and submitted_flag == expected_flag:
-                    return True  # Dynamic flag matches
+                    # Return a lightweight Flag-like object instead of boolean True.
+                    # Downstream code expects an object with certain attributes
+                    # (e.g., id, is_regex, is_case_sensitive, flag_value, points_override,
+                    # unlocks_challenge_id). Returning a small object prevents
+                    # AttributeError/TypeError when attributes are accessed.
+                    case_sens = getattr(self, 'flag_case_sensitive', True)
+
+                    class _DynamicFlagMatch:
+                        def __init__(self, value, case_sensitive):
+                            self.id = None
+                            self.is_regex = False
+                            # Use challenge-level case sensitivity as best-effort
+                            self.is_case_sensitive = case_sensitive
+                            self.flag_value = value
+                            self.points_override = None
+                            self.unlocks_challenge_id = None
+                            self.flag_label = None
+
+                    return _DynamicFlagMatch(submitted_flag, case_sens)
         
         # Legacy support: check old flag column if no flags defined
         if not flags and self.flag:
@@ -193,10 +213,12 @@ class Challenge(db.Model):
         # Check flag unlock mode
         if self.unlock_mode == 'flag_unlock':
             # Check if challenge was unlocked by a flag
-            unlock = ChallengeUnlock.query.filter_by(
-                user_id=user_id,
-                team_id=team_id,
-                challenge_id=self.id
+            unlock = ChallengeUnlock.query.filter(
+                ChallengeUnlock.challenge_id == self.id,
+                db.or_(
+                    ChallengeUnlock.user_id == user_id,
+                    ChallengeUnlock.team_id == team_id
+                )
             ).first()
             return unlock is not None
         
@@ -229,6 +251,7 @@ class Challenge(db.Model):
             'name': self.name,
             'description': self.description,
             'category': self.category,
+            'act': self.act,
             'points': self.get_current_points(),
             'initial_points': self.initial_points,
             'minimum_points': self.minimum_points,
@@ -246,7 +269,8 @@ class Challenge(db.Model):
             'docker_connection_info': self.docker_connection_info,
             'docker_flag_path': self.docker_flag_path,
             'detect_regex_sharing': self.detect_regex_sharing,
-            'requires_team': self.requires_team
+            'requires_team': self.requires_team,
+            'unlocks_act': self.unlocks_act
         }
         
         if include_solves:

@@ -16,12 +16,17 @@ hints_bp = Blueprint('hints', __name__, url_prefix='/hints')
 def get_challenge_hints(challenge_id):
     """Get hints for a challenge"""
     challenge = Challenge.query.get_or_404(challenge_id)
-    
-    if not challenge.is_visible and not current_user.is_admin:
-        return jsonify({'success': False, 'message': 'Challenge not found'}), 404
-    
-    hints = Hint.query.filter_by(challenge_id=challenge_id).order_by(Hint.order).all()
+
+    # Get user's team (needed for unlock checks)
     team = current_user.get_team()
+    team_id = team.id if team else None
+
+    # Only allow access if challenge is unlocked for this user/team or user is admin
+    if not current_user.is_admin:
+        if not challenge.is_unlocked_for_user(current_user.id, team_id):
+            return jsonify({'success': False, 'message': 'Challenge not found'}), 404
+
+    hints = Hint.query.filter_by(challenge_id=challenge_id).order_by(Hint.order).all()
     
     hints_data = []
     for hint in hints:
@@ -59,12 +64,15 @@ def unlock_hint(hint_id):
     """Unlock a hint by paying the cost"""
     hint = Hint.query.get_or_404(hint_id)
     challenge = hint.challenge
-    
-    if not challenge.is_visible and not current_user.is_admin:
-        return jsonify({'success': False, 'message': 'Challenge not found'}), 404
-    
+
+    # Get user's team (needed for unlock checks)
     team = current_user.get_team()
     team_id = team.id if team else None
+
+    # Only allow unlocking hints if the challenge is unlocked for this user/team or user is admin
+    if not current_user.is_admin:
+        if not challenge.is_unlocked_for_user(current_user.id, team_id):
+            return jsonify({'success': False, 'message': 'Challenge not found'}), 404
     
     # Check if already unlocked
     if team:

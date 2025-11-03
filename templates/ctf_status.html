@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}CTF {{ 'Paused' if status == 'paused' else 'Ended' }} - {{ ctf_name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-lg">
+                <div class="card-body text-center p-5">
+                    {% if status == 'paused' %}
+                    <div class="mb-4">
+                        <i class="bi bi-pause-circle" style="font-size: 4rem; color: #ffc107;"></i>
+                    </div>
+                    
+                    <h2 class="mb-3 text-warning">CTF is Paused</h2>
+                    <p class="text-muted mb-4">The CTF is currently paused by administrators. Challenges are not available during this time.</p>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle"></i> 
+                        <strong>Status:</strong> Paused by Administrators
+                    </div>
+                    
+                    {% else %}
+                    <div class="mb-4">
+                        <i class="bi bi-stop-circle" style="font-size: 4rem; color: #dc3545;"></i>
+                    </div>
+                    
+                    <h2 class="mb-3 text-danger">CTF has Ended</h2>
+                    <p class="text-muted mb-4">The CTF has concluded. Thank you for participating!</p>
+                    
+                    <div class="alert alert-danger">
+                        <i class="bi bi-info-circle"></i> 
+                        <strong>Status:</strong> Event Ended
+                    </div>
+                    {% endif %}
+                    
+                    <hr>
+                    
+                    <p class="mb-3">While the challenges are unavailable, you can still:</p>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <a href="{{ url_for('scoreboard.view_scoreboard') }}" class="btn btn-outline-primary btn-block">
+                                <i class="bi bi-trophy"></i> View Leaderboard
+                            </a>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <a href="{{ url_for('teams.list_teams') }}" class="btn btn-outline-primary btn-block">
+                                <i class="bi bi-people"></i> View Teams
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <p class="text-muted small mt-4">
+                        <i class="bi bi-arrow-clockwise"></i> This page will automatically refresh to check for updates
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Check every 30 seconds if CTF has resumed
+setInterval(() => {
+    fetch("{{ url_for('challenges.list_challenges') }}")
+        .then(response => {
+            // If we get redirected to challenges page (not this status page), reload
+            if (response.ok && !response.url.includes('challenges')) {
+                window.location.href = "{{ url_for('challenges.list_challenges') }}";
+            }
+        })
+        .catch(() => {});
+}, 30000);
+</script>
+{% endblock %}

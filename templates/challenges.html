@@ -3,66 +3,511 @@
 {% block title %}Challenges - {{ ctf_name }}{% endblock %}
 
 {% block content %}
-<h2 class="mb-4">
-    <i class="bi bi-puzzle-fill"></i> Challenges
-</h2>
+<style>
+    {% if not act_system_enabled %}
+    /* Hide ACT thermometer and adjust layout when ACT system is disabled */
+    .act-thermometer {
+        display: none !important;
+    }
+    .challenges-container {
+        display: block !important;
+    }
+    .challenges-content {
+        margin-left: 0 !important;
+        max-width: 100% !important;
+    }
+    {% endif %}
+</style>
 
-{% if not categories %}
-<div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> No challenges available yet. Check back later!
-</div>
-{% else %}
-    {% for category, challenges in categories.items() %}
-    <div class="mb-5">
-        <h3 class="mb-3">
-            <span class="badge bg-primary">{{ category|upper }}</span>
-            <!-- <small class="text-muted">({{ challenges|length }} challenges)</small> -->
-        </h3>
+<div class="challenges-container">
+    {% if act_system_enabled %}
+    <!-- Thermometer Sidebar (only shown when ACT system is enabled) -->
+    <div class="act-thermometer">
+        <div class="thermometer-title">
+            <i class="bi bi-map"></i>
+            <span>Story Progress</span>
+        </div>
         
-        <div class="row">
-            {% for challenge in challenges %}
-            <div class="col-md-6 col-lg-4 mb-3">
-                <div class="card h-100 {% if challenge.solved %}border-success{% endif %}">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h5 class="card-title mb-0">
-                                {{ challenge.name }}
-                                {% if challenge.solved %}
-                                <i class="bi bi-check-circle-fill text-success"></i>
-                                {% endif %}
-                            </h5>
-                            <span class="badge bg-warning text-dark">{{ challenge.points }} pts</span>
-                        </div>
-                        
-                        {% if challenge.difficulty %}
-                        <span class="badge 
-                            {% if challenge.difficulty == 'easy' %}bg-success
-                            {% elif challenge.difficulty == 'medium' %}bg-warning
-                            {% else %}bg-danger
-                            {% endif %} mb-2">
-                            {{ challenge.difficulty|upper }}
-                        </span>
-                        {% endif %}
-                        
-                        <p class="card-text text-muted small">
-                            {{ challenge.description[:100] }}{% if challenge.description|length > 100 %}...{% endif %}
-                        </p>
-                        
-                        <div class="d-flex justify-content-between align-items-center">
-                            <small class="text-muted">
-                                <i class="bi bi-trophy"></i> {{ challenge.solves }} solves
-                            </small>
-                            <a href="{{ url_for('challenges.view_challenge', challenge_id=challenge.id) }}" 
-                               class="btn btn-sm btn-outline-primary">
-                                View Challenge
-                            </a>
-                        </div>
-                    </div>
+        <div class="thermometer-track">
+            <!-- single visual track and unlocked fill; JS will size the unlocked fill to the last unlocked node -->
+            <div class="unlocked-fill" aria-hidden="true"></div>
+            {% set act_order = ['ACT I', 'ACT II', 'ACT III', 'ACT IV', 'ACT V'] %}
+            {% for act in act_order %}
+                {% set act_unlocked = act in unlocked_acts %}
+                {% set is_active = loop.first %}
+                <div class="act-node {% if act_unlocked %}unlocked{% else %}locked{% endif %} {% if is_active %}active{% endif %}" 
+                     data-act="{{ act }}" 
+                     onclick="{% if act_unlocked %}switchToAct('{{ act }}'){% endif %}">
+                    <div class="node-bubble"></div>
+                    <div class="node-label">{{ act }}</div>
+                    {% if not loop.last %}
+                    <div class="node-connector {% if act_unlocked %}unlocked{% else %}locked{% endif %}"></div>
+                    {% endif %}
                 </div>
-            </div>
             {% endfor %}
         </div>
     </div>
-    {% endfor %}
-{% endif %}
+    {% endif %}
+
+    <!-- Main Content Area -->
+    <div class="challenges-content">
+        <h2 class="mb-4">
+            <i class="bi bi-puzzle-fill"></i> 
+            {% if act_system_enabled %}
+            <span id="current-act-title">ACT I</span>
+            {% else %}
+            <span id="current-act-title">Challenges</span>
+            {% endif %}
+        </h2>
+
+        {% if not acts %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> No challenges available yet. Check back later!
+        </div>
+        {% else %}
+            {% if act_system_enabled %}
+            <!-- ACT system enabled: show ACT-based content with switching -->
+            {% set act_order = ['ACT I', 'ACT II', 'ACT III', 'ACT IV', 'ACT V'] %}
+            {% for act in act_order %}
+                {% if act in acts %}
+                {% set act_unlocked = act in unlocked_acts %}
+                <div class="act-content {% if loop.first %}active{% endif %}" id="content-{{ act.replace(' ', '-') }}" data-act="{{ act }}">
+                    {% if act_unlocked %}
+                        {% for category, challenges in acts[act].items() %}
+                        <div class="category-section mb-4">
+                            <h4 class="mb-3">
+                                <span class="badge bg-secondary">{{ category|upper }}</span>
+                            </h4>
+                            
+                            <div class="row">
+                                {% for challenge in challenges %}
+                                <div class="col-md-6 col-lg-4 mb-3">
+                                    <div class="card h-100 {% if challenge.solved %}border-success{% endif %} challenge-card">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <h5 class="card-title mb-0">
+                                                    {{ challenge.name }}
+                                                    {% if challenge.solved %}
+                                                    <i class="bi bi-check-circle-fill text-success"></i>
+                                                    {% endif %}
+                                                </h5>
+                                                <span class="badge bg-warning text-dark">{{ challenge.points }} pts</span>
+                                            </div>
+                                            
+                                            {% if challenge.difficulty %}
+                                            <span class="badge 
+                                                {% if challenge.difficulty == 'easy' %}bg-success
+                                                {% elif challenge.difficulty == 'medium' %}bg-warning
+                                                {% else %}bg-danger
+                                                {% endif %} mb-2">
+                                                {{ challenge.difficulty|upper }}
+                                            </span>
+                                            {% endif %}
+                                            
+                                            <p class="card-text text-muted small">
+                                                {{ challenge.description[:100] }}{% if challenge.description|length > 100 %}...{% endif %}
+                                            </p>
+                                            
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <small class="text-muted">
+                                                    <i class="bi bi-trophy"></i> {{ challenge.solves }} solves
+                                                </small>
+                                                <a href="{{ url_for('challenges.view_challenge', challenge_id=challenge.id) }}" 
+                                                   class="btn btn-sm btn-outline-primary">
+                                                    View Challenge
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="locked-act-message">
+                            <div class="text-center text-muted">
+                                <i class="bi bi-lock-fill" style="font-size: 4rem;"></i>
+                                <h3 class="mt-3">{{ act }} is Locked</h3>
+                                <p class="lead">Complete challenges in previous ACTs to unlock this story chapter!</p>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            {% endfor %}
+            {% else %}
+            <!-- ACT system disabled: simple category-based listing -->
+            {% for category_name, challenges in acts['Challenges'].items() %}
+            <div class="category-section mb-4">
+                <h4 class="mb-3">
+                    <span class="badge bg-secondary">{{ category_name|upper }}</span>
+                </h4>
+                
+                <div class="row">
+                    {% for challenge in challenges %}
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card h-100 {% if challenge.solved %}border-success{% endif %} challenge-card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h5 class="card-title mb-0">
+                                        {{ challenge.name }}
+                                        {% if challenge.solved %}
+                                        <i class="bi bi-check-circle-fill text-success"></i>
+                                        {% endif %}
+                                    </h5>
+                                    <span class="badge bg-warning text-dark">{{ challenge.points }} pts</span>
+                                </div>
+                                
+                                {% if challenge.difficulty %}
+                                <span class="badge 
+                                    {% if challenge.difficulty == 'easy' %}bg-success
+                                    {% elif challenge.difficulty == 'medium' %}bg-warning
+                                    {% else %}bg-danger
+                                    {% endif %} mb-2">
+                                    {{ challenge.difficulty|upper }}
+                                </span>
+                                {% endif %}
+                                
+                                <p class="card-text text-muted small">
+                                    {{ challenge.description[:100] }}{% if challenge.description|length > 100 %}...{% endif %}
+                                </p>
+                                
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        <i class="bi bi-trophy"></i> {{ challenge.solves }} solves
+                                    </small>
+                                    <a href="{{ url_for('challenges.view_challenge', challenge_id=challenge.id) }}" 
+                                       class="btn btn-sm btn-outline-primary">
+                                        View Challenge
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+<style>
+/* Main Layout */
+.challenges-container {
+    display: flex;
+    gap: 1.5rem;
+    min-height: 70vh;
+}
+
+/* Thermometer Sidebar */
+.act-thermometer {
+    position: sticky;
+    top: 80px;
+    width: 80px;
+    min-width: 80px;
+    height: fit-content;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    padding: 1.25rem 0.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.thermometer-title {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    font-weight: bold;
+    font-size: 0.75rem;
+    color: var(--bs-body-color);
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid var(--bs-border-color);
+    text-align: center;
+}
+
+.thermometer-title i {
+    font-size: 1rem;
+}
+
+    .thermometer-track {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem; /* increase spacing between nodes for a longer thermometer */
+    padding: 0.5rem 0; /* give breathing room for the track ends */
+}
+
+.act-node {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.18rem;
+    transition: all 0.3s ease;
+}
+
+.act-node.unlocked {
+    cursor: pointer;
+}
+
+.node-bubble {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    transition: all 0.3s ease;
+    z-index: 2;
+}
+
+.act-node.unlocked .node-bubble {
+    background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+}
+
+.act-node.locked .node-bubble {
+    background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+}
+
+.act-node.active .node-bubble {
+    width: 20px;
+    height: 20px;
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.2);
+}
+
+.act-node.unlocked:hover .node-bubble {
+    width: 20px;
+    height: 20px;
+    box-shadow: 0 4px 8px rgba(13, 110, 253, 0.4);
+}
+
+.node-label {
+    position: absolute;
+    right: 32px; /* show label to the left of the sidebar bubble */
+    left: auto;
+    top: 50%;
+    transform: translateY(-50%);
+    white-space: nowrap;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--bs-body-color);
+    background: var(--bs-body-bg);
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--bs-border-color);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.12s ease;
+    z-index: 10;
+}
+
+.act-node:hover .node-label {
+    opacity: 1;
+    transform: translateY(-50%) translateX(-6px);
+}
+
+.act-node.unlocked .node-label {
+    color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+/* We draw a single continuous track (the ::before background) and an adjustable
+   unlocked fill element which is sized to end at the last unlocked node. Hide
+   individual node connectors to avoid duplication/overshoot. */
+.node-connector { display: none; }
+
+.thermometer-track::before {
+    /* Full faint track from first bubble center to last bubble center */
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 8px; /* roughly half of bubble height */
+    bottom: 8px;
+    width: 4px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, #e9ecef 0%, #dee2e6 100%);
+    z-index: 0;
+}
+
+.unlocked-fill {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 8px; /* initial; JS will update */
+    height: 0; /* initial; JS will update */
+    width: 4px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, #0d6efd 0%, #0a58ca 100%);
+    z-index: 1;
+    transition: height 0.3s ease;
+}
+
+/* Main Content */
+.challenges-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.act-content {
+    display: none;
+    animation: fadeIn 0.4s ease;
+}
+
+.act-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.challenge-card {
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.challenge-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+}
+
+.locked-act-message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    padding: 3rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .challenges-container {
+        flex-direction: column;
+    }
+    
+    .act-thermometer {
+        position: relative;
+        top: 0;
+        width: 100%;
+        max-width: 100%;
+    }
+    
+    .thermometer-track {
+        flex-direction: row;
+        overflow-x: auto;
+        padding-bottom: 0.5rem;
+    }
+    
+    .node-connector {
+        display: none;
+    }
+
+    /* On small screens we switch to a horizontal track; hide the vertical track visuals */
+    .thermometer-track::before {
+        display: none;
+    }
+    .unlocked-fill {
+        display: none;
+    }
+
+    /* On small screens show labels centered under bubbles to avoid blocking content */
+    .node-label {
+        position: absolute;
+        top: 36px;
+        left: 50%;
+        transform: translateX(-50%);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.12s ease, transform 0.12s ease;
+    }
+
+    .act-node:hover .node-label {
+        opacity: 1;
+        transform: translateX(-50%) translateY(4px);
+    }
+}
+</style>
+
+<script>
+function switchToAct(actName) {
+    // Update active state in sidebar
+    document.querySelectorAll('.act-node').forEach(node => {
+        node.classList.remove('active');
+    });
+    document.querySelector(`.act-node[data-act="${actName}"]`).classList.add('active');
+    
+    // Switch content
+    document.querySelectorAll('.act-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    const targetContent = document.getElementById(`content-${actName.replace(' ', '-')}`);
+    if (targetContent) {
+        targetContent.classList.add('active');
+    }
+    
+    // Update title
+    document.getElementById('current-act-title').textContent = actName;
+    
+    // Smooth scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    {% if act_system_enabled %}
+    // Find first unlocked act and make it active
+    const firstUnlocked = document.querySelector('.act-node.unlocked');
+    if (firstUnlocked) {
+        const actName = firstUnlocked.getAttribute('data-act');
+        switchToAct(actName);
+    }
+    // Size the unlocked-fill so the blue bar stops at the last unlocked node
+    function updateThermometerFill() {
+        const track = document.querySelector('.thermometer-track');
+        if (!track) return;
+        const bubbles = track.querySelectorAll('.node-bubble');
+        if (!bubbles.length) return;
+        const trackRect = track.getBoundingClientRect();
+        const unlocked = track.querySelectorAll('.act-node.unlocked .node-bubble');
+        const fill = track.querySelector('.unlocked-fill');
+        if (!fill) return;
+
+        if (unlocked.length === 0) {
+            fill.style.height = '0px';
+            return;
+        }
+
+        const first = bubbles[0].getBoundingClientRect();
+        const last = unlocked[unlocked.length - 1].getBoundingClientRect();
+
+        const firstCenter = (first.top + first.bottom) / 2 - trackRect.top;
+        const lastCenter = (last.top + last.bottom) / 2 - trackRect.top;
+
+        // place fill from first bubble center to last unlocked bubble center
+        const top = Math.max(0, Math.round(firstCenter));
+        const height = Math.max(0, Math.round(lastCenter - firstCenter));
+
+        fill.style.top = top + 'px';
+        fill.style.height = height + 'px';
+    }
+
+    updateThermometerFill();
+    window.addEventListener('resize', updateThermometerFill);
+    {% endif %}
+});
+</script>
 {% endblock %}

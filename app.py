@@ -1,5 +1,5 @@
-import eventlet
-eventlet.monkey_patch()
+import gevent.monkey
+gevent.monkey.patch_all()
 
 from flask import Flask, render_template, send_from_directory, send_file, abort
 from flask_login import LoginManager
@@ -110,7 +110,9 @@ def create_app(config_name=None):
     @app.route('/about')
     def about():
         """About page"""
-        return render_template('about.html')
+        from models.settings import Settings
+        act_system_enabled = Settings.get('act_system_enabled', default=False, type='bool')
+        return render_template('about.html', act_system_enabled=act_system_enabled)
     
     @app.route('/uploads/<path:filename>')
     def serve_logo(filename):

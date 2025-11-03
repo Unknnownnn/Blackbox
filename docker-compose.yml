@@ -2,22 +2,21 @@ services:
   blackbox:
     container_name: blackbox-ctf
     build: .
-    restart: always
+    restart: unless-stopped  # Changed from 'always' - will auto-restart on crash
     user: "1001:${DOCKER_GID:-999}"  # Use host's docker group ID
     ports:
       - "8000:8000"
       - "30000-30100:30000-30100"  # Port range for challenge containers
     environment:
-      - FLASK_ENV=production
+      - FLASK_ENV=development
       - SECRET_KEY=${SECRET_KEY:-change-this-secret-key-in-production}
       - DATABASE_URL=mysql+pymysql://${DATABASE_USER:-blackbox_user}:${DATABASE_PASSWORD:-blackbox_password}@db:3306/${DATABASE_NAME:-ctf_platform}
       - REDIS_URL=redis://cache:6379/0
       - UPLOAD_FOLDER=/var/uploads
       - CTF_NAME=${CTF_NAME:-BlackBox CTF}
-      - WORKERS=4
+      - WORKERS=8
       - LOG_FOLDER=/var/log/blackbox
       - REVERSE_PROXY=true
-      - EVENTLET_NO_GREENDNS=yes
     volumes:
       - .:/opt/blackbox:ro
       - uploads:/var/uploads
@@ -33,11 +32,11 @@ services:
       internal:
       challenge_network:  # Network for challenge containers
     healthcheck:
-      test: ["CMD", "curl", "-f", "--max-time", "15", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 15s
-      retries: 5
-      start_period: 60s
+      test: ["CMD", "curl", "-f", "--max-time", "10", "http://localhost:8000/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   nginx:
     container_name: blackbox-nginx
@@ -76,8 +75,11 @@ services:
       '--collation-server=utf8mb4_unicode_ci',
       '--wait_timeout=28800',
       '--log-warnings=0',
-      '--max_connections=300',
-      '--innodb-buffer-pool-size=256M'
+      '--max_connections=500',
+      '--innodb-buffer-pool-size=512M',
+      '--innodb-log-file-size=128M',
+      '--innodb-flush-log-at-trx-commit=2',
+      '--innodb-flush-method=O_DIRECT'
     ]
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
@@ -94,7 +96,7 @@ services:
       - redis_data:/data
     networks:
       internal:
-    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru --maxclients 10000
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru --maxclients 20000 --tcp-backlog 511 --timeout 300
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s

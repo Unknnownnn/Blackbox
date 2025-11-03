@@ -9,21 +9,38 @@ from services.scoring import ScoringService
 from services.cache import cache_service
 from services.websocket import WebSocketService
 from datetime import datetime
+import re
 
 challenges_bp = Blueprint('challenges', __name__, url_prefix='/challenges')
+
+
+# Blueprint-level exception handler to ensure AJAX calls get JSON errors
+@challenges_bp.errorhandler(Exception)
+def _handle_challenges_exception(error):
+    import traceback
+    current_app.logger.error(f"Unhandled exception in challenges blueprint: {error}\n{traceback.format_exc()}")
+    # Return JSON for AJAX/Fetch callers to avoid JSON.parse errors on HTML 500 pages
+    return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
 @challenges_bp.route('/')
 @login_required
 def list_challenges():
     from models.settings import Settings
     
+    # Check CTF status
+    ctf_status = Settings.get_ctf_status()
+    
     # Check if CTF has started (admins bypass this check)
-    if not current_user.is_admin and not Settings.is_ctf_started():
+    if not current_user.is_admin and ctf_status == 'not_started':
         start_time = Settings.get('ctf_start_time', type='datetime')
         return render_template('countdown.html', 
                              start_time=start_time,
                              page_title='Challenges',
                              return_url=url_for('challenges.list_challenges'))
+    
+    # If CTF is paused or ended, show status page instead of challenges
+    if not current_user.is_admin and ctf_status in ('paused', 'ended'):
+        return render_template('ctf_status.html', status=ctf_status)
     
     # Check if teams are enabled at all
     teams_enabled = Settings.get('teams_enabled', default=True, type='bool')
@@ -37,9 +54,55 @@ def list_challenges():
         flash('You must join a team to view and solve challenges. Please join or create a team first.', 'warning')
         return redirect(url_for('teams.list_teams'))
     
-    # Load all visible challenges (single query)
+    # Load all challenges that are either visible OR hidden but potentially unlockable
     # Note: solves relationship is lazy='dynamic', so we can't eager load it
-    challenges = Challenge.query.filter_by(is_visible=True).all()
+    # We query both visible and hidden challenges, then filter by is_unlocked_for_user() later
+    
+    # Check if ACT system is enabled (optional feature)
+    act_system_enabled = Settings.get('act_system_enabled', default=False, type='bool')
+    
+    try:
+        if act_system_enabled:
+            # ACT system enabled - order by act, category, name
+            challenges = Challenge.query.filter(
+                db.or_(
+                    Challenge.is_visible == True,
+                    Challenge.is_hidden == True  # Include hidden challenges (prerequisites, flag unlocks)
+                )
+            ).order_by(Challenge.act, Challenge.category, Challenge.name).all()
+        else:
+            # ACT system disabled - order by category, name only
+            challenges = Challenge.query.filter(
+                db.or_(
+                    Challenge.is_visible == True,
+                    Challenge.is_hidden == True
+                )
+            ).order_by(Challenge.category, Challenge.name).all()
+    except Exception as e:
+        # Fallback if ACT column doesn't exist or other error
+        current_app.logger.warning(f"Error loading challenges with ACT system: {e}")
+        act_system_enabled = False
+        challenges = Challenge.query.filter(
+            db.or_(
+                Challenge.is_visible == True,
+                Challenge.is_hidden == True
+            )
+        ).order_by(Challenge.category, Challenge.name).all()
+    
+    # Get unlocked ACTs for user/team (only if ACT system is enabled)
+    unlocked_acts = []
+    if act_system_enabled:
+        try:
+            from models.act_unlock import ActUnlock
+            unlocked_acts = ActUnlock.get_unlocked_acts(
+                user_id=current_user.id if not team else None,
+                team_id=team.id if team else None
+            )
+        except Exception as e:
+            # If ActUnlock doesn't work, disable ACT system
+            current_app.logger.warning(f"Error loading ACT unlocks: {e}")
+            act_system_enabled = False
+            unlocked_acts = []
     
     # Batch check which challenges are solved (single query instead of N queries)
     # This is the key optimization - replaces N individual queries with 1 batch query
@@ -55,9 +118,20 @@ def list_challenges():
             Solve.challenge_id.in_(challenge_ids)
         ).all())
     
-    # Organize challenges by category
-    categories = {}
+    # Organize challenges by ACT, then by category within each ACT (or just by category if ACT system disabled)
+    acts = {}
     for challenge in challenges:
+        # Get ACT name (only if ACT system enabled)
+        if act_system_enabled:
+            act_name = getattr(challenge, 'act', None) or 'Uncategorized'
+            
+            # Check if ACT is unlocked (skip if not, unless admin)
+            if not current_user.is_admin and act_name not in unlocked_acts:
+                continue
+        else:
+            # ACT system disabled - use single category
+            act_name = 'Challenges'
+        
         # Check if this specific challenge requires a team (only enforce if teams are enabled)
         if teams_enabled and challenge.requires_team and not team and not current_user.is_admin:
             continue  # Skip this challenge if it requires team and user has no team
@@ -67,8 +141,13 @@ def list_challenges():
             if not challenge.is_unlocked_for_user(current_user.id, team.id if team else None):
                 continue  # Skip hidden/locked challenges
         
-        if challenge.category not in categories:
-            categories[challenge.category] = []
+        # Initialize ACT dict if needed
+        if act_name not in acts:
+            acts[act_name] = {}
+        
+        # Initialize category within ACT if needed
+        if challenge.category not in acts[act_name]:
+            acts[act_name][challenge.category] = []
         
         # Check if solved (using pre-loaded data)
         solved = challenge.id in solved_ids
@@ -84,9 +163,13 @@ def list_challenges():
                 challenge_data['locked'] = True
                 challenge_data['missing_prerequisites'] = [c.name for c in missing]
         
-        categories[challenge.category].append(challenge_data)
+        acts[act_name][challenge.category].append(challenge_data)
     
-    return render_template('challenges.html', categories=categories, team=team)
+    return render_template('challenges.html', 
+                          acts=acts, 
+                          unlocked_acts=unlocked_acts, 
+                          team=team,
+                          act_system_enabled=act_system_enabled)
 
 
 @challenges_bp.route('/<int:challenge_id>')
@@ -97,12 +180,16 @@ def view_challenge(challenge_id):
     
     challenge = Challenge.query.get_or_404(challenge_id)
     
-    if not challenge.is_visible and not current_user.is_admin:
-        flash('Challenge not found', 'error')
-        return redirect(url_for('challenges.list_challenges'))
-    
-    # Get user's team
+    # Get user's team first (needed for unlock checks)
     team = current_user.get_team()
+    team_id = team.id if team else None
+    
+    # Check if challenge is unlocked for this specific user/team
+    # This handles both visible challenges and hidden/prerequisite/flag-unlocked challenges
+    if not current_user.is_admin:
+        if not challenge.is_unlocked_for_user(current_user.id, team_id):
+            flash('Challenge not found', 'error')
+            return redirect(url_for('challenges.list_challenges'))
     
     # Check if teams are enabled
     teams_enabled = Settings.get('teams_enabled', default=True, type='bool')
@@ -279,8 +366,14 @@ def submit_flag(challenge_id):
     
     challenge = Challenge.query.get_or_404(challenge_id)
     
-    if not challenge.is_visible and not current_user.is_admin:
-        return jsonify({'success': False, 'message': 'Challenge not found'}), 404
+    # Get user's team first (needed for unlock checks)
+    team = current_user.get_team()
+    team_id = team.id if team else None
+    
+    # Check if challenge is unlocked for this specific user/team
+    if not current_user.is_admin:
+        if not challenge.is_unlocked_for_user(current_user.id, team_id):
+            return jsonify({'success': False, 'message': 'Challenge not found'}), 404
     
     # Check if challenge is enabled
     if not challenge.is_enabled and not current_user.is_admin:
@@ -288,10 +381,6 @@ def submit_flag(challenge_id):
             'success': False, 
             'message': 'This challenge is temporarily disabled. Please try again later.'
         }), 403
-    
-    # Get user's team
-    team = current_user.get_team()
-    team_id = team.id if team else None
     
     # Check if teams are enabled
     teams_enabled = Settings.get('teams_enabled', default=True, type='bool')
@@ -314,10 +403,6 @@ def submit_flag(challenge_id):
     
     if not submitted_flag:
         return jsonify({'success': False, 'message': 'Please enter a flag'}), 400
-    
-    # Get user's team
-    team = current_user.get_team()
-    team_id = team.id if team else None
     
     # Check if already solved (by user or team)
     if team:
@@ -517,12 +602,22 @@ def submit_flag(challenge_id):
                     actual_owner_team_id = prior.team_id
                     actual_owner_user_id = prior.user_id
 
+                    # Resolve owner label (team name or username) for nicer notes/logs
+                    owner_label = None
+                    try:
+                        if actual_owner_team_id:
+                            from models.team import Team
+                            owner = Team.query.get(actual_owner_team_id)
+                            owner_label = f"team {owner.name}" if owner and owner.name else f"team {actual_owner_team_id}"
+                        elif actual_owner_user_id:
+                            from models.user import User
+                            owner = User.query.get(actual_owner_user_id)
+                            owner_label = f"user {owner.username}" if owner and owner.username else f"user {actual_owner_user_id}"
+                    except Exception:
+                        owner_label = f"team {actual_owner_team_id}" if actual_owner_team_id else f"user {actual_owner_user_id}"
+
                     # Record a FlagAbuseAttempt for this exact-match regex sharing
-                    notes = f'Exact regex-derived flag "{submitted_flag}" previously submitted by '
-                    if actual_owner_team_id:
-                        notes += f'team {actual_owner_team_id} at {prior.submitted_at.isoformat()}'
-                    else:
-                        notes += f'user {actual_owner_user_id} at {prior.submitted_at.isoformat()}'
+                    notes = f'Exact regex-derived flag "{submitted_flag}" previously submitted by {owner_label} at {prior.submitted_at.isoformat()}'
 
                     abuse_record = FlagAbuseAttempt(
                         user_id=current_user.id,
@@ -537,6 +632,76 @@ def submit_flag(challenge_id):
                     )
                     db.session.add(abuse_record)
                     current_app.logger.warning(f"Regex-sharing detected: {notes}")
+                else:
+                    # If no exact-match prior submission was found, also check for prior
+                    # submissions that match the same regex pattern (different concrete strings).
+                    try:
+                        flags_pattern = None
+                        if matched_flag.is_case_sensitive:
+                            flags_pattern = re.compile(matched_flag.flag_value)
+                        else:
+                            flags_pattern = re.compile(matched_flag.flag_value, re.IGNORECASE)
+
+                        broader_query = Submission.query.filter(
+                            Submission.challenge_id == challenge_id,
+                            Submission.is_correct == True,
+                            Submission.submitted_at >= cutoff
+                        )
+
+                        # Exclude current team/user
+                        if team_id:
+                            broader_query = broader_query.filter(Submission.team_id.isnot(None), Submission.team_id != team_id)
+                        else:
+                            broader_query = broader_query.filter(Submission.user_id.isnot(None), Submission.user_id != current_user.id)
+
+                        # Iterate prior correct submissions and check whether their submitted_flag
+                        # would also match the same regex pattern. This detects when different
+                        # users submitted different concrete values that both match the same regex.
+                        for prior_row in broader_query.order_by(Submission.submitted_at.asc()).limit(50).all():
+                            try:
+                                if flags_pattern.fullmatch(prior_row.submitted_flag or ''):
+                                    actual_owner_team_id = prior_row.team_id
+                                    actual_owner_user_id = prior_row.user_id
+
+                                    # Resolve owner label (team name or username) for nicer notes/logs
+                                    owner_label = None
+                                    try:
+                                        if actual_owner_team_id:
+                                            from models.team import Team
+                                            owner = Team.query.get(actual_owner_team_id)
+                                            owner_label = f"team {owner.name}" if owner and owner.name else f"team {actual_owner_team_id}"
+                                        elif actual_owner_user_id:
+                                            from models.user import User
+                                            owner = User.query.get(actual_owner_user_id)
+                                            owner_label = f"user {owner.username}" if owner and owner.username else f"user {actual_owner_user_id}"
+                                    except Exception:
+                                        owner_label = f"team {actual_owner_team_id}" if actual_owner_team_id else f"user {actual_owner_user_id}"
+
+                                    notes = (
+                                        f'Regex-derived flag pattern "{matched_flag.flag_value}" matched prior submission "{prior_row.submitted_flag}" '
+                                        f'by {owner_label} at {prior_row.submitted_at.isoformat()}'
+                                    )
+
+                                    abuse_record = FlagAbuseAttempt(
+                                        user_id=current_user.id,
+                                        team_id=team_id,
+                                        challenge_id=challenge_id,
+                                        submitted_flag=submitted_flag,
+                                        actual_team_id=actual_owner_team_id,
+                                        actual_user_id=actual_owner_user_id,
+                                        ip_address=request.remote_addr,
+                                        severity='suspicious',
+                                        notes=notes
+                                    )
+                                    db.session.add(abuse_record)
+                                    current_app.logger.warning(f"Regex-sharing (pattern match) detected: {notes}")
+                                    break
+                            except Exception:
+                                # ignore per-row match errors and continue
+                                continue
+                    except re.error:
+                        # Invalid regex - nothing to do here (should be validated earlier)
+                        pass
         except Exception as e:
             current_app.logger.debug(f"Regex-sharing detection error: {e}")
         # Calculate points at time of solve
@@ -583,9 +748,51 @@ def submit_flag(challenge_id):
             except Exception as e:
                 current_app.logger.error(f"Error auto-stopping container for solved challenge {challenge_id}: {e}")
         
-        # Handle challenge unlocking via flags
-        from models.branching import ChallengeUnlock
+        # Handle challenge unlocking via flags and prerequisites
+        from models.branching import ChallengeUnlock, ChallengePrerequisite
         unlocked_challenges = []
+        unlocked_act = None
+        
+        # Handle ACT unlocking if this challenge unlocks a new ACT (only if ACT system enabled)
+        act_system_enabled = Settings.get('act_system_enabled', default=False, type='bool')
+        if act_system_enabled and challenge.unlocks_act:
+            from models.act_unlock import ActUnlock
+            act_unlocked = ActUnlock.unlock_act(
+                act=challenge.unlocks_act,
+                user_id=current_user.id if not team_id else None,
+                team_id=team_id,
+                challenge_id=challenge_id
+            )
+            if act_unlocked:
+                unlocked_act = challenge.unlocks_act
+                current_app.logger.info(
+                    f"ACT {challenge.unlocks_act} unlocked for "
+                    f"{'team ' + str(team_id) if team_id else 'user ' + str(current_user.id)} "
+                    f"by solving challenge {challenge_id} ({challenge.name})"
+                )
+        
+        # Check if solving this challenge unlocks any prerequisite-gated challenges
+        prerequisite_dependents = ChallengePrerequisite.query.filter_by(
+            prerequisite_challenge_id=challenge_id
+        ).all()
+        
+        for dependent in prerequisite_dependents:
+            dependent_challenge = dependent.challenge
+            
+            # Check if all prerequisites are now met for this dependent challenge
+            if dependent_challenge.unlock_mode == 'prerequisite':
+                # Use the model's method to check if now unlocked
+                if dependent_challenge.is_unlocked_for_user(current_user.id, team_id):
+                    unlocked_challenges.append({
+                        'id': dependent_challenge.id,
+                        'name': dependent_challenge.name,
+                        'category': dependent_challenge.category
+                    })
+                    current_app.logger.info(
+                        f"Challenge {dependent_challenge.id} ({dependent_challenge.name}) now visible for "
+                        f"{'team ' + str(team_id) if team_id else 'user ' + str(current_user.id)} "
+                        f"after completing prerequisite {challenge_id} ({challenge.name})"
+                    )
         
         if hasattr(matched_flag, 'unlocks_challenge_id') and matched_flag.unlocks_challenge_id:
             # Check if this specific path/challenge was already unlocked by this user/team
@@ -605,10 +812,14 @@ def submit_flag(challenge_id):
                     'message': f'You have already unlocked the path to "{unlocked_challenge.name if unlocked_challenge else "this challenge"}" with a different flag.'
                 }), 400
             
-            # This flag unlocks another challenge - create unlock record
+            # This flag unlocks another challenge - create unlock record (per-user/team)
+            # Create unlock record. The DB requires a non-null user_id, so
+            # always store the current user as the actor. We also include
+            # team_id when this is a team-based unlock so it can be treated
+            # as a team-wide unlock semantically (team_id != None).
             unlock_record = ChallengeUnlock(
                 user_id=current_user.id,
-                team_id=team_id,
+                team_id=team_id if team_id else None,
                 challenge_id=matched_flag.unlocks_challenge_id,
                 unlocked_by_flag_id=matched_flag.id
             )
@@ -617,11 +828,18 @@ def submit_flag(challenge_id):
             # Get the unlocked challenge details
             unlocked_challenge = Challenge.query.get(matched_flag.unlocks_challenge_id)
             if unlocked_challenge:
+                # Do NOT modify is_hidden/is_visible - challenge stays hidden globally
+                # Visibility is controlled per-user/team via ChallengeUnlock + is_unlocked_for_user()
                 unlocked_challenges.append({
                     'id': unlocked_challenge.id,
                     'name': unlocked_challenge.name,
                     'category': unlocked_challenge.category
                 })
+                current_app.logger.info(
+                    f"Challenge {unlocked_challenge.id} ({unlocked_challenge.name}) unlocked for "
+                    f"{'team ' + str(team_id) if team_id else 'user ' + str(current_user.id)} "
+                    f"via flag {matched_flag.id}"
+                )
         
         # Scores are automatically calculated from Solve records
         # No need to update user.score or team.score (they don't exist as columns)
@@ -673,6 +891,11 @@ def submit_flag(challenge_id):
             'message': message,
             'points': points
         }
+        
+        # Add ACT unlock notification
+        if unlocked_act:
+            response_data['unlocked_act'] = unlocked_act
+            response_data['message'] += f'{unlocked_act} has been unlocked!'
         
         if unlocked_challenges:
             unlocked_names = ', '.join([c['name'] for c in unlocked_challenges])
@@ -742,13 +965,14 @@ def explore_flag(challenge_id):
         }), 403
     
     challenge = Challenge.query.get_or_404(challenge_id)
-    
-    if not challenge.is_visible and not current_user.is_admin:
-        return jsonify({'success': False, 'message': 'Challenge not found'}), 404
-    
-    # Get user's team
+    # Get user's team (needed for unlock checks)
     team = current_user.get_team()
     team_id = team.id if team else None
+
+    # Only allow access if challenge is unlocked for this user/team or user is admin
+    if not current_user.is_admin:
+        if not challenge.is_unlocked_for_user(current_user.id, team_id):
+            return jsonify({'success': False, 'message': 'Challenge not found'}), 404
     
     # Check if already solved (must be solved to explore)
     if team:
@@ -815,10 +1039,12 @@ def explore_flag(challenge_id):
             'message': 'You have already unlocked this path'
         }), 400
     
-    # Create unlock record (no points, no solve record - just unlocking)
+    # Create unlock record (no points, no solve record - just unlocking).
+    # The DB schema requires `user_id` to be non-null, so store the current
+    # user as the actor while also setting team_id for team-scoped unlocks.
     unlock_record = ChallengeUnlock(
         user_id=current_user.id,
-        team_id=team_id,
+        team_id=team_id if team_id else None,
         challenge_id=matched_flag.unlocks_challenge_id,
         unlocked_by_flag_id=matched_flag.id
     )
@@ -827,9 +1053,8 @@ def explore_flag(challenge_id):
     # Get the unlocked challenge details
     unlocked_challenge = Challenge.query.get(matched_flag.unlocks_challenge_id)
     
-    # Optionally auto-configure the unlocked challenge to be visible
-    if unlocked_challenge and unlocked_challenge.unlock_mode == 'flag_unlock':
-        unlocked_challenge.is_hidden = False
+    # Do NOT modify is_hidden/is_visible - challenge stays hidden globally
+    # Visibility is controlled per-user/team via ChallengeUnlock + is_unlocked_for_user()
     
     db.session.commit()
     

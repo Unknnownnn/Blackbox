@@ -9,6 +9,7 @@ from models.challenge import Challenge
 from models.submission import Submission, Solve
 from models.file import ChallengeFile
 from models.hint import Hint, HintUnlock
+from models.settings import Settings
 from services.cache import cache_service
 from services.file_storage import file_storage
 import json
@@ -54,8 +55,25 @@ def dashboard():
 @admin_required
 def manage_challenges():
     """Manage challenges page"""
-    challenges = Challenge.query.all()
-    return render_template('admin/challenges.html', challenges=challenges)
+    # Support sorting by query parameter e.g. ?sort=act&order=asc
+    sort = request.args.get('sort', 'name')
+    order = request.args.get('order', 'asc')
+
+    query = Challenge.query
+    if sort == 'act':
+        if order == 'desc':
+            query = query.order_by(Challenge.act.desc(), Challenge.name.asc())
+        else:
+            query = query.order_by(Challenge.act.asc(), Challenge.name.asc())
+    else:
+        # Default: sort by name
+        if order == 'desc':
+            query = query.order_by(Challenge.name.desc())
+        else:
+            query = query.order_by(Challenge.name.asc())
+
+    challenges = query.all()
+    return render_template('admin/challenges.html', challenges=challenges, current_sort=sort, current_order=order)
 
 
 @admin_bp.route('/challenges/create', methods=['GET', 'POST'])
@@ -63,15 +81,23 @@ def manage_challenges():
 @admin_required
 def create_challenge():
     """Create a new challenge"""
+    # Check if ACT system is enabled
+    act_system_enabled = Settings.get('act_system_enabled', default=False, type='bool')
+    
     if request.method == 'POST':
         from models.branching import ChallengeFlag
         
         data = request.form
         
+        # Only set ACT fields if ACT system is enabled
+        act_value = data.get('act', 'ACT I') if act_system_enabled else None
+        unlocks_act_value = (data.get('unlocks_act') if data.get('unlocks_act') else None) if act_system_enabled else None
+        
         challenge = Challenge(
             name=data.get('name'),
             description=data.get('description'),
             category=data.get('category'),
+            act=act_value,
             flag=data.get('flag'),
             flag_case_sensitive=data.get('flag_case_sensitive') == 'true',
             connection_info=data.get('connection_info'),
@@ -84,6 +110,7 @@ def create_challenge():
             requires_team=data.get('requires_team') == 'true',
             author=data.get('author'),
             difficulty=data.get('difficulty'),
+            unlocks_act=unlocks_act_value,
             # Docker fields
             docker_enabled=data.get('docker_enabled') == 'true',
             docker_image=data.get('docker_image') if data.get('docker_enabled') == 'true' else None,
@@ -231,10 +258,10 @@ def create_challenge():
         cache_service.invalidate_all_challenges()
         
         flash(f'Challenge "{challenge.name}" created successfully!', 'success')
+        
         return redirect(url_for('admin.manage_challenges'))
     
-    return render_template('admin/create_challenge.html')
-
+    return render_template('admin/create_challenge.html', act_system_enabled=act_system_enabled)
 
 @admin_bp.route('/challenges/<int:challenge_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -243,6 +270,9 @@ def edit_challenge(challenge_id):
     """Edit a challenge"""
     challenge = Challenge.query.get_or_404(challenge_id)
     
+    # Check if ACT system is enabled
+    act_system_enabled = Settings.get('act_system_enabled', default=False, type='bool')
+    
     if request.method == 'POST':
         from models.branching import ChallengeFlag
         data = request.form
@@ -250,6 +280,8 @@ def edit_challenge(challenge_id):
         challenge.name = data.get('name')
         challenge.description = data.get('description')
         challenge.category = data.get('category')
+        # Only set ACT fields if ACT system is enabled
+        challenge.act = data.get('act', 'ACT I') if act_system_enabled else None
         challenge.flag = data.get('flag')
         challenge.flag_case_sensitive = data.get('flag_case_sensitive') == 'true'
         challenge.connection_info = data.get('connection_info')
@@ -262,6 +294,7 @@ def edit_challenge(challenge_id):
         challenge.requires_team = data.get('requires_team') == 'true'
         challenge.author = data.get('author')
         challenge.difficulty = data.get('difficulty')
+        challenge.unlocks_act = (data.get('unlocks_act') if data.get('unlocks_act') else None) if act_system_enabled else None
         
         # Handle Docker container settings
         challenge.docker_enabled = data.get('docker_enabled') == 'true'
@@ -444,7 +477,8 @@ def edit_challenge(challenge_id):
                           existing_files=existing_files,
                           existing_images=existing_images,
                           existing_hints=existing_hints,
-                          primary_flag=primary_flag)
+                          primary_flag=primary_flag,
+                          act_system_enabled=act_system_enabled)
 
 
 @admin_bp.route('/challenges/<int:challenge_id>/delete', methods=['POST'])
@@ -1416,6 +1450,9 @@ def add_prerequisite():
     if challenge.unlock_mode != 'prerequisite':
         challenge.unlock_mode = 'prerequisite'
         challenge.is_hidden = True
+        # When a challenge is hidden due to prerequisites, also mark it not visible
+        # so normal users won't see it in the public challenges list.
+        challenge.is_visible = False
     
     db.session.commit()
     
@@ -1461,7 +1498,11 @@ def update_unlock_mode(challenge_id):
         return jsonify({'success': False, 'message': 'Invalid unlock mode'}), 400
     
     challenge.unlock_mode = unlock_mode
-    challenge.is_hidden = is_hidden
+    # Persist hidden state and ensure visibility matches hidden flag
+    challenge.is_hidden = bool(is_hidden)
+    # If admin marks challenge as hidden, it should not be visible to regular users.
+    # Conversely, un-hiding should make it visible again by default.
+    challenge.is_visible = not bool(is_hidden)
     
     db.session.commit()
     
@@ -1504,6 +1545,8 @@ def update_flag_unlock(flag_id):
         if unlocks_challenge.unlock_mode != 'flag_unlock':
             unlocks_challenge.unlock_mode = 'flag_unlock'
             unlocks_challenge.is_hidden = True
+            # Hide the target challenge from public view until unlocked
+            unlocks_challenge.is_visible = False
     
     flag.unlocks_challenge_id = unlocks_challenge_id
     db.session.commit()
