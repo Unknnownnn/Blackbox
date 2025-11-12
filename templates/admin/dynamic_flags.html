@@ -1,0 +1,458 @@
+{% extends "base.html" %}
+
+{% block title %}Dynamic Flags Monitor - Admin - {{ ctf_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        {% include 'admin/_sidebar.html' %}
+    </div>
+    
+    <div class="col-md-9">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>
+                <i class="bi bi-shield-lock"></i> Dynamic Flags Monitor
+            </h2>
+            <div>
+                <button class="btn btn-primary" onclick="checkUniqueness()">
+                    <i class="bi bi-search"></i> Check Uniqueness
+                </button>
+                <button class="btn btn-secondary" onclick="location.reload()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+        </div>
+
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            <strong>About Dynamic Flags:</strong> Each team gets a unique flag for each challenge with Docker containers. 
+            Flags are generated when the container starts and are valid only for that team's active container instance.
+            This prevents flag sharing between teams and ensures fairness.
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card text-center border-primary">
+                    <div class="card-body">
+                        <h5 class="card-title text-primary">
+                            <i class="bi bi-box"></i> Active Containers
+                        </h5>
+                        <h2 class="display-4">{{ active_count }}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center border-success">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">
+                            <i class="bi bi-flag"></i> Unique Flags
+                        </h5>
+                        <h2 class="display-4" id="unique-flags-count">{{ containers|length }}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center border-warning">
+                    <div class="card-body">
+                        <h5 class="card-title text-warning">
+                            <i class="bi bi-exclamation-triangle"></i> Collisions
+                        </h5>
+                        <h2 class="display-4" id="collisions-count">-</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Uniqueness Check Results (initially hidden) -->
+        <div id="uniqueness-results" class="alert" style="display: none;"></div>
+
+        <!-- Active Containers Table -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-ul"></i> Active Containers & Flags
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if containers %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Challenge</th>
+                                <th>Team / User</th>
+                                <th>Status</th>
+                                <th>Dynamic Flag</th>
+                                <th>Flag Sources</th>
+                                <th>Remaining</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for data in containers %}
+                            <tr class="{% if data.is_expired %}table-secondary{% elif not data.is_consistent %}table-warning{% endif %}">
+                                <td>
+                                    <code>#{{ data.container.id }}</code>
+                                </td>
+                                <td>
+                                    <strong>{{ data.challenge_name }}</strong>
+                                    <br>
+                                    <small class="text-muted">
+                                        <i class="bi bi-box-seam"></i> {{ data.container.docker_image[:30] }}...
+                                    </small>
+                                </td>
+                                <td>
+                                    {% if data.team_name != 'Solo' %}
+                                        <i class="bi bi-people"></i> <strong>{{ data.team_name }}</strong>
+                                        <br>
+                                    {% endif %}
+                                    <i class="bi bi-person"></i> {{ data.username }}
+                                    <br>
+                                    <small class="text-muted">
+                                        Team ID: {{ data.container.team_id or 'N/A' }}
+                                    </small>
+                                </td>
+                                <td>
+                                    <span class="badge 
+                                        {% if data.container.status == 'running' %}bg-success
+                                        {% elif data.container.status == 'starting' %}bg-warning
+                                        {% elif data.container.status == 'stopped' %}bg-secondary
+                                        {% else %}bg-danger
+                                        {% endif %}">
+                                        {{ data.container.status|upper }}
+                                    </span>
+                                    {% if data.is_expired %}
+                                    <br><span class="badge bg-danger">EXPIRED</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if data.expected_flag %}
+                                    <div class="input-group input-group-sm" style="max-width: 400px;">
+                                        <input type="text" 
+                                               class="form-control font-monospace flag-input" 
+                                               id="flag-{{ data.container.id }}"
+                                               value="{{ data.expected_flag }}" 
+                                               readonly
+                                               style="font-size: 0.85rem;">
+                                        <button class="btn btn-outline-secondary" 
+                                                type="button" 
+                                                onclick="copyFlag('{{ data.expected_flag }}', {{ data.container.id }})">
+                                            <i class="bi bi-clipboard"></i>
+                                        </button>
+                                    </div>
+                                    {% if data.flag_metadata %}
+                                    <small class="text-muted d-block mt-1">
+                                        Challenge: {{ data.flag_metadata.challenge_id }} | 
+                                        {% if data.flag_metadata.is_team_flag %}
+                                            Team: {{ data.flag_metadata.team_id }}
+                                        {% else %}
+                                            User: {{ data.flag_metadata.get('user_id', 'N/A') }}
+                                        {% endif %}
+                                    </small>
+                                    {% endif %}
+                                    {% if not data.is_consistent %}
+                                    <div class="alert alert-warning alert-sm mt-2 mb-0 p-2">
+                                        <i class="bi bi-exclamation-triangle"></i> 
+                                        <small>Flag mismatch detected!</small>
+                                    </div>
+                                    {% endif %}
+                                    {% else %}
+                                    <span class="text-danger">
+                                        <i class="bi bi-x-circle"></i> No flag generated
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small>
+                                        {% if data.flag_sources.db %}
+                                        <span class="badge bg-primary">DB</span>
+                                        {% endif %}
+                                        {% if data.flag_sources.mapping %}
+                                        <span class="badge bg-info">Mapping</span>
+                                        {% endif %}
+                                        {% if data.flag_sources.session %}
+                                        <span class="badge bg-secondary">Session</span>
+                                        {% endif %}
+                                        {% if not data.flag_sources.db and not data.flag_sources.mapping and not data.flag_sources.session %}
+                                        <span class="text-muted">None</span>
+                                        {% endif %}
+                                    </small>
+                                </td>
+                                <td>
+                                    <span class="{% if data.is_expired %}text-danger{% else %}text-success{% endif %}">
+                                        {{ data.remaining_time }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" 
+                                            onclick="testFlag({{ data.container.id }}, '{{ data.expected_flag }}')">
+                                        <i class="bi bi-check-circle"></i> Test
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-info" 
+                                            onclick="showDetails({{ data.container.id | tojson }})">
+                                        <i class="bi bi-info-circle"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle"></i> No active containers with dynamic flags at the moment.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Verification Instructions -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-question-circle"></i> How Dynamic Flags Work
+                </h5>
+            </div>
+            <div class="card-body">
+                <h6><i class="bi bi-1-circle"></i> Generation</h6>
+                <ul>
+                    <li>Each team gets a unique flag when they start a container</li>
+                    <li>Flag format: <code>PREFIX{base64(challenge_id:team_id:random)}</code></li>
+                    <li>Random component (0-1999) ensures uniqueness even if teams restart simultaneously</li>
+                </ul>
+
+                <h6><i class="bi bi-2-circle"></i> Storage</h6>
+                <ul>
+                    <li><strong>Database:</strong> Stored in <code>container_instances.dynamic_flag</code> column</li>
+                    <li><strong>Cache Mapping:</strong> <code>dynamic_flag_mapping:challenge_id:team_id</code> (24h TTL)</li>
+                    <li><strong>Session Cache:</strong> <code>dynamic_flag:session_id</code> (container lifetime TTL)</li>
+                </ul>
+
+                <h6><i class="bi bi-3-circle"></i> Validation</h6>
+                <ul>
+                    <li>When a team submits a flag, system checks if it matches their active container's flag</li>
+                    <li>Flag is invalid after container expires or is terminated</li>
+                    <li>Each team can only submit their own team's flag (cross-team submission is detected as abuse)</li>
+                </ul>
+
+                <h6><i class="bi bi-4-circle"></i> Fairness Guarantees</h6>
+                <ul>
+                    <li><strong>Uniqueness:</strong> Random component prevents collisions</li>
+                    <li><strong>Team-scoped:</strong> Flag tied to team_id, not sharable across teams</li>
+                    <li><strong>Time-bound:</strong> Flag only valid while container is active</li>
+                    <li><strong>Abuse Detection:</strong> System logs attempts to submit other team's flags</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Details Modal -->
+<div class="modal fade" id="detailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Container Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="details-content" style="max-height: 500px; overflow-y: auto;"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.flag-input {
+    cursor: pointer;
+}
+.flag-input:hover {
+    background-color: #f8f9fa;
+}
+</style>
+
+<script>
+function copyFlag(flag, containerId) {
+    navigator.clipboard.writeText(flag).then(() => {
+        const btn = event.target.closest('button');
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check"></i>';
+        btn.classList.add('btn-success');
+        btn.classList.remove('btn-outline-secondary');
+        
+        setTimeout(() => {
+            btn.innerHTML = originalHTML;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-outline-secondary');
+        }, 2000);
+    }).catch(err => {
+        alert('Failed to copy: ' + err);
+    });
+}
+
+function testFlag(containerId, expectedFlag) {
+    const testFlag = prompt('Enter flag to test against container #' + containerId + ':', expectedFlag);
+    if (!testFlag) return;
+    
+    fetch('/admin/dynamic-flags/verify', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            container_id: containerId,
+            submitted_flag: testFlag
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const verification = data.verification;
+            let message = '';
+            let icon = '';
+            let alertClass = '';
+            
+            if (verification.valid) {
+                icon = '✅';
+                alertClass = 'alert-success';
+                message = `${icon} <strong>VALID FLAG!</strong><br>`;
+                message += `Expected: <code>${verification.expected}</code><br>`;
+                if (verification.note) {
+                    message += `Note: ${verification.note}`;
+                }
+            } else {
+                icon = '❌';
+                alertClass = 'alert-danger';
+                message = `${icon} <strong>INVALID FLAG</strong><br>`;
+                message += `Submitted: <code>${verification.submitted}</code><br>`;
+                message += `Expected: <code>${verification.expected}</code><br>`;
+                if (verification.reason) {
+                    message += `Reason: ${verification.reason}`;
+                }
+            }
+            
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert ${alertClass} alert-dismissible fade show`;
+            alertDiv.innerHTML = message + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+            
+            document.querySelector('.card-body').insertBefore(alertDiv, document.querySelector('.table-responsive'));
+            
+            setTimeout(() => alertDiv.remove(), 10000);
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Request failed: ' + error);
+    });
+}
+
+function checkUniqueness() {
+    const btn = event.target.closest('button');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Checking...';
+    
+    fetch('/admin/dynamic-flags/check-uniqueness', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-search"></i> Check Uniqueness';
+        
+        if (data.success) {
+            const resultsDiv = document.getElementById('uniqueness-results');
+            const collisionsCount = document.getElementById('collisions-count');
+            const uniqueFlagsCount = document.getElementById('unique-flags-count');
+            
+            uniqueFlagsCount.textContent = data.unique_flags;
+            collisionsCount.textContent = data.duplicates_found + data.team_collisions_found;
+            
+            let message = '';
+            let alertClass = 'alert-success';
+            
+            if (data.is_robust) {
+                message = `<i class="bi bi-check-circle-fill"></i> <strong>All Clear!</strong><br>`;
+                message += `✅ All ${data.total_active_containers} active containers have unique flags<br>`;
+                message += `✅ No duplicate flags detected<br>`;
+                message += `✅ No team collisions detected<br>`;
+                message += `<strong>System is robust and fair!</strong>`;
+            } else {
+                alertClass = 'alert-danger';
+                message = `<i class="bi bi-exclamation-triangle-fill"></i> <strong>Issues Detected!</strong><br>`;
+                message += `Total Active Containers: ${data.total_active_containers}<br>`;
+                message += `Unique Flags: ${data.unique_flags}<br>`;
+                
+                if (data.duplicates_found > 0) {
+                    message += `<br><strong>⚠️ Duplicate Flags: ${data.duplicates_found}</strong><br>`;
+                    for (const [flag, instances] of Object.entries(data.duplicates)) {
+                        message += `<code>${flag}</code> used by ${instances.length} containers<br>`;
+                    }
+                }
+                
+                if (data.team_collisions_found > 0) {
+                    message += `<br><strong>🚨 Team Collisions: ${data.team_collisions_found}</strong><br>`;
+                    message += `Different teams have the same flag for the same challenge!<br>`;
+                }
+            }
+            
+            resultsDiv.className = `alert ${alertClass}`;
+            resultsDiv.innerHTML = message;
+            resultsDiv.style.display = 'block';
+            
+            resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-search"></i> Check Uniqueness';
+        alert('Request failed: ' + error);
+    });
+}
+
+function showDetails(containerId) {
+    // Fetch full container details
+    const container = {{ containers | tojson }}.find(c => c.container.id === containerId);
+    if (container) {
+        const details = {
+            'Container ID': container.container.id,
+            'Container Name': container.container.container_name,
+            'Docker Container ID': container.container.container_id,
+            'Challenge': container.challenge_name,
+            'Team': container.team_name,
+            'User': container.username,
+            'Status': container.container.status,
+            'Dynamic Flag': container.expected_flag,
+            'Flag in DB': container.flag_in_db,
+            'Flag in Cache Mapping': container.flag_in_cache_mapping,
+            'Flag in Session Cache': container.flag_in_session_cache,
+            'Flag Sources': container.flag_sources,
+            'Is Consistent': container.is_consistent,
+            'Flag Metadata': container.flag_metadata,
+            'Created At': container.container.created_at,
+            'Expires At': container.container.expires_at,
+            'Remaining Time': container.remaining_time,
+            'Is Expired': container.is_expired,
+            'Session ID': container.container.session_id,
+            'Port': container.container.port,
+            'Host': container.container.host_ip,
+            'Host Port': container.container.host_port,
+            'Docker Image': container.container.docker_image
+        };
+        
+        document.getElementById('details-content').textContent = JSON.stringify(details, null, 2);
+        new bootstrap.Modal(document.getElementById('detailsModal')).show();
+    }
+}
+
+// Auto-refresh every 30 seconds
+setTimeout(() => location.reload(), 30000);
+</script>
+{% endblock %}

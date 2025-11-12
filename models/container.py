@@ -35,6 +35,9 @@ class ContainerInstance(db.Model):
     # Error tracking
     error_message = db.Column(db.Text, nullable=True)
     
+    # Dynamic flag storage (unique per-team, per-challenge, per-instance)
+    dynamic_flag = db.Column(db.String(512), nullable=True)
+    
     # Relationships
     challenge = db.relationship('Challenge', backref='container_instances')
     user = db.relationship('User', backref='container_instances')
@@ -114,6 +117,47 @@ class ContainerInstance(db.Model):
             return f"{minutes}m {seconds}s"
         else:
             return f"{seconds}s"
+    
+    def get_expected_flag(self):
+        """Get the expected dynamic flag for this container from cache or DB"""
+        from services.cache import cache_service
+        
+        # First try DB column
+        if self.dynamic_flag:
+            return self.dynamic_flag
+        
+        # Fallback to cache (legacy)
+        cache_key = f"dynamic_flag:{self.session_id}"
+        cached_flag = cache_service.get(cache_key)
+        if cached_flag:
+            return cached_flag
+        
+        # Try mapping cache (team-based)
+        if self.team_id:
+            team_part = f'team_{self.team_id}'
+        else:
+            team_part = f'user_{self.id}'
+        
+        mapping_key = f"dynamic_flag_mapping:{self.challenge_id}:{team_part}"
+        mapped_flag = cache_service.get(mapping_key)
+        return mapped_flag
+    
+    def verify_flag(self, submitted_flag):
+        """Verify if submitted flag matches this container's expected flag"""
+        expected = self.get_expected_flag()
+        if not expected:
+            return {'valid': False, 'reason': 'No dynamic flag generated for this container'}
+        
+        # Check case-sensitive match
+        if submitted_flag == expected:
+            return {'valid': True, 'expected': expected}
+        
+        # Check case-insensitive if challenge allows
+        if self.challenge and not getattr(self.challenge, 'flag_case_sensitive', True):
+            if submitted_flag.lower() == expected.lower():
+                return {'valid': True, 'expected': expected, 'note': 'Case-insensitive match'}
+        
+        return {'valid': False, 'expected': expected, 'submitted': submitted_flag}
 
 
 class ContainerEvent(db.Model):

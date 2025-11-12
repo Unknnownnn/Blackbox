@@ -2459,3 +2459,195 @@ def list_docker_images():
     result = container_orchestrator.list_available_images()
     return jsonify(result)
 
+
+@admin_bp.route('/dynamic-flags')
+@login_required
+@admin_required
+def dynamic_flags_monitor():
+    """Admin interface to monitor and verify dynamic flags for all active containers"""
+    from models.container import ContainerInstance
+    from services.cache import cache_service
+    
+    # Get all active containers (running or starting)
+    active_containers = ContainerInstance.query.filter(
+        ContainerInstance.status.in_(['starting', 'running'])
+    ).order_by(ContainerInstance.created_at.desc()).all()
+    
+    # Get all containers (including stopped) for verification history
+    all_containers = ContainerInstance.query.order_by(
+        ContainerInstance.created_at.desc()
+    ).limit(100).all()
+    
+    # Build detailed container info with flag data
+    container_data = []
+    for container in active_containers:
+        # Get expected flag from multiple sources
+        expected_flag = container.get_expected_flag()
+        
+        # Check cache mapping
+        if container.team_id:
+            team_part = f'team_{container.team_id}'
+        else:
+            team_part = f'user_{container.id}'
+        
+        mapping_key = f"dynamic_flag_mapping:{container.challenge_id}:{team_part}"
+        cached_mapping = cache_service.get(mapping_key)
+        
+        # Check session cache
+        session_cache = cache_service.get(f"dynamic_flag:{container.session_id}")
+        
+        # Parse flag to extract metadata
+        flag_metadata = None
+        if expected_flag:
+            from services.container_manager import ContainerOrchestrator
+            flag_metadata = ContainerOrchestrator.parse_dynamic_flag(expected_flag)
+        
+        container_data.append({
+            'container': {
+                'id': container.id,
+                'session_id': container.session_id,
+                'container_id': container.container_id,
+                'docker_image': container.docker_image or '',
+                'status': container.status,
+                'created_at': container.created_at.isoformat() if container.created_at else None,
+                'expires_at': container.expires_at.isoformat() if container.expires_at else None,
+                'challenge_id': container.challenge_id,
+                'user_id': container.user_id,
+                'team_id': container.team_id
+            },
+            'challenge_name': container.challenge.name if container.challenge else 'Unknown',
+            'username': container.user.username if container.user else 'Unknown',
+            'team_name': container.team.name if container.team else 'Solo',
+            'expected_flag': expected_flag,
+            'flag_in_db': container.dynamic_flag,
+            'flag_in_cache_mapping': cached_mapping,
+            'flag_in_session_cache': session_cache,
+            'flag_metadata': flag_metadata,
+            'flag_sources': {
+                'db': bool(container.dynamic_flag),
+                'mapping': bool(cached_mapping),
+                'session': bool(session_cache)
+            },
+            'is_consistent': (
+                container.dynamic_flag == expected_flag if expected_flag else True
+            ),
+            'remaining_time': container.get_remaining_time(),
+            'is_expired': container.is_expired()
+        })
+    
+    return render_template('admin/dynamic_flags.html', 
+                         containers=container_data,
+                         active_count=len(active_containers),
+                         total_count=len(all_containers))
+
+
+@admin_bp.route('/dynamic-flags/verify', methods=['POST'])
+@login_required
+@admin_required
+def verify_dynamic_flag():
+    """API endpoint to verify a submitted flag against a specific container"""
+    from models.container import ContainerInstance
+    
+    data = request.get_json()
+    container_id = data.get('container_id')
+    submitted_flag = data.get('submitted_flag')
+    
+    if not container_id or not submitted_flag:
+        return jsonify({
+            'success': False,
+            'error': 'container_id and submitted_flag are required'
+        }), 400
+    
+    container = ContainerInstance.query.get(container_id)
+    if not container:
+        return jsonify({
+            'success': False,
+            'error': 'Container not found'
+        }), 404
+    
+    # Verify the flag
+    verification = container.verify_flag(submitted_flag)
+    
+    return jsonify({
+        'success': True,
+        'verification': verification,
+        'container': {
+            'id': container.id,
+            'challenge_name': container.challenge.name if container.challenge else 'Unknown',
+            'team_name': container.team.name if container.team else 'Solo',
+            'username': container.user.username if container.user else 'Unknown',
+            'status': container.status,
+            'is_expired': container.is_expired()
+        }
+    })
+
+
+@admin_bp.route('/dynamic-flags/check-uniqueness', methods=['POST'])
+@login_required
+@admin_required
+def check_flag_uniqueness():
+    """Check if dynamic flags are unique across teams and detect any collisions"""
+    from models.container import ContainerInstance
+    from collections import defaultdict
+    
+    # Get all active containers with dynamic flags
+    containers = ContainerInstance.query.filter(
+        ContainerInstance.status.in_(['starting', 'running']),
+        ContainerInstance.dynamic_flag.isnot(None)
+    ).all()
+    
+    # Track flags by value to detect duplicates
+    flag_registry = defaultdict(list)
+    
+    for container in containers:
+        if container.dynamic_flag:
+            flag_registry[container.dynamic_flag].append({
+                'container_id': container.id,
+                'challenge_id': container.challenge_id,
+                'challenge_name': container.challenge.name if container.challenge else 'Unknown',
+                'team_id': container.team_id,
+                'team_name': container.team.name if container.team else 'Solo',
+                'user_id': container.user_id,
+                'username': container.user.username if container.user else 'Unknown',
+                'created_at': container.created_at.isoformat()
+            })
+    
+    # Find duplicates (flags used by multiple containers)
+    duplicates = {
+        flag: instances 
+        for flag, instances in flag_registry.items() 
+        if len(instances) > 1
+    }
+    
+    # Check for team collisions (same flag for different teams on same challenge)
+    team_collisions = []
+    for flag, instances in flag_registry.items():
+        challenge_teams = defaultdict(list)
+        for inst in instances:
+            key = (inst['challenge_id'], inst['team_id'])
+            challenge_teams[key].append(inst)
+        
+        # Check if same challenge has different teams with same flag
+        challenge_groups = defaultdict(list)
+        for (chal_id, team_id), insts in challenge_teams.items():
+            challenge_groups[chal_id].append({'team_id': team_id, 'instances': insts})
+        
+        for chal_id, teams_data in challenge_groups.items():
+            if len(teams_data) > 1:
+                team_collisions.append({
+                    'flag': flag,
+                    'challenge_id': chal_id,
+                    'teams': teams_data
+                })
+    
+    return jsonify({
+        'success': True,
+        'total_active_containers': len(containers),
+        'unique_flags': len(flag_registry),
+        'duplicates_found': len(duplicates),
+        'duplicates': duplicates,
+        'team_collisions_found': len(team_collisions),
+        'team_collisions': team_collisions,
+        'is_robust': len(duplicates) == 0 and len(team_collisions) == 0
+    })
+

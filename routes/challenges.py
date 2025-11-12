@@ -464,13 +464,14 @@ def submit_flag(challenge_id):
     if not is_correct and challenge.docker_enabled:
         from services.container_manager import ContainerOrchestrator
         from models.flag_abuse import FlagAbuseAttempt
+        from models.container import ContainerInstance
         
         parsed_flag = ContainerOrchestrator.parse_dynamic_flag(submitted_flag)
         if parsed_flag and parsed_flag.get('is_valid'):
             # This is a valid dynamic flag format
             flag_challenge_id = parsed_flag.get('challenge_id')
             flag_team_id = parsed_flag.get('team_id')
-            flag_user_id = parsed_flag.get('user_id')
+            flag_instance_id = parsed_flag.get('user_id')  # This is actually instance_id for user flags
             
             # Check if this flag belongs to a different team/user
             is_wrong_team = False
@@ -488,14 +489,60 @@ def submit_flag(challenge_id):
                         # User not in team trying to use team's flag
                         is_wrong_team = True
                         actual_owner_team_id = flag_team_id
-                elif not parsed_flag.get('is_team_flag') and flag_user_id:
-                    # It's a user flag (no team) - check if it's a different user
-                    if current_user.id != flag_user_id:
-                        is_wrong_team = True
-                        actual_owner_user_id = flag_user_id
+                elif not parsed_flag.get('is_team_flag') and flag_instance_id:
+                    # It's a user flag (no team) - the flag contains instance_id, not user_id
+                    # Look up the actual owner from the container instance
+                    instance = ContainerInstance.query.get(flag_instance_id)
+                    if instance:
+                        # Prefer DB-stored dynamic_flag, fallback to mapping cache keyed by instance
+                        instance_flag = getattr(instance, 'dynamic_flag', None)
+                        mapping_key = f"dynamic_flag_mapping:{challenge_id}:user_{flag_instance_id}"
+                        mapping_flag = cache_service.get(mapping_key)
+                        expected_flag_for_instance = instance_flag or mapping_flag
+
+                        # If the submitted flag matches the instance's current expected flag
+                        if expected_flag_for_instance and submitted_flag == expected_flag_for_instance:
+                            # If the owner matches the current user, accept the submission
+                            if instance.user_id and current_user.id == instance.user_id:
+                                is_correct = True
+                                # Return a lightweight dynamic flag match object so downstream logic
+                                # (award points, create submission) works the same as Challenge.check_flag
+                                case_sens = getattr(challenge, 'flag_case_sensitive', True)
+
+                                class _DynamicFlagMatch:
+                                    def __init__(self, value, case_sensitive):
+                                        self.id = None
+                                        self.is_regex = False
+                                        self.is_case_sensitive = case_sensitive
+                                        self.flag_value = value
+                                        self.points_override = None
+                                        self.unlocks_challenge_id = None
+                                        self.flag_label = None
+
+                                matched_flag = _DynamicFlagMatch(submitted_flag, case_sens)
+                            else:
+                                # Someone else submitted another user's instance flag => abuse
+                                is_wrong_team = True
+                                actual_owner_user_id = instance.user_id
+                        # If instance exists but flags don't match, treat as stale and skip
+                    # If instance doesn't exist, skip abuse detection (stale flag)
             
             # Log the flag sharing attempt
             if is_wrong_team:
+                # Validate that referenced entities exist (to avoid FK constraint errors)
+                from models.team import Team
+                from models.user import User
+                
+                if actual_owner_team_id:
+                    team_exists = Team.query.get(actual_owner_team_id) is not None
+                    if not team_exists:
+                        actual_owner_team_id = None  # Team was deleted, set to NULL
+                
+                if actual_owner_user_id:
+                    user_exists = User.query.get(actual_owner_user_id) is not None
+                    if not user_exists:
+                        actual_owner_user_id = None  # User was deleted, set to NULL
+                
                 # Analyze temporal patterns to determine severity
                 pattern_analysis = FlagAbuseAttempt.analyze_temporal_patterns(
                     challenge_id=challenge_id,
@@ -512,15 +559,15 @@ def submit_flag(challenge_id):
                 owner_label = None
                 try:
                     if actual_owner_team_id:
-                        from models.team import Team
                         owner = Team.query.get(actual_owner_team_id)
                         owner_label = f"team {owner.name}" if owner else f"team {actual_owner_team_id}"
                     elif actual_owner_user_id:
-                        from models.user import User
                         owner = User.query.get(actual_owner_user_id)
                         owner_label = f"user {owner.username}" if owner else f"user {actual_owner_user_id}"
+                    else:
+                        owner_label = "deleted user/team"
                 except Exception:
-                    owner_label = f"team {actual_owner_team_id}" if actual_owner_team_id else f"user {actual_owner_user_id}"
+                    owner_label = f"team {actual_owner_team_id}" if actual_owner_team_id else f"user {actual_owner_user_id or 'unknown'}"
                 
                 # Build comprehensive notes
                 base_note = f'Attempted to submit flag belonging to {owner_label}'
@@ -602,19 +649,33 @@ def submit_flag(challenge_id):
                     actual_owner_team_id = prior.team_id
                     actual_owner_user_id = prior.user_id
 
+                    # Validate that referenced entities exist (to avoid FK constraint errors)
+                    from models.team import Team
+                    from models.user import User
+                    
+                    if actual_owner_team_id:
+                        team_exists = Team.query.get(actual_owner_team_id) is not None
+                        if not team_exists:
+                            actual_owner_team_id = None
+                    
+                    if actual_owner_user_id:
+                        user_exists = User.query.get(actual_owner_user_id) is not None
+                        if not user_exists:
+                            actual_owner_user_id = None
+
                     # Resolve owner label (team name or username) for nicer notes/logs
                     owner_label = None
                     try:
                         if actual_owner_team_id:
-                            from models.team import Team
                             owner = Team.query.get(actual_owner_team_id)
                             owner_label = f"team {owner.name}" if owner and owner.name else f"team {actual_owner_team_id}"
                         elif actual_owner_user_id:
-                            from models.user import User
                             owner = User.query.get(actual_owner_user_id)
                             owner_label = f"user {owner.username}" if owner and owner.username else f"user {actual_owner_user_id}"
+                        else:
+                            owner_label = "deleted user/team"
                     except Exception:
-                        owner_label = f"team {actual_owner_team_id}" if actual_owner_team_id else f"user {actual_owner_user_id}"
+                        owner_label = f"team {actual_owner_team_id}" if actual_owner_team_id else f"user {actual_owner_user_id or 'unknown'}"
 
                     # Record a FlagAbuseAttempt for this exact-match regex sharing
                     notes = f'Exact regex-derived flag "{submitted_flag}" previously submitted by {owner_label} at {prior.submitted_at.isoformat()}'
@@ -663,19 +724,33 @@ def submit_flag(challenge_id):
                                     actual_owner_team_id = prior_row.team_id
                                     actual_owner_user_id = prior_row.user_id
 
+                                    # Validate that referenced entities exist (to avoid FK constraint errors)
+                                    from models.team import Team
+                                    from models.user import User
+                                    
+                                    if actual_owner_team_id:
+                                        team_exists = Team.query.get(actual_owner_team_id) is not None
+                                        if not team_exists:
+                                            actual_owner_team_id = None
+                                    
+                                    if actual_owner_user_id:
+                                        user_exists = User.query.get(actual_owner_user_id) is not None
+                                        if not user_exists:
+                                            actual_owner_user_id = None
+
                                     # Resolve owner label (team name or username) for nicer notes/logs
                                     owner_label = None
                                     try:
                                         if actual_owner_team_id:
-                                            from models.team import Team
                                             owner = Team.query.get(actual_owner_team_id)
                                             owner_label = f"team {owner.name}" if owner and owner.name else f"team {actual_owner_team_id}"
                                         elif actual_owner_user_id:
-                                            from models.user import User
                                             owner = User.query.get(actual_owner_user_id)
                                             owner_label = f"user {owner.username}" if owner and owner.username else f"user {actual_owner_user_id}"
+                                        else:
+                                            owner_label = "deleted user/team"
                                     except Exception:
-                                        owner_label = f"team {actual_owner_team_id}" if actual_owner_team_id else f"user {actual_owner_user_id}"
+                                        owner_label = f"team {actual_owner_team_id}" if actual_owner_team_id else f"user {actual_owner_user_id or 'unknown'}"
 
                                     notes = (
                                         f'Regex-derived flag pattern "{matched_flag.flag_value}" matched prior submission "{prior_row.submitted_flag}" '
