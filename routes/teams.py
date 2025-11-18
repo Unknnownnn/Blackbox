@@ -149,6 +149,10 @@ def confirm_join_team():
     if not team:
         return jsonify({'success': False, 'message': 'Invalid invite code'}), 404
     
+    # LOCKING: Lock the team row to prevent race conditions on team size
+    # This ensures we have exclusive access to check the team size and add a member
+    team = Team.query.with_for_update().get(team.id)
+    
     # Check team size limit again
     from flask import current_app
     max_size = current_app.config.get('TEAM_SIZE', 4)
@@ -176,6 +180,9 @@ def join_team(team_id):
         return jsonify({'success': False, 'message': 'You are already in a team'}), 400
     
     team = Team.query.get_or_404(team_id)
+    
+    # LOCKING: Lock the team row to prevent race conditions on team size
+    team = Team.query.with_for_update().get(team_id)
     
     # Check team size limit
     from flask import current_app

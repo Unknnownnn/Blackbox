@@ -1107,6 +1107,7 @@ def update_background_theme():
             css = request.form.get('custom_background_css', '').strip()
             
             # Security: Only allow background-related CSS properties
+            # NOTE: This feature is restricted to ADMINS ONLY. Users cannot modify this setting.
             allowed_properties = [
                 'background', 'background-color', 'background-image', 
                 'background-size', 'background-position', 'background-repeat',
@@ -1120,9 +1121,11 @@ def update_background_theme():
                 css_clean = re.sub(r'/\*.*?\*/', '', css, flags=re.DOTALL)
                 
                 # Check for potentially dangerous content
+                # Enhanced blacklist for XSS prevention
                 dangerous_patterns = [
                     r'<script', r'javascript:', r'onerror', r'onload',
-                    r'eval\(', r'expression\(', r'import\s+["\']'
+                    r'eval\(', r'expression\(', r'import\s+["\']',
+                    r'behavior:', r'binding:', r'-moz-binding'
                 ]
                 
                 for pattern in dangerous_patterns:
