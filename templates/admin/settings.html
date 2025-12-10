@@ -110,7 +110,7 @@
                             <div class="col-md-6 mb-3">
                                 <div class="form-check form-switch">
                                     <input class="form-check-input" type="checkbox" id="act_system_enabled" name="act_system_enabled" 
-                                           {% if settings.get('act_system_enabled', False) %}checked{% endif %}>
+                                           {% if settings.get('act_system_enabled') %}checked{% endif %}>
                                     <label class="form-check-label" for="act_system_enabled">
                                         <strong>Enable ACT System (Story Mode)</strong>
                                     </label>
