@@ -100,6 +100,18 @@
                         </div>
                     </div>
                     
+                    <div class="mb-3">
+                        <label for="max_concurrent_containers" class="form-label fw-bold">Max Concurrent Containers (Global)</label>
+                        <input type="number" class="form-control" id="max_concurrent_containers" 
+                               name="max_concurrent_containers" value="{{ docker_settings.max_concurrent_containers or 50 }}" 
+                               min="1" required>
+                        <div class="form-text text-danger">
+                            <i class="bi bi-exclamation-triangle"></i> 
+                            Limit total containers to prevent server crash (OOM). 
+                            Recommended: RAM / 128MB (e.g., 8GB RAM -> ~50 containers).
+                        </div>
+                    </div>
+                    
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="revert_cooldown_minutes" class="form-label fw-bold">Revert Cooldown (minutes)</label>

@@ -273,6 +273,9 @@ class DockerSettings(db.Model):
     cleanup_stale_containers = db.Column(db.Boolean, default=True)
     stale_container_hours = db.Column(db.Integer, default=2)
     
+    # Global limits
+    max_concurrent_containers = db.Column(db.Integer, default=50)
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -314,7 +317,8 @@ class DockerSettings(db.Model):
             'port_range_start': self.port_range_start,
             'port_range_end': self.port_range_end,
             'auto_cleanup_on_solve': self.auto_cleanup_on_solve,
-            'allowed_repositories_count': len(self.get_allowed_repositories_list())
+            'allowed_repositories_count': len(self.get_allowed_repositories_list()),
+            'max_concurrent_containers': self.max_concurrent_containers
         }
     
     def __repr__(self):

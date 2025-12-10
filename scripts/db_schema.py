@@ -18,9 +18,10 @@ def ensure_docker_schema():
     alter_statements = [
         # Use MySQL 8+ syntax where available; errors will be caught and ignored
         "ALTER TABLE docker_settings ADD COLUMN IF NOT EXISTS max_cpu_percent FLOAT DEFAULT 50.0;",
-        "ALTER TABLE docker_settings ADD COLUMN IF NOT EXISTS max_memory_mb INT DEFAULT 512;",
+        "ALTER TABLE docker_settings ADD COLUMN IF NOT EXISTS max_memory_mb INT DEFAULT 128;",
         "ALTER TABLE docker_settings ADD COLUMN IF NOT EXISTS auto_cleanup_expired BOOLEAN DEFAULT TRUE;",
         "ALTER TABLE docker_settings ADD COLUMN IF NOT EXISTS cleanup_interval_minutes INT DEFAULT 5;",
+        "ALTER TABLE docker_settings ADD COLUMN IF NOT EXISTS max_concurrent_containers INT DEFAULT 50;",
         # container_instances dynamic flag storage
         "ALTER TABLE container_instances ADD COLUMN IF NOT EXISTS dynamic_flag VARCHAR(512) DEFAULT NULL;",
         # challenges table: admin-configured in-container flag path
@@ -83,15 +84,16 @@ def ensure_docker_schema():
             max_containers_per_user=1,
             container_lifetime_minutes=15,
             port_range_start=30000,
-            port_range_end=30100,
+            port_range_end=50000,
             max_cpu_percent=50.0,
-            max_memory_mb=512,
+            max_memory_mb=128,
             revert_cooldown_minutes=5,
             auto_cleanup_on_solve=True,
             auto_cleanup_expired=True,
             cleanup_interval_minutes=5,
             cleanup_stale_containers=True,
-            stale_container_hours=2
+            stale_container_hours=2,
+            max_concurrent_containers=50
         )
         db.session.add(cfg)
         db.session.commit()
@@ -101,13 +103,16 @@ def ensure_docker_schema():
             cfg.max_cpu_percent = 50.0
             changed = True
         if not hasattr(cfg, 'max_memory_mb') or cfg.max_memory_mb is None:
-            cfg.max_memory_mb = 512
+            cfg.max_memory_mb = 128
             changed = True
         if not hasattr(cfg, 'auto_cleanup_expired') or cfg.auto_cleanup_expired is None:
             cfg.auto_cleanup_expired = True
             changed = True
         if not hasattr(cfg, 'cleanup_interval_minutes') or cfg.cleanup_interval_minutes is None:
             cfg.cleanup_interval_minutes = 5
+            changed = True
+        if not hasattr(cfg, 'max_concurrent_containers') or cfg.max_concurrent_containers is None:
+            cfg.max_concurrent_containers = 50
             changed = True
         # Update old default values to new defaults
         if getattr(cfg, 'container_lifetime_minutes', None) == 120:

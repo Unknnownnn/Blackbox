@@ -1039,6 +1039,9 @@ def update_event_config():
         team_mode = 'team_mode' in request.form
         Settings.set('team_mode', team_mode, 'bool', 'Enable team-based CTF mode')
         
+        act_system_enabled = 'act_system_enabled' in request.form
+        Settings.set('act_system_enabled', act_system_enabled, 'bool', 'Enable Adaptive Challenge Tree (ACT) system')
+        
         # Update scoreboard visibility
         scoreboard_visible = 'scoreboard_visible' in request.form
         Settings.set('scoreboard_visible', scoreboard_visible, 'bool', 'Show scoreboard to users')

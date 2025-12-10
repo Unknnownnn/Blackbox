@@ -31,9 +31,6 @@ class Config:
             f"@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}?charset=utf8mb4"
         )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    # Connection pooling for high concurrency (safe with eventlet)
-    # Each worker process gets its own pool (workers are separate processes, not threads)
-    # For 200+ users with 8+ workers: Need larger pool per worker
     SQLALCHEMY_ENGINE_OPTIONS = {
         # Connection pool settings (per worker)
         'pool_size': 20,             # Increased from 5 to 20 persistent connections per worker

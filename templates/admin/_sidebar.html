@@ -9,7 +9,12 @@
             <i class="bi bi-puzzle"></i> Challenges
         </a>
         <a href="{{ url_for('admin.manage_branching') }}" class="admin-nav-link {% if request.endpoint == 'admin.manage_branching' %}active{% endif %}">
-            <i class="bi bi-diagram-3"></i> Challenge Configs
+            <i class="bi bi-diagram-3"></i> 
+            {% if settings.get('act_system_enabled', False, type='bool') %}
+                Story & Branching
+            {% else %}
+                Challenge Configs
+            {% endif %}
         </a>
         <a href="{{ url_for('admin.manage_users') }}" class="admin-nav-link {% if request.endpoint == 'admin.manage_users' %}active{% endif %}">
             <i class="bi bi-people"></i> Users
