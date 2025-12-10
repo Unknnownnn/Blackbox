@@ -10,7 +10,7 @@
         </a>
         <a href="{{ url_for('admin.manage_branching') }}" class="admin-nav-link {% if request.endpoint == 'admin.manage_branching' %}active{% endif %}">
             <i class="bi bi-diagram-3"></i> 
-            {% if settings.get('act_system_enabled', False, type='bool') %}
+            {% if settings.get('act_system_enabled', False) %}
                 Story & Branching
             {% else %}
                 Challenge Configs
