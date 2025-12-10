@@ -113,6 +113,7 @@
                                            {% if settings.get('act_system_enabled') %}checked{% endif %}>
                                     <label class="form-check-label" for="act_system_enabled">
                                         <strong>Enable ACT System (Story Mode)</strong>
+                                        <small class="text-muted">(Current: {{ settings.get('act_system_enabled') }})</small>
                                     </label>
                                 </div>
                                 <div class="form-text">
