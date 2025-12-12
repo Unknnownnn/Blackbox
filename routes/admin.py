@@ -1039,16 +1039,6 @@ def update_event_config():
         team_mode = 'team_mode' in request.form
         Settings.set('team_mode', team_mode, 'bool', 'Enable team-based CTF mode')
         
-        # DEBUG: Log all form keys to verify what's being sent
-        current_app.logger.info(f"Form keys: {list(request.form.keys())}")
-        
-        act_system_enabled = 'act_system_enabled' in request.form
-        current_app.logger.info(f"Updating ACT System Enabled: {act_system_enabled}")
-        Settings.set('act_system_enabled', act_system_enabled, 'bool', 'Enable Adaptive Challenge Tree (ACT) system')
-        
-        # Force clear cache to ensure UI updates
-        Settings.clear_cache()
-        
         # Update scoreboard visibility
         scoreboard_visible = 'scoreboard_visible' in request.form
         Settings.set('scoreboard_visible', scoreboard_visible, 'bool', 'Show scoreboard to users')
@@ -1094,7 +1084,7 @@ def update_event_config():
                 # Store relative path in settings
                 Settings.set('ctf_logo', filename, 'string', 'Path to CTF logo image')
         
-        flash(f'Event configuration updated successfully! ACT System: {act_system_enabled}', 'success')
+        flash('Event configuration updated successfully!', 'success')
     except Exception as e:
         flash(f'Error updating configuration: {str(e)}', 'error')
     
