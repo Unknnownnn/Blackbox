@@ -261,13 +261,21 @@ def view_challenge(challenge_id):
         
         # For each unlocking flag, check if user has unlocked it
         for flag in unlocking_flags:
-            unlock = ChallengeUnlock.query.filter(
-                ChallengeUnlock.unlocked_by_flag_id == flag.id,
-                db.or_(
-                    ChallengeUnlock.user_id == user_id,
-                    ChallengeUnlock.team_id == team_id
+            unlock_query = ChallengeUnlock.query.filter(
+                ChallengeUnlock.unlocked_by_flag_id == flag.id
+            )
+            
+            if team_id:
+                unlock_query = unlock_query.filter(
+                    db.or_(
+                        ChallengeUnlock.user_id == user_id,
+                        ChallengeUnlock.team_id == team_id
+                    )
                 )
-            ).first()
+            else:
+                unlock_query = unlock_query.filter(ChallengeUnlock.user_id == user_id)
+                
+            unlock = unlock_query.first()
             
             if unlock:
                 unlocked_challenge = Challenge.query.get(flag.unlocks_challenge_id)
@@ -876,13 +884,21 @@ def submit_flag(challenge_id):
         
         if hasattr(matched_flag, 'unlocks_challenge_id') and matched_flag.unlocks_challenge_id:
             # Check if this specific path/challenge was already unlocked by this user/team
-            existing_unlock = ChallengeUnlock.query.filter(
-                ChallengeUnlock.challenge_id == matched_flag.unlocks_challenge_id,
-                db.or_(
-                    ChallengeUnlock.user_id == current_user.id,
-                    ChallengeUnlock.team_id == team_id
+            unlock_query = ChallengeUnlock.query.filter(
+                ChallengeUnlock.challenge_id == matched_flag.unlocks_challenge_id
+            )
+            
+            if team_id:
+                unlock_query = unlock_query.filter(
+                    db.or_(
+                        ChallengeUnlock.user_id == current_user.id,
+                        ChallengeUnlock.team_id == team_id
+                    )
                 )
-            ).first()
+            else:
+                unlock_query = unlock_query.filter(ChallengeUnlock.user_id == current_user.id)
+                
+            existing_unlock = unlock_query.first()
             
             if existing_unlock:
                 # Path already unlocked, inform user but don't create duplicate
@@ -1105,13 +1121,21 @@ def explore_flag(challenge_id):
         }), 400
     
     # Check if this path was already unlocked
-    existing_unlock = ChallengeUnlock.query.filter(
-        ChallengeUnlock.unlocked_by_flag_id == matched_flag.id,
-        db.or_(
-            ChallengeUnlock.user_id == current_user.id,
-            ChallengeUnlock.team_id == team_id
+    unlock_query = ChallengeUnlock.query.filter(
+        ChallengeUnlock.unlocked_by_flag_id == matched_flag.id
+    )
+    
+    if team_id:
+        unlock_query = unlock_query.filter(
+            db.or_(
+                ChallengeUnlock.user_id == current_user.id,
+                ChallengeUnlock.team_id == team_id
+            )
         )
-    ).first()
+    else:
+        unlock_query = unlock_query.filter(ChallengeUnlock.user_id == current_user.id)
+        
+    existing_unlock = unlock_query.first()
     
     if existing_unlock:
         return jsonify({

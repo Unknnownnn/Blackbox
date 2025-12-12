@@ -213,13 +213,21 @@ class Challenge(db.Model):
         # Check flag unlock mode
         if self.unlock_mode == 'flag_unlock':
             # Check if challenge was unlocked by a flag
-            unlock = ChallengeUnlock.query.filter(
-                ChallengeUnlock.challenge_id == self.id,
-                db.or_(
-                    ChallengeUnlock.user_id == user_id,
-                    ChallengeUnlock.team_id == team_id
+            query = ChallengeUnlock.query.filter(ChallengeUnlock.challenge_id == self.id)
+            
+            if team_id:
+                # If in a team, check if unlocked by user OR by team
+                query = query.filter(
+                    db.or_(
+                        ChallengeUnlock.user_id == user_id,
+                        ChallengeUnlock.team_id == team_id
+                    )
                 )
-            ).first()
+            else:
+                # If solo, ONLY check user_id (ignore team_id=None records from other solo users)
+                query = query.filter(ChallengeUnlock.user_id == user_id)
+                
+            unlock = query.first()
             return unlock is not None
         
         return False
