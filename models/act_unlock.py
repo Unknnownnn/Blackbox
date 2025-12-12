@@ -38,9 +38,20 @@ class ActUnlock(db.Model):
             pass
 
         if team_id:
-            return ActUnlock.query.filter_by(act=act, team_id=team_id).first() is not None
+            # If in a team, check if unlocked by user OR by team
+            return ActUnlock.query.filter(
+                ActUnlock.act == act,
+                db.or_(
+                    ActUnlock.user_id == user_id,
+                    ActUnlock.team_id == team_id
+                )
+            ).first() is not None
         elif user_id:
-            return ActUnlock.query.filter_by(act=act, user_id=user_id).first() is not None
+            # If solo, ONLY check user_id (ignore team_id=None records from other solo users)
+            return ActUnlock.query.filter(
+                ActUnlock.act == act,
+                ActUnlock.user_id == user_id
+            ).first() is not None
 
         return False
     
@@ -87,9 +98,16 @@ class ActUnlock(db.Model):
             pass
 
         if team_id:
-            acts = ActUnlock.query.filter_by(team_id=team_id).order_by(ActUnlock.unlocked_at).all()
+            acts = ActUnlock.query.filter(
+                db.or_(
+                    ActUnlock.user_id == user_id,
+                    ActUnlock.team_id == team_id
+                )
+            ).order_by(ActUnlock.unlocked_at).all()
         elif user_id:
-            acts = ActUnlock.query.filter_by(user_id=user_id).order_by(ActUnlock.unlocked_at).all()
+            acts = ActUnlock.query.filter(
+                ActUnlock.user_id == user_id
+            ).order_by(ActUnlock.unlocked_at).all()
         else:
             return unlocked
 

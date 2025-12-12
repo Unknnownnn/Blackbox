@@ -76,8 +76,12 @@ def unlock_hint(hint_id):
     
     # Check if already unlocked
     if team:
+        # For teams, check if unlocked by team OR by user (if logic allows mixed)
+        # But strictly, we should check if the TEAM has unlocked it.
+        # Our updated is_unlocked_by_team handles the query logic.
         already_unlocked = hint.is_unlocked_by_team(team_id)
     else:
+        # For solo users, strictly check user_id
         already_unlocked = hint.is_unlocked_by_user(current_user.id)
     
     if already_unlocked:

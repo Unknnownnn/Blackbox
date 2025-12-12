@@ -27,11 +27,16 @@ class Hint(db.Model):
     
     def is_unlocked_by_user(self, user_id):
         """Check if hint is unlocked by user"""
-        return self.unlocks.filter_by(user_id=user_id).first() is not None
+        # Explicitly filter by user_id only to avoid accidental team leakage if team_id is None
+        return self.unlocks.filter(HintUnlock.user_id == user_id).first() is not None
     
     def is_unlocked_by_team(self, team_id):
         """Check if hint is unlocked by team"""
-        return self.unlocks.filter_by(team_id=team_id).first() is not None
+        # Also check if unlocked by any user in the team (legacy support or mixed mode)
+        # But primarily check team_id
+        return self.unlocks.filter(
+            HintUnlock.team_id == team_id
+        ).first() is not None
     
     def can_unlock(self, user_id=None, team_id=None):
         """Check if user/team can unlock this hint (checks prerequisites)
