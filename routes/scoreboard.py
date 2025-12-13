@@ -101,14 +101,14 @@ def get_platform_stats():
         stats = {
             'total_users': User.query.count(),
             'total_teams': Team.query.filter_by(is_active=True).count(),
-            'total_challenges': Challenge.query.filter_by(is_visible=True).count(),
+            'total_challenges': Challenge.query.filter_by(is_visible=True, is_enabled=True).count(),
             'total_submissions': Submission.query.count(),
             'total_solves': Solve.query.filter(Solve.challenge_id.isnot(None)).count(),
             'challenges_by_category': {}
         }
         
         # Get challenges by category
-        challenges = Challenge.query.filter_by(is_visible=True).all()
+        challenges = Challenge.query.filter_by(is_visible=True, is_enabled=True).all()
         for challenge in challenges:
             cat = challenge.category
             if cat not in stats['challenges_by_category']:

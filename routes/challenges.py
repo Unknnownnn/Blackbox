@@ -132,6 +132,10 @@ def list_challenges():
             # ACT system disabled - use single category
             act_name = 'Challenges'
         
+        # Check if challenge is enabled
+        if not current_user.is_admin and not challenge.is_enabled:
+            continue
+
         # Check if this specific challenge requires a team (only enforce if teams are enabled)
         if teams_enabled and challenge.requires_team and not team and not current_user.is_admin:
             continue  # Skip this challenge if it requires team and user has no team
@@ -184,6 +188,11 @@ def view_challenge(challenge_id):
     team = current_user.get_team()
     team_id = team.id if team else None
     
+    # Check if challenge is enabled
+    if not current_user.is_admin and not challenge.is_enabled:
+        flash('Challenge not found', 'error')
+        return redirect(url_for('challenges.list_challenges'))
+
     # Check if challenge is unlocked for this specific user/team
     # This handles both visible challenges and hidden/prerequisite/flag-unlocked challenges
     if not current_user.is_admin:

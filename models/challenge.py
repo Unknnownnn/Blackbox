@@ -188,9 +188,13 @@ class Challenge(db.Model):
         """Check if challenge is unlocked for user/team based on prerequisites and flags"""
         from models.branching import ChallengePrerequisite, ChallengeUnlock
         
-        # If not hidden or no unlock mode, it's always unlocked
-        if not self.is_hidden or self.unlock_mode == 'none':
+        # If not hidden, it's always unlocked
+        if not self.is_hidden:
             return True
+            
+        # If hidden and no unlock mode, it's hidden (unless admin, checked by caller)
+        if self.unlock_mode == 'none':
+            return False
         
         # Check prerequisite mode
         if self.unlock_mode == 'prerequisite':

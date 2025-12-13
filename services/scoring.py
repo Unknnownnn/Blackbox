@@ -125,7 +125,7 @@ class ScoringService:
     @staticmethod
     def get_challenge_statistics():
         """Get statistics for all challenges"""
-        challenges = Challenge.query.filter_by(is_visible=True).all()
+        challenges = Challenge.query.filter_by(is_visible=True, is_enabled=True).all()
         
         stats = []
         for challenge in challenges:
