@@ -2491,7 +2491,7 @@ def dynamic_flags_monitor():
         if container.team_id:
             team_part = f'team_{container.team_id}'
         else:
-            team_part = f'user_{container.id}'
+            team_part = f'user_{container.user_id}'
         
         mapping_key = f"dynamic_flag_mapping:{container.challenge_id}:{team_part}"
         cached_mapping = cache_service.get(mapping_key)

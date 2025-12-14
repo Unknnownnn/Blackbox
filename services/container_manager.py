@@ -268,7 +268,7 @@ class ContainerOrchestrator:
                     docker_flag_path = getattr(challenge, 'docker_flag_path', None)
                     if challenge.docker_enabled and docker_flag_path:
                         # Generate dynamic flag only when an explicit path is configured on the challenge
-                        dynamic_flag = self._generate_dynamic_flag(challenge, team_id or instance.team_id, instance.id)
+                        dynamic_flag = self._generate_dynamic_flag(challenge, team_id or instance.team_id, instance.user_id)
                         if dynamic_flag:
                             # Prefer storing in DB if column exists, otherwise put in cache keyed by session
                             try:
@@ -595,8 +595,8 @@ class ContainerOrchestrator:
         
         raise Exception("No available ports in range")
 
-    def _generate_dynamic_flag(self, challenge, team_id, instance_id):
-        """Generate a dynamic flag for a container: format PREFIX{base64(challengeid:teamid:date)}
+    def _generate_dynamic_flag(self, challenge, team_id, user_id):
+        """Generate a dynamic flag for a container: format PREFIX{base64(challengeid:identifier:rand)}
         
         This flag is per-team, per-challenge, per-day - same for all instances of same team.
         This prevents flag sharing between teams while allowing team members to share.
@@ -606,13 +606,13 @@ class ContainerOrchestrator:
 
             # Use team_ or user_ prefixes to keep mapping keys consistent
             if team_id:
-                team_part = f'team_{team_id}'
+                identifier = f'team_{team_id}'
             else:
-                # For users not in teams, use user_{instance_id} fallback
-                team_part = f'user_{instance_id}'
+                # For users not in teams, use user_{user_id}
+                identifier = f'user_{user_id}'
 
-            # Random number between 0 and 1999 inclusive
-            rand = random.randint(0, 1999)
+            # Random number between 1 and 1000000
+            rand = random.randint(1, 1000000)
 
             # Default prefix is CYS unless challenge.flag indicates a different prefix (PREFIX{...})
             prefix = 'CYS'
@@ -622,14 +622,14 @@ class ContainerOrchestrator:
                 except Exception:
                     prefix = 'CYS'
 
-            # New format: encode payload as base64 of "{challenge_id}:{team_part}:{rand}" and wrap in PREFIX{...}
+            # New format: encode payload as base64 of "{challenge_id}:{identifier}:{rand}" and wrap in PREFIX{...}
             import base64
-            payload = f"{challenge.id}:{team_part}:{rand}"
+            payload = f"{challenge.id}:{identifier}:{rand}"
             b64 = base64.urlsafe_b64encode(payload.encode()).decode().rstrip('=')
             dynamic = f"{prefix}{{{b64}}}"
 
             # Store mapping in cache for validation (expires in 24 hours)
-            cache_key = f"dynamic_flag_mapping:{challenge.id}:{team_part}"
+            cache_key = f"dynamic_flag_mapping:{challenge.id}:{identifier}"
             cache_service.set(cache_key, dynamic, ttl=86400)  # 24 hours
 
             return dynamic

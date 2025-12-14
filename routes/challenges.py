@@ -488,7 +488,7 @@ def submit_flag(challenge_id):
             # This is a valid dynamic flag format
             flag_challenge_id = parsed_flag.get('challenge_id')
             flag_team_id = parsed_flag.get('team_id')
-            flag_instance_id = parsed_flag.get('user_id')  # This is actually instance_id for user flags
+            flag_instance_id = parsed_flag.get('user_id')  # This is user_id for user flags
             
             # Check if this flag belongs to a different team/user
             is_wrong_team = False
@@ -507,42 +507,50 @@ def submit_flag(challenge_id):
                         is_wrong_team = True
                         actual_owner_team_id = flag_team_id
                 elif not parsed_flag.get('is_team_flag') and flag_instance_id:
-                    # It's a user flag (no team) - the flag contains instance_id, not user_id
-                    # Look up the actual owner from the container instance
-                    instance = ContainerInstance.query.get(flag_instance_id)
-                    if instance:
-                        # Prefer DB-stored dynamic_flag, fallback to mapping cache keyed by instance
-                        instance_flag = getattr(instance, 'dynamic_flag', None)
-                        mapping_key = f"dynamic_flag_mapping:{challenge_id}:user_{flag_instance_id}"
+                    # It's a user flag (no team) - the flag contains user_id
+                    flag_user_id = flag_instance_id
+                    
+                    # Check if the flag belongs to the current user
+                    if flag_user_id == current_user.id:
+                        # Verify the flag against the active container for this user/challenge
+                        # or check the cache mapping
+                        mapping_key = f"dynamic_flag_mapping:{challenge_id}:user_{flag_user_id}"
                         mapping_flag = cache_service.get(mapping_key)
-                        expected_flag_for_instance = instance_flag or mapping_flag
+                        
+                        # Also check active container if available (more reliable if cache expired but container running)
+                        instance = ContainerInstance.query.filter_by(
+                            user_id=current_user.id, 
+                            challenge_id=challenge_id,
+                            status='running'
+                        ).first()
+                        
+                        instance_flag = getattr(instance, 'dynamic_flag', None) if instance else None
+                        expected_flag = instance_flag or mapping_flag
+                        
+                        if expected_flag and submitted_flag == expected_flag:
+                            is_correct = True
+                            # Return a lightweight dynamic flag match object so downstream logic
+                            # (award points, create submission) works the same as Challenge.check_flag
+                            case_sens = getattr(challenge, 'flag_case_sensitive', True)
 
-                        # If the submitted flag matches the instance's current expected flag
-                        if expected_flag_for_instance and submitted_flag == expected_flag_for_instance:
-                            # If the owner matches the current user, accept the submission
-                            if instance.user_id and current_user.id == instance.user_id:
-                                is_correct = True
-                                # Return a lightweight dynamic flag match object so downstream logic
-                                # (award points, create submission) works the same as Challenge.check_flag
-                                case_sens = getattr(challenge, 'flag_case_sensitive', True)
+                            class _DynamicFlagMatch:
+                                def __init__(self, value, case_sensitive):
+                                    self.id = None
+                                    self.is_regex = False
+                                    self.is_case_sensitive = case_sensitive
+                                    self.flag_value = value
+                                    self.points_override = None
+                                    self.unlocks_challenge_id = None
+                                    self.flag_label = None
 
-                                class _DynamicFlagMatch:
-                                    def __init__(self, value, case_sensitive):
-                                        self.id = None
-                                        self.is_regex = False
-                                        self.is_case_sensitive = case_sensitive
-                                        self.flag_value = value
-                                        self.points_override = None
-                                        self.unlocks_challenge_id = None
-                                        self.flag_label = None
-
-                                matched_flag = _DynamicFlagMatch(submitted_flag, case_sens)
-                            else:
-                                # Someone else submitted another user's instance flag => abuse
-                                is_wrong_team = True
-                                actual_owner_user_id = instance.user_id
-                        # If instance exists but flags don't match, treat as stale and skip
-                    # If instance doesn't exist, skip abuse detection (stale flag)
+                            matched_flag = _DynamicFlagMatch(submitted_flag, case_sens)
+                        else:
+                            # Flag format is valid but content doesn't match expected flag for this user
+                            pass
+                    else:
+                        # Flag belongs to another user
+                        is_wrong_team = True
+                        actual_owner_user_id = flag_user_id
             
             # Log the flag sharing attempt
             if is_wrong_team:
