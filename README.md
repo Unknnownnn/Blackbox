@@ -484,36 +484,6 @@ Access via **Admin → Backups**:
 
 ---
 
-## Additional Documentation
-
-- **[Scoring Systems Guide](docs/SCORING_SYSTEMS.md)** - Detailed explanation of static, logarithmic, and parabolic scoring with configuration examples
-- **[Dynamic Flags Implementation](DYNAMIC_FLAGS_IMPLEMENTATION.md)** - Per-team dynamic flag generation for Docker challenges
-- **[Dynamic Flags Examples](docs/DYNAMIC_FLAGS_EXAMPLES.md)** - Example implementations and usage
-- **[Dynamic Flags Flow](docs/DYNAMIC_FLAGS_FLOW.md)** - Technical flow diagrams
-
----
-
-## Deployment
-
-### Docker Deployment
-
-```bash
-# Production deployment
-docker-compose -f docker-compose.yml up -d
-
-# View logs
-docker-compose logs -f blackbox
-
-# Scale workers
-docker-compose up -d --scale blackbox=4
-
-# Update deployment
-git pull
-docker-compose build
-docker-compose up -d
-```
----
-
-[⬆ Back to Top](#blackbox-ctf-platform)
+[Back to Top](#blackbox-ctf-platform)
 
 </div>
