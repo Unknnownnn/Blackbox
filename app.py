@@ -142,7 +142,10 @@ def create_app(config_name=None):
             file_record = ChallengeFile.query.filter_by(relative_path=filename).first()
         
         # Build full file path
-        file_path = os.path.join(upload_folder, normalized_path)
+        # Fix for path traversal vuln
+        file_path = os.path.realpath(os.path.join(upload_folder, normalized_path))
+        if not file_path.startswith(os.path.realpath(upload_folder) + os.sep):
+            abort(403)
         
         if not os.path.exists(file_path):
             app.logger.warning(f"File not found: {file_path}")
