@@ -118,8 +118,11 @@ def register():
 @login_required
 def logout():
     """Logout handler"""
-    log_audit_event(user_id=current_user.id, team_id=current_user.team_id, action='LOGOUT')
+    # Snapshot IDs before logout_user() clears the session proxy.
+    _user_id = current_user.id
+    _team_id = current_user.team_id
     logout_user()
+    log_audit_event(user_id=_user_id, team_id=_team_id, action='LOGOUT')
     flash('You have been logged out', 'info')
     return redirect(url_for('index'))
 

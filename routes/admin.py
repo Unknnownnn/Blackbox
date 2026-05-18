@@ -2664,16 +2664,20 @@ def analyze_cheating():
     flag_sharing_results = [{'ip': ip, 'team_count': count} for ip, count in flag_sharing_ips]
 
     # Account sharing: Same user logging in or submitting from more than 3 distinct IPs.
+    # Explicit join condition and null guard prevent surprises if AuditLog later
+    # gains a second FK to User, and make the intent clear to future readers.
+    from models.user import User as _User
     account_sharing_base = db.session.query(
         AuditLog.user_id,
-        User.username,
+        _User.username,
         func.count(func.distinct(AuditLog.ip_address)).label('ip_count')
-    ).join(User).filter(
+    ).join(_User, AuditLog.user_id == _User.id).filter(
+        AuditLog.user_id.isnot(None),
         AuditLog.action.in_(['LOGIN_SUCCESS', 'SUBMIT_FLAG'])
     )
     account_sharing_base = apply_window(account_sharing_base)
     account_sharing_users = account_sharing_base.group_by(
-        AuditLog.user_id, User.username
+        AuditLog.user_id, _User.username
     ).having(
         func.count(func.distinct(AuditLog.ip_address)) > 3
     ).all()

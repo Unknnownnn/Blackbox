@@ -5,9 +5,12 @@ This module exposes a single function `ensure_docker_schema` which must be
 called with an active Flask application context (so `models.db` is configured).
 The function is idempotent and safe to call at app startup.
 """
+import logging
 from sqlalchemy import text
 from models import db
 from models.settings import DockerSettings
+
+logger = logging.getLogger(__name__)
 
 
 def ensure_docker_schema():
@@ -76,24 +79,29 @@ def ensure_docker_schema():
         """
     ]
 
+    # Step 1: ensure all ORM-defined tables exist first so that FK parents
+    # (users, teams, challenges) are present before we run raw CREATE TABLE
+    # statements that reference them as foreign keys.
+    db.create_all()
+
     # Use a context manager to guarantee the connection is always released,
     # even if an exception occurs mid-migration.
     with db.engine.connect() as conn:
-        # Create tables first
+        # Create IP-logging tables (must come after db.create_all)
         for stmt in create_tables:
             try:
                 conn.execute(text(stmt))
                 conn.commit()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("audit schema: CREATE TABLE skipped (%s)", exc)
 
-        # Then alter existing tables
+        # Idempotent column additions for existing tables
         for stmt in alter_statements:
             try:
                 conn.execute(text(stmt))
                 conn.commit()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("audit schema: ALTER TABLE skipped (%s)", exc)
 
     # Ensure a default DockerSettings row exists and fill any missing defaults
     cfg = DockerSettings.query.first()

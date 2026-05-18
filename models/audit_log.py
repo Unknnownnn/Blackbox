@@ -15,8 +15,11 @@ class AuditLog(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     
     # Relationships
-    user = db.relationship('User', backref=db.backref('audit_logs', lazy='dynamic', cascade='all, delete-orphan'))
-    team = db.relationship('Team', backref=db.backref('audit_logs', lazy='dynamic', cascade='all, delete-orphan'))
+    # NOTE: cascade is intentionally limited to 'all' (save-update, merge, expunge, delete)
+    # and does NOT include 'delete-orphan', because both user_id and team_id are nullable.
+    # Deletion from the DB side is handled by the FK-level ON DELETE CASCADE constraints.
+    user = db.relationship('User', backref=db.backref('audit_logs', lazy='dynamic', cascade='all'))
+    team = db.relationship('Team', backref=db.backref('audit_logs', lazy='dynamic', cascade='all'))
     
     def to_dict(self):
         """Convert log to dictionary"""
