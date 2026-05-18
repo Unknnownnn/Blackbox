@@ -26,6 +26,8 @@ def ensure_docker_schema():
         "ALTER TABLE container_instances ADD COLUMN IF NOT EXISTS dynamic_flag VARCHAR(512) DEFAULT NULL;",
         # challenges table: admin-configured in-container flag path
         "ALTER TABLE challenges ADD COLUMN IF NOT EXISTS docker_flag_path VARCHAR(256) DEFAULT NULL;",
+        # users table: add last_ip_address tracking
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_ip_address VARCHAR(45) DEFAULT NULL;",
     ]
     
     # Create flag_abuse_attempts table if not exists
@@ -53,26 +55,45 @@ def ensure_docker_schema():
             INDEX idx_challenge_id (challenge_id),
             INDEX idx_timestamp (timestamp)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NULL,
+            team_id INT NULL,
+            ip_address VARCHAR(45) NOT NULL,
+            action VARCHAR(50) NOT NULL,
+            details JSON NULL,
+            user_agent VARCHAR(255) NULL,
+            timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+            INDEX idx_user_id (user_id),
+            INDEX idx_team_id (team_id),
+            INDEX idx_ip_address (ip_address),
+            INDEX idx_timestamp (timestamp)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         """
     ]
 
-    conn = db.engine.connect()
-    
-    # Create tables first
-    for stmt in create_tables:
-        try:
-            conn.execute(text(stmt))
-        except Exception:
-            # Ignore individual failures
-            pass
-    
-    # Then alter existing tables
-    for stmt in alter_statements:
-        try:
-            conn.execute(text(stmt))
-        except Exception:
-            # Ignore individual failures; we'll still try to ensure defaults below
-            pass
+    # Use a context manager to guarantee the connection is always released,
+    # even if an exception occurs mid-migration.
+    with db.engine.connect() as conn:
+        # Create tables first
+        for stmt in create_tables:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                pass
+
+        # Then alter existing tables
+        for stmt in alter_statements:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                pass
 
     # Ensure a default DockerSettings row exists and fill any missing defaults
     cfg = DockerSettings.query.first()
@@ -121,4 +142,3 @@ def ensure_docker_schema():
         if changed:
             db.session.commit()
 
-    conn.close()

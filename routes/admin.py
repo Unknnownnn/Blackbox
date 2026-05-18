@@ -942,37 +942,6 @@ def manage_notifications():
     notifications = Notification.query.order_by(Notification.created_at.desc()).limit(50).all()
     return render_template('admin/notifications.html', notifications=notifications)
 
-    data = request.get_json()
-    
-    points_delta = int(data.get('points', 0))
-    reason = data.get('reason', 'Manual adjustment by admin')
-    
-    if points_delta == 0:
-        return jsonify({'success': False, 'message': 'Points delta cannot be zero'}), 400
-    
-    # Create a "virtual" solve record for the team
-    # Use the first team member as the user, or None if no members
-    first_member = team.members.first()
-    
-    adjustment = Solve(
-        user_id=first_member.id if first_member else None,
-        team_id=team_id,
-        challenge_id=None,  # None indicates manual adjustment
-        points_earned=points_delta,
-        solved_at=datetime.utcnow()
-    )
-    
-    db.session.add(adjustment)
-    db.session.commit()
-    
-    cache_service.invalidate_scoreboard()
-    cache_service.invalidate_team(team_id)
-    
-    return jsonify({
-        'success': True,
-        'new_score': team.get_score(),
-        'message': f'Adjusted {team.name} points by {points_delta:+d}. Reason: {reason}'
-    })
 
 
 # Settings
@@ -2654,3 +2623,69 @@ def check_flag_uniqueness():
         'is_robust': len(duplicates) == 0 and len(team_collisions) == 0
     })
 
+@admin_bp.route('/cheating-detection/analyze')
+@login_required
+@admin_required
+def analyze_cheating():
+    """Analyze audit logs for cheating patterns.
+
+    Optional query parameter:
+      ?hours=N  — limit analysis to the last N hours (default: all-time)
+    """
+    from models.audit_log import AuditLog
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+
+    hours = request.args.get('hours', type=int, default=None)
+
+    def apply_window(q):
+        """Optionally restrict query to a recent time window."""
+        if hours:
+            cutoff = datetime.utcnow() - timedelta(hours=hours)
+            return q.filter(AuditLog.timestamp >= cutoff)
+        return q
+
+    # Flag sharing: Same IP used by more than 2 distinct teams submitting flags.
+    # Threshold >2 (not >1) reduces false positives on shared NAT/college networks.
+    flag_sharing_base = db.session.query(
+        AuditLog.ip_address,
+        func.count(func.distinct(AuditLog.team_id)).label('team_count')
+    ).filter(
+        AuditLog.action == 'SUBMIT_FLAG',
+        AuditLog.team_id.isnot(None)
+    )
+    flag_sharing_base = apply_window(flag_sharing_base)
+    flag_sharing_ips = flag_sharing_base.group_by(
+        AuditLog.ip_address
+    ).having(
+        func.count(func.distinct(AuditLog.team_id)) > 2
+    ).all()
+
+    flag_sharing_results = [{'ip': ip, 'team_count': count} for ip, count in flag_sharing_ips]
+
+    # Account sharing: Same user logging in or submitting from more than 3 distinct IPs.
+    account_sharing_base = db.session.query(
+        AuditLog.user_id,
+        User.username,
+        func.count(func.distinct(AuditLog.ip_address)).label('ip_count')
+    ).join(User).filter(
+        AuditLog.action.in_(['LOGIN_SUCCESS', 'SUBMIT_FLAG'])
+    )
+    account_sharing_base = apply_window(account_sharing_base)
+    account_sharing_users = account_sharing_base.group_by(
+        AuditLog.user_id, User.username
+    ).having(
+        func.count(func.distinct(AuditLog.ip_address)) > 3
+    ).all()
+
+    account_sharing_results = [
+        {'user_id': uid, 'username': uname, 'ip_count': count}
+        for uid, uname, count in account_sharing_users
+    ]
+
+    return jsonify({
+        'success': True,
+        'window_hours': hours,
+        'flag_sharing_suspects': flag_sharing_results,
+        'account_sharing_suspects': account_sharing_results
+    })

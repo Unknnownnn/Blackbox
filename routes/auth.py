@@ -3,6 +3,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from models import db
 from models.user import User
 from datetime import datetime
+from utils.audit import log_audit_event
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -30,7 +31,10 @@ def login():
             
             login_user(user, remember=remember)
             user.last_login = datetime.utcnow()
+            user.last_ip_address = request.remote_addr
             db.session.commit()
+            
+            log_audit_event(user_id=user.id, team_id=user.team_id, action='LOGIN_SUCCESS')
             
             next_page = request.args.get('next')
             if next_page:
@@ -42,6 +46,7 @@ def login():
             else:
                 return redirect(url_for('challenges.list_challenges'))
         else:
+            log_audit_event(action='LOGIN_FAILED', details={'username': username})
             flash('Invalid username or password', 'error')
     
     return render_template('login.html')
@@ -101,6 +106,8 @@ def register():
         db.session.add(user)
         db.session.commit()
         
+        log_audit_event(user_id=user.id, action='REGISTER')
+        
         flash('Registration successful! Please login.', 'success')
         return redirect(url_for('auth.login'))
     
@@ -111,6 +118,7 @@ def register():
 @login_required
 def logout():
     """Logout handler"""
+    log_audit_event(user_id=current_user.id, team_id=current_user.team_id, action='LOGOUT')
     logout_user()
     flash('You have been logged out', 'info')
     return redirect(url_for('index'))

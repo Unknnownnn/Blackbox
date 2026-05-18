@@ -8,6 +8,7 @@ from models.user import User
 from services.scoring import ScoringService
 from services.cache import cache_service
 from services.websocket import WebSocketService
+from utils.audit import log_audit_event
 from datetime import datetime
 import re
 
@@ -641,6 +642,13 @@ def submit_flag(challenge_id):
         ip_address=request.remote_addr
     )
     db.session.add(submission)
+    
+    log_audit_event(
+        user_id=current_user.id, 
+        team_id=team_id, 
+        action='SUBMIT_FLAG', 
+        details={'challenge_id': challenge_id, 'is_correct': is_correct}
+    )
     
     if is_correct:
         # DETECT exact regex-based flag sharing (admin-controlled per-challenge)
