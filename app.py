@@ -45,6 +45,21 @@ def create_app(config_name=None):
     # Initialize security features (CSRF, security headers, etc.)
     init_security(app)
     
+    # Add ProxyFix to prevent IP spoofing.
+    # Trust counts are read from env vars so each deployment can opt-in explicitly.
+    # Default is 0 (disabled) — a direct gunicorn deployment with no reverse proxy
+    # must NOT trust X-Forwarded-For headers, otherwise clients can spoof their IP.
+    # Set PROXY_FIX_X_FOR=1 (and the others) in your environment / docker-compose
+    # when running behind exactly one trusted Nginx/HAProxy reverse proxy.
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app,
+        x_for=int(os.getenv('PROXY_FIX_X_FOR', 0)),
+        x_proto=int(os.getenv('PROXY_FIX_X_PROTO', 0)),
+        x_host=int(os.getenv('PROXY_FIX_X_HOST', 0)),
+        x_prefix=int(os.getenv('PROXY_FIX_X_PREFIX', 0)),
+    )
+    
     # Initialize Flask-Login
     login_manager = LoginManager()
     login_manager.init_app(app)

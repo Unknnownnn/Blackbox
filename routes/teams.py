@@ -4,6 +4,7 @@ from models import db
 from models.team import Team
 from models.user import User
 from services.scoring import ScoringService
+from utils.audit import log_audit_event
 
 teams_bp = Blueprint('teams', __name__, url_prefix='/teams')
 
@@ -63,6 +64,8 @@ def create_team():
         current_user.is_team_captain = True
         
         db.session.commit()
+        
+        log_audit_event(user_id=current_user.id, team_id=team.id, action='CREATE_TEAM')
         
         flash(f'Team "{team_name}" created successfully! Share your invite code: {invite_code}', 'success')
         return redirect(url_for('teams.view_team', team_id=team.id))
@@ -164,6 +167,8 @@ def confirm_join_team():
     current_user.team_id = team.id
     db.session.commit()
     
+    log_audit_event(user_id=current_user.id, team_id=team.id, action='JOIN_TEAM')
+    
     flash(f'Successfully joined team "{team.name}"!', 'success')
     return jsonify({
         'success': True,
@@ -201,6 +206,8 @@ def join_team(team_id):
     current_user.team_id = team.id
     db.session.commit()
     
+    log_audit_event(user_id=current_user.id, team_id=team.id, action='JOIN_TEAM')
+    
     return jsonify({
         'success': True,
         'message': f'Successfully joined team "{team.name}"'
@@ -227,6 +234,8 @@ def leave_team(team_id):
     current_user.is_team_captain = False
     db.session.commit()
     
+    log_audit_event(user_id=current_user.id, team_id=team_id, action='LEAVE_TEAM')
+
     return jsonify({
         'success': True,
         'message': f'Left team "{team.name}"'

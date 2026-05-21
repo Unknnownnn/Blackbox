@@ -17,6 +17,12 @@ services:
       - WORKERS=8
       - LOG_FOLDER=/var/log/blackbox
       - REVERSE_PROXY=true
+      # ProxyFix: trust exactly 1 hop from the Nginx reverse proxy in front of gunicorn.
+      # Change to 0 if deploying without a reverse proxy to prevent IP spoofing.
+      - PROXY_FIX_X_FOR=1
+      - PROXY_FIX_X_PROTO=1
+      - PROXY_FIX_X_HOST=1
+      - PROXY_FIX_X_PREFIX=1
     volumes:
       - .:/opt/blackbox:ro
       - uploads:/var/uploads

@@ -15,4 +15,4 @@ team_members = db.Table('team_members',
 # Import models here to avoid circular imports
 from models.branching import ChallengeFlag, ChallengePrerequisite, ChallengeUnlock
 from models.notification import Notification
-
+from models.audit_log import AuditLog

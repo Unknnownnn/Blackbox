@@ -14,14 +14,6 @@ from datetime import datetime
 
 container_bp = Blueprint('container', __name__, url_prefix='/container')
 
-
-def get_client_ip():
-    """Get client IP address from request"""
-    if request.environ.get('HTTP_X_FORWARDED_FOR'):
-        return request.environ['HTTP_X_FORWARDED_FOR'].split(',')[0]
-    return request.environ.get('REMOTE_ADDR', '0.0.0.0')
-
-
 @container_bp.route('/start', methods=['POST'])
 @login_required
 def start_container():
@@ -41,7 +33,7 @@ def start_container():
         result = container_orchestrator.start_container(
             challenge_id=challenge_id,
             user_id=current_user.id,
-            ip_address=get_client_ip(),
+            ip_address=request.remote_addr or '0.0.0.0',
             team_id=team_id
         )
         
@@ -103,7 +95,7 @@ def revert_container():
         result = container_orchestrator.revert_container(
             challenge_id=challenge_id,
             user_id=current_user.id,
-            ip_address=get_client_ip(),
+            ip_address=request.remote_addr or '0.0.0.0',
             team_id=team_id
         )
         

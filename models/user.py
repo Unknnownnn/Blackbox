@@ -21,9 +21,10 @@ class User(UserMixin, db.Model):
     team_id = db.Column(db.Integer, db.ForeignKey('teams.id', use_alter=True, name='fk_user_team'), nullable=True)
     is_team_captain = db.Column(db.Boolean, default=False)
     
-    # Timestamps
+    # Timestamps & Tracking
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
+    last_ip_address = db.Column(db.String(45), nullable=True)
     
     # Relationships
     submissions = db.relationship('Submission', backref='user', lazy='dynamic', cascade='all, delete-orphan')
