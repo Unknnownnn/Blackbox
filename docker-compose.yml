@@ -23,6 +23,7 @@ services:
       - PROXY_FIX_X_PROTO=1
       - PROXY_FIX_X_HOST=1
       - PROXY_FIX_X_PREFIX=1
+      - FLAG_HMAC_SECRET=${FLAG_HMAC_SECRET:-change-this-in-env}
     volumes:
       - .:/opt/blackbox:ro
       - uploads:/var/uploads

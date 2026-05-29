@@ -17,6 +17,7 @@ from models.container import ContainerInstance, ContainerEvent
 from models.challenge import Challenge
 from models.settings import DockerSettings
 from services.cache import cache_service
+from utils.flag_hmac import generate_hmac_flag
 
 
 class ContainerOrchestrator:
@@ -593,45 +594,30 @@ class ContainerOrchestrator:
         raise Exception("No available ports in range")
 
     def _generate_dynamic_flag(self, challenge, team_id, user_id):
-        """Generate a dynamic flag for a container: format PREFIX{base64(challengeid:identifier:rand)}
-        
-        This flag is per-team, per-challenge, per-day - same for all instances of same team.
-        This prevents flag sharing between teams while allowing team members to share.
-        """
+        """Generate HMAC-based deterministic flag. Not stored — recomputed on verify."""
         try:
-            import random
 
-            # Use team_ or user_ prefixes to keep mapping keys consistent
-            if team_id:
-                identifier = f'team_{team_id}'
-            else:
-                # For users not in teams, use user_{user_id}
-                identifier = f'user_{user_id}'
-
-            # Random number between 1 and 1000000
-            rand = random.randint(1, 1000000)
-
-            # Default prefix is CYS unless challenge.flag indicates a different prefix (PREFIX{...})
             prefix = 'CYS'
-            if challenge and getattr(challenge, 'flag', None) and '{' in challenge.flag and '}' in challenge.flag:
+            if challenge and getattr(challenge, 'flag', None) and '{' in challenge.flag:
                 try:
                     prefix = challenge.flag.split('{', 1)[0]
                 except Exception:
-                    prefix = 'CYS'
+                    pass
 
-            # New format: encode payload as base64 of "{challenge_id}:{identifier}:{rand}" and wrap in PREFIX{...}
-            import base64
-            payload = f"{challenge.id}:{identifier}:{rand}"
-            b64 = base64.urlsafe_b64encode(payload.encode()).decode().rstrip('=')
-            dynamic = f"{prefix}{{{b64}}}"
+            flag = generate_hmac_flag(challenge.id, team_id, user_id, prefix)
 
-            # Store mapping in cache for validation (expires in 24 hours)
+            # Keep the cache key so check_flag in challenge.py can look it up.
+            # We store the HMAC flag here instead of the old random base64 value.
+            if team_id:
+                identifier = f'team_{team_id}'
+            else:
+                identifier = f'user_{user_id}'
             cache_key = f"dynamic_flag_mapping:{challenge.id}:{identifier}"
-            cache_service.set(cache_key, dynamic, ttl=86400)  # 24 hours
+            cache_service.set(cache_key, flag, ttl=86400)
 
-            return dynamic
+            return flag
         except Exception as e:
-            current_app.logger.error(f"Failed to generate dynamic flag: {e}")
+            current_app.logger.error(f"Failed to generate HMAC flag: {e}")
             return None
     
     @staticmethod
