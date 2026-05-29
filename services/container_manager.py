@@ -207,7 +207,7 @@ class ContainerOrchestrator:
                 container_name=container_name,
                 docker_image=challenge.docker_image,
                 port=port,
-                host_port=str(port),
+                host_port=port,
                 status='starting',
                 host_ip=self._get_docker_host(),
                 started_at=datetime.utcnow(),
@@ -531,11 +531,8 @@ class ContainerOrchestrator:
                 try:
                     instance.status = 'stopped'
                     instance.stopped_at = datetime.utcnow()
-                    # Clear identifiers that would block new container creation
-                    instance.container_id = None
-                    # Capture session id for cache cleanup then clear it
+                    # Capture session id for cache cleanup (don't null IDs — columns are NOT NULL)
                     sess = instance.session_id
-                    instance.session_id = None
                     db.session.commit()
                 except Exception as db_err:
                     current_app.logger.error(f"Failed to mark expired container instance {instance.id} as stopped: {db_err}")

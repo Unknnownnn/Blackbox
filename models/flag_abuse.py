@@ -68,14 +68,14 @@ class FlagAbuseAttempt(db.Model):
         solve = Solve.query.filter_by(
             challenge_id=challenge_id,
             team_id=actual_team_id
-        ).order_by(Solve.timestamp.desc()).first()
+        ).order_by(Solve.solved_at.desc()).first()
         
         if not solve:
             # Actual team hasn't solved it yet - this is weird, mark as critical
             return {'pattern_detected': False, 'severity': 'critical'}
         
         # Check if solve was within the time window
-        time_since_solve = datetime.utcnow() - solve.timestamp
+        time_since_solve = datetime.utcnow() - solve.solved_at
         if time_since_solve > timedelta(minutes=time_window_minutes):
             # Solve was too long ago - still critical but not pattern-based
             return {'pattern_detected': False, 'severity': 'critical'}

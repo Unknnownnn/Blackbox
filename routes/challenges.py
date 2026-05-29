@@ -528,26 +528,29 @@ def submit_flag(challenge_id):
                         instance_flag = getattr(instance, 'dynamic_flag', None) if instance else None
                         expected_flag = instance_flag or mapping_flag
                         
-                        if expected_flag and submitted_flag == expected_flag:
-                            is_correct = True
-                            # Return a lightweight dynamic flag match object so downstream logic
-                            # (award points, create submission) works the same as Challenge.check_flag
+                        if expected_flag:
                             case_sens = getattr(challenge, 'flag_case_sensitive', True)
+                            flag_matched = (submitted_flag == expected_flag)
+                            if not flag_matched and not case_sens:
+                                flag_matched = (submitted_flag.lower() == expected_flag.lower())
+                            
+                            if flag_matched:
+                                is_correct = True
+                                # Return a lightweight dynamic flag match object so downstream logic
+                                # (award points, create submission) works the same as Challenge.check_flag
 
-                            class _DynamicFlagMatch:
-                                def __init__(self, value, case_sensitive):
-                                    self.id = None
-                                    self.is_regex = False
-                                    self.is_case_sensitive = case_sensitive
-                                    self.flag_value = value
-                                    self.points_override = None
-                                    self.unlocks_challenge_id = None
-                                    self.flag_label = None
+                                class _DynamicFlagMatch:
+                                    def __init__(self, value, case_sensitive):
+                                        self.id = None
+                                        self.is_regex = False
+                                        self.is_case_sensitive = case_sensitive
+                                        self.flag_value = value
+                                        self.points_override = None
+                                        self.unlocks_challenge_id = None
+                                        self.flag_label = None
 
-                            matched_flag = _DynamicFlagMatch(submitted_flag, case_sens)
-                        else:
-                            # Flag format is valid but content doesn't match expected flag for this user
-                            pass
+                                matched_flag = _DynamicFlagMatch(submitted_flag, case_sens)
+                            # else: Flag format valid but doesn't match expected flag for this user
                     else:
                         # Flag belongs to another user
                         is_wrong_team = True
@@ -965,7 +968,15 @@ def submit_flag(challenge_id):
         # Scores are automatically calculated from Solve records
         # No need to update user.score or team.score (they don't exist as columns)
         
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as commit_err:
+            db.session.rollback()
+            # Handle duplicate solve (race condition with concurrent submissions)
+            err_msg = str(commit_err).lower()
+            if 'unique' in err_msg or 'duplicate' in err_msg or 'integrity' in err_msg:
+                return jsonify({'success': False, 'message': 'This challenge has already been solved'}), 400
+            raise
         
         # Invalidate caches
         cache_service.invalidate_scoreboard()

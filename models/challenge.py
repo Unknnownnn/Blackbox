@@ -144,26 +144,32 @@ class Challenge(db.Model):
                 cache_key = f"dynamic_flag_mapping:{self.id}:{team_part}"
                 expected_flag = cache_service.get(cache_key)
                 
-                if expected_flag and submitted_flag == expected_flag:
-                    # Return a lightweight Flag-like object instead of boolean True.
-                    # Downstream code expects an object with certain attributes
-                    # (e.g., id, is_regex, is_case_sensitive, flag_value, points_override,
-                    # unlocks_challenge_id). Returning a small object prevents
-                    # AttributeError/TypeError when attributes are accessed.
+                if expected_flag:
                     case_sens = getattr(self, 'flag_case_sensitive', True)
+                    # Check flag match with case-sensitivity awareness
+                    flag_matched = (submitted_flag == expected_flag)
+                    if not flag_matched and not case_sens:
+                        flag_matched = (submitted_flag.lower() == expected_flag.lower())
+                    
+                    if flag_matched:
+                        # Return a lightweight Flag-like object instead of boolean True.
+                        # Downstream code expects an object with certain attributes
+                        # (e.g., id, is_regex, is_case_sensitive, flag_value, points_override,
+                        # unlocks_challenge_id). Returning a small object prevents
+                        # AttributeError/TypeError when attributes are accessed.
 
-                    class _DynamicFlagMatch:
-                        def __init__(self, value, case_sensitive):
-                            self.id = None
-                            self.is_regex = False
-                            # Use challenge-level case sensitivity as best-effort
-                            self.is_case_sensitive = case_sensitive
-                            self.flag_value = value
-                            self.points_override = None
-                            self.unlocks_challenge_id = None
-                            self.flag_label = None
+                        class _DynamicFlagMatch:
+                            def __init__(self, value, case_sensitive):
+                                self.id = None
+                                self.is_regex = False
+                                # Use challenge-level case sensitivity as best-effort
+                                self.is_case_sensitive = case_sensitive
+                                self.flag_value = value
+                                self.points_override = None
+                                self.unlocks_challenge_id = None
+                                self.flag_label = None
 
-                    return _DynamicFlagMatch(submitted_flag, case_sens)
+                        return _DynamicFlagMatch(submitted_flag, case_sens)
         
         # Legacy support: check old flag column if no flags defined
         if not flags and self.flag:

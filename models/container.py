@@ -136,28 +136,12 @@ class ContainerInstance(db.Model):
         if self.team_id:
             team_part = f'team_{self.team_id}'
         else:
-            team_part = f'user_{self.id}'
+            team_part = f'user_{self.user_id}'
         
         mapping_key = f"dynamic_flag_mapping:{self.challenge_id}:{team_part}"
         mapped_flag = cache_service.get(mapping_key)
         return mapped_flag
     
-    def verify_flag(self, submitted_flag):
-        """Verify if submitted flag matches this container's expected flag"""
-        expected = self.get_expected_flag()
-        if not expected:
-            return {'valid': False, 'reason': 'No dynamic flag generated for this container'}
-        
-        # Check case-sensitive match
-        if submitted_flag == expected:
-            return {'valid': True, 'expected': expected}
-        
-        # Check case-insensitive if challenge allows
-        if self.challenge and not getattr(self.challenge, 'flag_case_sensitive', True):
-            if submitted_flag.lower() == expected.lower():
-                return {'valid': True, 'expected': expected, 'note': 'Case-insensitive match'}
-        
-        return {'valid': False, 'expected': expected, 'submitted': submitted_flag}
 
 
 class ContainerEvent(db.Model):
