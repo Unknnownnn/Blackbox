@@ -45,7 +45,7 @@ wait_for_service() {
 
 # Step 1: Rebuild blackbox container with Docker CLI
 echo "[1/5] Rebuilding blackbox container..."
-docker-compose build --no-cache blackbox
+docker compose build --no-cache blackbox
 if [ $? -eq 0 ]; then
     echo "✓ Container rebuilt successfully"
 else
@@ -56,8 +56,8 @@ echo ""
 
 # Step 2: Restart containers
 echo "[2/5] Restarting containers..."
-docker-compose down
-docker-compose up -d
+docker compose down
+docker compose up -d
 if [ $? -eq 0 ]; then
     echo "✓ Containers restarted"
 else
@@ -84,7 +84,7 @@ if docker exec blackbox-ctf docker info > /dev/null 2>&1; then
 else
     echo "✗ FAILED: Docker CLI is still not accessible"
     echo "  Please check the following:"
-    echo "  1. Docker socket mount in docker-compose.yml"
+    echo "  1. Docker socket mount in docker compose.yml"
     echo "  2. User permissions (docker group)"
     echo "  3. Container logs: docker logs blackbox-ctf"
     exit 1
