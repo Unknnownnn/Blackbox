@@ -160,6 +160,68 @@
                         </div>
                     </div>
                     
+                    <!-- Additional Flags -->
+                    <div class="card mb-4 border-success">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0"><i class="bi bi-flag"></i> Additional Flags (Optional)</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="flags-container">
+                                {% if additional_flags %}
+                                    {% for flag in additional_flags %}
+                                    <div class="card mb-2" id="existing-flag-{{ flag.id }}">
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Flag Value</label>
+                                                    <input type="text" class="form-control form-control-sm" 
+                                                           name="existing_flag_value_{{ flag.id }}" value="{{ flag.flag_value }}" required>
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <label class="form-label">Label (Optional)</label>
+                                                    <input type="text" class="form-control form-control-sm" 
+                                                           name="existing_flag_label_{{ flag.id }}" value="{{ flag.flag_label or '' }}">
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <label class="form-label">Points Override</label>
+                                                    <input type="number" class="form-control form-control-sm" 
+                                                           name="existing_flag_points_{{ flag.id }}" value="{{ flag.points_override or '' }}">
+                                                </div>
+                                                <div class="col-md-1">
+                                                    <label class="form-label">Is Regex</label>
+                                                    <div class="form-check form-switch mt-1">
+                                                        <input class="form-check-input" type="checkbox" 
+                                                               name="existing_flag_regex_{{ flag.id }}" value="true" {% if flag.is_regex %}checked{% endif %}>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <label class="form-label">Case Sensitive</label>
+                                                    <select class="form-select form-select-sm" name="existing_flag_case_{{ flag.id }}">
+                                                        <option value="true" {% if flag.is_case_sensitive %}selected{% endif %}>Yes</option>
+                                                        <option value="false" {% if not flag.is_case_sensitive %}selected{% endif %}>No</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-1 d-flex align-items-end">
+                                                    <button type="button" class="btn btn-sm btn-danger" 
+                                                            onclick="deleteExistingFlag({{ flag.id }})">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="addFlag()">
+                                <i class="bi bi-plus-circle"></i> Add Alternative Flag
+                            </button>
+                            <div class="form-text mt-2">
+                                Add multiple flags for different solution paths or branching challenges.
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- SCORING CONFIGURATION -->
                     <div class="card mb-4 border-warning">
                         <div class="card-header bg-warning text-dark">
@@ -481,6 +543,90 @@
 
 <script>
 let hintCount = 0;
+let flagCount = 0;
+
+function addFlag() {
+    flagCount++;
+    const container = document.getElementById('flags-container');
+    const flagDiv = document.createElement('div');
+    flagDiv.className = 'card mb-2';
+    flagDiv.id = `additional-flag-${flagCount}`;
+    flagDiv.innerHTML = `
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <label class="form-label">Flag Value</label>
+                    <input type="text" class="form-control form-control-sm" 
+                           name="additional_flags[]" placeholder="flag{alternative}" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Label (Optional)</label>
+                    <input type="text" class="form-control form-control-sm" 
+                           name="flag_labels[]" placeholder="Path A, Hard Route, etc.">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Points Override</label>
+                    <input type="number" class="form-control form-control-sm" 
+                           name="flag_points[]" placeholder="Leave blank for default">
+                </div>
+                <div class="col-md-1">
+                    <label class="form-label">Is Regex</label>
+                    <div class="form-check form-switch mt-1">
+                        <input class="form-check-input" type="checkbox" 
+                               name="flag_is_regex[]" value="true">
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Case Sensitive</label>
+                    <select class="form-select form-select-sm" name="flag_case[]">
+                        <option value="true">Yes</option>
+                        <option value="false">No</option>
+                    </select>
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="button" class="btn btn-sm btn-danger" 
+                            onclick="removeFlag(${flagCount})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    container.appendChild(flagDiv);
+}
+
+function removeFlag(id) {
+    const flagDiv = document.getElementById(`additional-flag-${id}`);
+    if (flagDiv) {
+        flagDiv.remove();
+    }
+}
+
+function deleteExistingFlag(flagId) {
+    if (!confirm('Are you sure you want to delete this flag?')) {
+        return;
+    }
+    
+    fetch(`/admin/challenges/flags/${flagId}/delete`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById(`existing-flag-${flagId}`).remove();
+            showFlash('Flag deleted successfully', 'success');
+        } else {
+            showFlash(data.message || 'Error deleting flag', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showFlash('Error deleting flag', 'danger');
+    });
+}
 
 // Load Docker images when page loads
 document.addEventListener('DOMContentLoaded', function() {

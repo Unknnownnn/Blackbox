@@ -254,7 +254,7 @@ def view_challenge(challenge_id):
     # Check if challenge has branching (multiple paths)
     from models.branching import ChallengeFlag, ChallengeUnlock
     challenge_flags = ChallengeFlag.query.filter_by(challenge_id=challenge_id).all()
-    has_branching = any(flag.unlocks_challenge_id is not None for flag in challenge_flags)
+    has_branching = len(challenge_flags) > 1
     challenge_data['has_branching'] = has_branching
     
     # Get unlocked paths for this user/team
@@ -431,7 +431,7 @@ def submit_flag(challenge_id):
     # Check if this challenge has branching flags (allows re-submission for different paths)
     from models.branching import ChallengeFlag
     challenge_flags = ChallengeFlag.query.filter_by(challenge_id=challenge_id).all()
-    has_branching = any(flag.unlocks_challenge_id is not None for flag in challenge_flags)
+    has_branching = len(challenge_flags) > 1
     
     # If already solved and challenge has no branching, reject submission
     if already_solved and not has_branching:
@@ -1120,7 +1120,7 @@ def explore_flag(challenge_id):
     
     # Check if this challenge has branching flags
     challenge_flags = ChallengeFlag.query.filter_by(challenge_id=challenge_id).all()
-    has_branching = any(flag.unlocks_challenge_id is not None for flag in challenge_flags)
+    has_branching = len(challenge_flags) > 1
     
     if not has_branching:
         return jsonify({

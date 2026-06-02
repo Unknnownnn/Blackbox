@@ -384,6 +384,59 @@ def edit_challenge(challenge_id):
             requires_id = hint_requires[i] if i < len(hint_requires) and hint_requires[i] else None
             if requires_id and requires_id.strip():
                 hint.requires_hint_id = int(requires_id)
+                
+        # Handle existing additional flags updates
+        existing_flags = ChallengeFlag.query.filter(
+            ChallengeFlag.challenge_id == challenge_id,
+            ChallengeFlag.flag_label != 'Primary Flag'
+        ).all()
+        for flag in existing_flags:
+            val_key = f'existing_flag_value_{flag.id}'
+            label_key = f'existing_flag_label_{flag.id}'
+            points_key = f'existing_flag_points_{flag.id}'
+            case_key = f'existing_flag_case_{flag.id}'
+            regex_key = f'existing_flag_regex_{flag.id}'
+            
+            if val_key in data:
+                flag.flag_value = data[val_key]
+                flag.flag_label = data[label_key] if data.get(label_key) else None
+                points = data.get(points_key)
+                if points and points.strip():
+                    try:
+                        flag.points_override = int(points)
+                    except ValueError:
+                        flag.points_override = None
+                else:
+                    flag.points_override = None
+                    
+                flag.is_case_sensitive = data.get(case_key) == 'true'
+                flag.is_regex = data.get(regex_key) == 'true'
+                
+        # Handle new additional flags
+        additional_flags = request.form.getlist('additional_flags[]')
+        flag_labels = request.form.getlist('flag_labels[]')
+        flag_points = request.form.getlist('flag_points[]')
+        flag_cases = request.form.getlist('flag_case[]')
+        flag_is_regex = request.form.getlist('flag_is_regex[]')
+        
+        for i in range(len(additional_flags)):
+            if additional_flags[i].strip():
+                points_override = None
+                if i < len(flag_points) and flag_points[i].strip():
+                    try:
+                        points_override = int(flag_points[i])
+                    except ValueError:
+                        pass
+                
+                additional_flag = ChallengeFlag(
+                    challenge_id=challenge.id,
+                    flag_value=additional_flags[i].strip(),
+                    flag_label=flag_labels[i].strip() if i < len(flag_labels) and flag_labels[i].strip() else None,
+                    points_override=points_override,
+                    is_case_sensitive=flag_cases[i] == 'true' if i < len(flag_cases) else True,
+                    is_regex=(i < len(flag_is_regex) and flag_is_regex[i] == 'true')
+                )
+                db.session.add(additional_flag)
         
         # Handle new file uploads
         if 'files' in request.files:
@@ -472,12 +525,19 @@ def edit_challenge(challenge_id):
         flag_label='Primary Flag'
     ).first()
     
+    # Get existing additional flags
+    additional_flags = ChallengeFlag.query.filter(
+        ChallengeFlag.challenge_id == challenge_id,
+        ChallengeFlag.flag_label != 'Primary Flag'
+    ).all()
+    
     return render_template('admin/edit_challenge.html', 
                           challenge=challenge, 
                           existing_files=existing_files,
                           existing_images=existing_images,
                           existing_hints=existing_hints,
                           primary_flag=primary_flag,
+                          additional_flags=additional_flags,
                           act_system_enabled=act_system_enabled)
 
 
@@ -636,6 +696,32 @@ def delete_challenge_image(image_id):
     cache_service.invalidate_challenge(challenge_id)
     
     return jsonify({'success': True, 'message': 'Image deleted'})
+
+
+@admin_bp.route('/challenges/flags/<int:flag_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_challenge_flag(flag_id):
+    """Delete an additional flag"""
+    from models.branching import ChallengeFlag
+    flag = ChallengeFlag.query.get_or_404(flag_id)
+    
+    if flag.flag_label == 'Primary Flag':
+        return jsonify({'success': False, 'message': 'Cannot delete the primary flag'}), 400
+        
+    challenge_id = flag.challenge_id
+    
+    # Check if this flag unlocks anything
+    from models.branching import ChallengeUnlock
+    ChallengeUnlock.query.filter_by(unlocked_by_flag_id=flag.id).delete()
+    
+    db.session.delete(flag)
+    db.session.commit()
+    
+    cache_service.invalidate_challenge(challenge_id)
+    cache_service.invalidate_all_challenges()
+    
+    return jsonify({'success': True, 'message': 'Flag deleted'})
 
 
 # User Management
