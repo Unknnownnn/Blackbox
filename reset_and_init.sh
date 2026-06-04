@@ -1,8 +1,6 @@
 #!/bin/bash
 
-echo "============================================"
 echo "BlackBox CTF Platform - Complete Reset"
-echo "============================================"
 echo ""
 echo "WARNING: This will DELETE ALL DATA!"
 echo "This includes:"
@@ -74,19 +72,13 @@ docker-compose exec -T db mysql -u root -proot_password ctf_platform < migration
 docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_notifications.sql 2>/dev/null || true
 docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_notifications_play_sound.sql 2>/dev/null || true
 
-echo "✓ Migrations completed"
+echo "Migrations completed"
 
 echo ""
-echo "Reset complete!"
-echo ""
-echo "============================================"
-echo "Initial Setup Required"
-echo "============================================"
+echo "Reset complete"
 echo ""
 echo "Your BlackBox platform is ready for initial setup."
 echo ""
 echo "http://localhost:8000/setup"
-echo ""
-echo echo "============================================"
 echo ""
 

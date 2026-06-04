@@ -17,13 +17,13 @@ class ContainerInstance(db.Model):
     
     # Network details
     port = db.Column(db.Integer, nullable=False)
-    host_ip = db.Column(db.String(256), nullable=True)  # Docker host IP
-    host_port = db.Column(db.Integer, nullable=True)  # Mapped host port
-    ip_address = db.Column(db.String(45), nullable=True)  # Container IP address
-    docker_info = db.Column(db.JSON, nullable=True)  # Additional Docker metadata
+    host_ip = db.Column(db.String(256), nullable=True)  
+    host_port = db.Column(db.Integer, nullable=True)  
+    ip_address = db.Column(db.String(45), nullable=True) 
+    docker_info = db.Column(db.JSON, nullable=True)  
     
     # State tracking
-    status = db.Column(db.String(20), default='starting')  # starting, running, stopping, stopped, error
+    status = db.Column(db.String(20), default='starting') 
     session_id = db.Column(db.String(64), nullable=False, unique=True)
     
     # Timestamps
@@ -35,7 +35,7 @@ class ContainerInstance(db.Model):
     # Error tracking
     error_message = db.Column(db.Text, nullable=True)
     
-    # Dynamic flag storage (unique per-team, per-challenge, per-instance)
+    # Dynamic flag storage 
     dynamic_flag = db.Column(db.String(512), nullable=True)
     
     # Relationships
@@ -48,7 +48,6 @@ class ContainerInstance(db.Model):
     
     def to_dict(self):
         """Convert instance to dictionary"""
-        # Build connection info if we have challenge data
         connection_info = None
         if self.challenge and self.challenge.docker_connection_info:
             connection_info = self.challenge.docker_connection_info.replace(
@@ -57,7 +56,6 @@ class ContainerInstance(db.Model):
                 '{port}', str(self.host_port) if self.host_port else ''
             )
         
-        # Calculate expires_at in milliseconds since epoch for JS to use (avoids timezone confusion)
         expires_at_ms = None
         if self.expires_at:
             expires_at_ms = int(self.expires_at.timestamp() * 1000)
@@ -80,7 +78,7 @@ class ContainerInstance(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'started_at': self.started_at.isoformat() if self.started_at else None,
             'expires_at': self.expires_at.isoformat() if self.expires_at else None,
-            'expires_at_ms': expires_at_ms,  # Milliseconds since epoch for JS countdown
+            'expires_at_ms': expires_at_ms, 
             'last_revert_time': self.last_revert_time.isoformat() if self.last_revert_time else None,
             'error_message': self.error_message
         }
@@ -104,13 +102,11 @@ class ContainerInstance(db.Model):
         
         delta = self.expires_at - now
         
-        # Calculate hours, minutes, seconds
         total_seconds = int(delta.total_seconds())
         hours = total_seconds // 3600
         minutes = (total_seconds % 3600) // 60
         seconds = total_seconds % 60
         
-        # Format based on time remaining
         if hours > 0:
             return f"{hours}h {minutes}m"
         elif minutes > 0:
@@ -154,8 +150,8 @@ class ContainerEvent(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     
     # Event details
-    event_type = db.Column(db.String(50), nullable=False)  # start, stop, revert, expire, error
-    status = db.Column(db.String(20), nullable=False)  # success, failure, pending
+    event_type = db.Column(db.String(50), nullable=False) 
+    status = db.Column(db.String(20), nullable=False)  
     message = db.Column(db.Text, nullable=True)
     
     # Metadata

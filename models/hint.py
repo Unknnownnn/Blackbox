@@ -8,8 +8,8 @@ class Hint(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     challenge_id = db.Column(db.Integer, db.ForeignKey('challenges.id', ondelete='CASCADE'), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    cost = db.Column(db.Integer, nullable=False, default=0)  # Points cost to unlock hint
-    order = db.Column(db.Integer, nullable=False, default=0)  # Display order
+    cost = db.Column(db.Integer, nullable=False, default=0)  
+    order = db.Column(db.Integer, nullable=False, default=0) 
     
     # Prerequisite hint - must unlock this hint before unlocking the current one
     requires_hint_id = db.Column(db.Integer, db.ForeignKey('hints.id', ondelete='SET NULL'), nullable=True)

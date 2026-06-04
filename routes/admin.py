@@ -2732,7 +2732,7 @@ def analyze_cheating():
         return q
 
     # Flag sharing: Same IP used by more than 2 distinct teams submitting flags.
-    # Threshold >2 (not >1) reduces false positives on shared NAT/college networks.
+    # Threshold >2 reduces false positives on shared NAT networks.
     flag_sharing_base = db.session.query(
         AuditLog.ip_address,
         func.count(func.distinct(AuditLog.team_id)).label('team_count')

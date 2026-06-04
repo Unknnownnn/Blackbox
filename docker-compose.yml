@@ -2,11 +2,11 @@ services:
   blackbox:
     container_name: blackbox-ctf
     build: .
-    restart: unless-stopped  # Changed from 'always' - will auto-restart on crash
-    user: "1001:${DOCKER_GID:-999}"  # Use host's docker group ID
+    restart: unless-stopped  
+    user: "1001:${DOCKER_GID:-999}"  
     ports:
       - "8000:8000"
-      - "30000-30100:30000-30100"  # Port range for challenge containers
+      - "30000-30100:30000-30100"  
     environment:
       - FLASK_ENV=development
       - SECRET_KEY=${SECRET_KEY:-change-this-secret-key-in-production}
@@ -17,8 +17,6 @@ services:
       - WORKERS=8
       - LOG_FOLDER=/var/log/blackbox
       - REVERSE_PROXY=true
-      # ProxyFix: trust exactly 1 hop from the Nginx reverse proxy in front of gunicorn.
-      # Change to 0 if deploying without a reverse proxy to prevent IP spoofing.
       - PROXY_FIX_X_FOR=1
       - PROXY_FIX_X_PROTO=1
       - PROXY_FIX_X_HOST=1
@@ -28,7 +26,7 @@ services:
       - .:/opt/blackbox:ro
       - uploads:/var/uploads
       - logs:/var/log/blackbox
-      - /var/run/docker.sock:/var/run/docker.sock  # Docker socket for container management
+      - /var/run/docker.sock:/var/run/docker.sock  
     depends_on:
       db:
         condition: service_healthy
@@ -37,7 +35,7 @@ services:
     networks:
       default:
       internal:
-      challenge_network:  # Network for challenge containers
+      challenge_network: 
     healthcheck:
       test: ["CMD", "curl", "-f", "--max-time", "10", "http://localhost:8000/health"]
       interval: 20s

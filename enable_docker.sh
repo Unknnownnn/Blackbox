@@ -1,10 +1,6 @@
 #!/bin/bash
-# Docker Integration Fix Script (Linux/Bash)
-# This script attempts to automatically fix common Docker integration issues
 
-echo "====================================="
-echo "Docker Integration Fix Script"
-echo "====================================="
+echo "Script to enable Docker containers in Challenges"
 echo ""
 
 # Detect Docker socket group ID
@@ -12,15 +8,15 @@ echo "[0/5] Detecting Docker socket permissions..."
 if [ -e /var/run/docker.sock ]; then
     DOCKER_GID=$(stat -c '%g' /var/run/docker.sock 2>/dev/null)
     if [ -n "$DOCKER_GID" ]; then
-        echo "✓ Docker socket found (GID: $DOCKER_GID)"
+        echo "Docker socket found (GID: $DOCKER_GID)"
         export DOCKER_GID
     else
-        echo "⚠ Could not detect Docker GID, using default 999"
+        echo "Could not detect Docker GID, using default 999"
         export DOCKER_GID=999
     fi
 else
-    echo "✗ WARNING: Docker socket not found at /var/run/docker.sock"
-    echo "  Is Docker running on this host?"
+    echo "WARNING: Docker socket not found at /var/run/docker.sock"
+    echo "Is Docker running on this host?"
     export DOCKER_GID=999
 fi
 echo ""
@@ -32,14 +28,14 @@ wait_for_service() {
     echo "Waiting for services to be ready..."
     while [ $attempt -lt $max_attempts ]; do
         if docker exec blackbox-ctf python3 -c "from app import app; print('OK')" > /dev/null 2>&1; then
-            echo "✓ Services are ready"
+            echo "Services are ready"
             return 0
         fi
         attempt=$((attempt + 1))
-        echo "  Attempt $attempt/$max_attempts..."
+        echo "Attempt $attempt/$max_attempts..."
         sleep 2
     done
-    echo "✗ Services did not become ready in time"
+    echo "Services did not become ready in time"
     return 1
 }
 
@@ -47,9 +43,9 @@ wait_for_service() {
 echo "[1/5] Rebuilding blackbox container..."
 docker compose build --no-cache blackbox
 if [ $? -eq 0 ]; then
-    echo "✓ Container rebuilt successfully"
+    echo "Container rebuilt successfully"
 else
-    echo "✗ FAILED: Container rebuild failed"
+    echo "FAILED: Container rebuild failed"
     exit 1
 fi
 echo ""
@@ -59,9 +55,9 @@ echo "[2/5] Restarting containers..."
 docker compose down
 docker compose up -d
 if [ $? -eq 0 ]; then
-    echo "✓ Containers restarted"
+    echo "Containers restarted"
 else
-    echo "✗ FAILED: Container restart failed"
+    echo "FAILED: Container restart failed"
     exit 1
 fi
 echo ""
@@ -69,20 +65,20 @@ echo ""
 # Step 3: Wait for services
 echo "[3/5] Waiting for services..."
 if wait_for_service; then
-    echo "✓ Services ready"
+    echo "Services ready"
 else
-    echo "✗ Services not ready, but continuing..."
+    echo "Services not ready, but continuing..."
 fi
 echo ""
 
 # Step 4: Test Docker access
 echo "[4/5] Testing Docker CLI access..."
 if docker exec blackbox-ctf docker info > /dev/null 2>&1; then
-    echo "✓ Docker CLI is accessible"
+    echo "Docker CLI is accessible"
     VERSION=$(docker exec blackbox-ctf docker --version)
     echo "  $VERSION"
 else
-    echo "✗ FAILED: Docker CLI is still not accessible"
+    echo "FAILED: Docker CLI is still not accessible"
     echo "  Please check the following:"
     echo "  1. Docker socket mount in docker compose.yml"
     echo "  2. User permissions (docker group)"
@@ -132,27 +128,23 @@ with app.app_context():
     db.session.commit()
     print('Migrations completed')
 \""
-    echo "✓ Migrations completed"
+    echo "Migrations completed"
 else
-    echo "✓ Migrations already applied"
+    echo "Migrations already applied"
 fi
 echo ""
 
-echo "====================================="
-echo "Fix Summary"
-echo "====================================="
-echo "Docker integration has been configured! ✓"
+echo "Docker integration configured"
 echo ""
 echo "Next steps:"
-echo "1. Run diagnostic: ./diagnose_docker.sh"
-echo "2. Build challenge images:"
+echo "1. Build challenge images:"
 echo "   docker build -t ctf-web-basic:v1 challenge-examples/web-basic/"
-echo "3. Configure Docker settings:"
+echo "2. Configure Docker settings:"
 echo "   Visit: http://localhost:5000/admin/docker/settings"
 echo "   - Leave hostname empty (use local socket)"
 echo "   - Disable TLS"
 echo "   - Add repository whitelist: ctf-web-basic"
 echo "   - Save settings"
-echo "4. Create Docker-enabled challenge"
-echo "5. Test as player!"
-echo ""
+echo "3. Create Docker-enabled challenge"
+echo "4. Test Container running on this host using: docker compose ps"
+

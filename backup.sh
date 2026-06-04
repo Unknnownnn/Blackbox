@@ -1,8 +1,4 @@
 #!/bin/bash
-
-# Backup script for CTF Platform
-# Creates timestamped backups of database, uploads, and Redis data
-
 set -e
 
 BACKUP_DIR="/var/backups/ctf"
@@ -37,7 +33,7 @@ if mysqldump -h"${DB_HOST}" -u"${DB_USER}" -p"${DB_PASSWORD}" "${DB_NAME}" \
     --quick \
     --lock-tables=false \
     | gzip > "${BACKUP_PATH}/database.sql.gz"; then
-    echo "✓ Database backup completed" | tee -a "${BACKUP_DIR}/backup.log"
+    echo "Database backup completed" | tee -a "${BACKUP_DIR}/backup.log"
 else
     echo "✗ Database backup failed!" | tee -a "${BACKUP_DIR}/backup.log"
     exit 1
@@ -47,9 +43,9 @@ fi
 echo "Backing up uploads..." | tee -a "${BACKUP_DIR}/backup.log"
 if [ -d "/var/uploads" ]; then
     tar -czf "${BACKUP_PATH}/uploads.tar.gz" -C /var/uploads . 2>/dev/null || true
-    echo "✓ Uploads backup completed" | tee -a "${BACKUP_DIR}/backup.log"
+    echo "Uploads backup completed" | tee -a "${BACKUP_DIR}/backup.log"
 else
-    echo "⚠ No uploads directory found" | tee -a "${BACKUP_DIR}/backup.log"
+    echo "No uploads directory found" | tee -a "${BACKUP_DIR}/backup.log"
 fi
 
 # Backup Redis data (save snapshot first)
@@ -57,12 +53,12 @@ echo "Backing up Redis data..." | tee -a "${BACKUP_DIR}/backup.log"
 if redis-cli -h cache SAVE > /dev/null 2>&1; then
     if [ -f "/var/redis/dump.rdb" ]; then
         cp /var/redis/dump.rdb "${BACKUP_PATH}/redis.rdb"
-        echo "✓ Redis backup completed" | tee -a "${BACKUP_DIR}/backup.log"
+        echo "Redis backup completed" | tee -a "${BACKUP_DIR}/backup.log"
     else
-        echo "⚠ Redis dump file not found" | tee -a "${BACKUP_DIR}/backup.log"
+        echo "Redis dump file not found" | tee -a "${BACKUP_DIR}/backup.log"
     fi
 else
-    echo "⚠ Redis backup skipped (could not connect)" | tee -a "${BACKUP_DIR}/backup.log"
+    echo "Redis backup skipped (could not connect)" | tee -a "${BACKUP_DIR}/backup.log"
 fi
 
 # Create backup metadata
@@ -95,13 +91,13 @@ if [ "${BACKUP_COUNT}" -gt "${MAX_BACKUPS}" ]; then
     OLD_BACKUPS=$(find "${BACKUP_DIR}" -maxdepth 1 -type d -name "backup_*" | sort | head -n -${MAX_BACKUPS})
     echo "${OLD_BACKUPS}" | xargs rm -rf
     REMOVED_COUNT=$(echo "${OLD_BACKUPS}" | wc -l)
-    echo "✓ Removed ${REMOVED_COUNT} old backup(s)" | tee -a "${BACKUP_DIR}/backup.log"
+    echo "Removed ${REMOVED_COUNT} old backup(s)" | tee -a "${BACKUP_DIR}/backup.log"
 else
-    echo "✓ No old backups to remove (${BACKUP_COUNT}/${MAX_BACKUPS})" | tee -a "${BACKUP_DIR}/backup.log"
+    echo "No old backups to remove (${BACKUP_COUNT}/${MAX_BACKUPS})" | tee -a "${BACKUP_DIR}/backup.log"
 fi
 
 echo "===========================================" | tee -a "${BACKUP_DIR}/backup.log"
-echo "✓ Backup completed successfully: ${BACKUP_NAME}" | tee -a "${BACKUP_DIR}/backup.log"
+echo "Backup completed successfully: ${BACKUP_NAME}" | tee -a "${BACKUP_DIR}/backup.log"
 echo "Location: ${BACKUP_PATH}" | tee -a "${BACKUP_DIR}/backup.log"
 echo "===========================================" | tee -a "${BACKUP_DIR}/backup.log"
 

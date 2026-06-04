@@ -1,6 +1,4 @@
-echo "============================================"
 echo "BlackBox Migrations"
-echo "============================================"
 echo ""
 
 # Get database container ID
@@ -12,13 +10,13 @@ if [ -z "$DB_CONTAINER" ]; then
     exit 1
 fi
 
-echo "✓ Found database container: $DB_CONTAINER"
+echo "Found database container: $DB_CONTAINER"
 echo ""
 
 # Backup database
 echo "Creating backup..."
 docker-compose exec db mysqldump -u root -proot_password ctf_platform > backup_phase12_13_$(date +%Y%m%d_%H%M%S).sql
-echo "✓ Backup created"
+echo "Backup created"
 echo ""
 
 # Migration 1: CTF Control
@@ -92,9 +90,7 @@ else
 fi
 
 echo ""
-echo "============================================"
 echo "Migration Summary"
-echo "============================================"
 docker-compose exec db mysql -u root -proot_password -e "
 SELECT 
     'Settings' as TableName, COUNT(*) as RowCount 
@@ -106,12 +102,4 @@ SELECT 'Hint Unlocks', COUNT(*) FROM ctf_platform.hint_unlocks;
 "
 
 echo ""
-echo "============================================"
-echo "Migrations completed!"
-echo "============================================"
-echo ""
-echo "Next steps:"
-echo "1. Rebuild containers: docker-compose down && docker-compose up --build -d"
-echo "2. Test the application"
-echo "3. Check PHASE_12_SUMMARY.md and PHASE_13_SUMMARY.md for details"
-echo ""
+echo "Migrations completed"

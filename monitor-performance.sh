@@ -1,10 +1,6 @@
 #!/bin/bash
 # Monitor CTF platform performance under high load
 
-echo "=== BlackBox CTF Performance Monitor ==="
-echo "Monitoring 200+ user load..."
-echo ""
-
 while true; do
     clear
     echo "=== Time: $(date) ==="

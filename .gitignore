@@ -74,7 +74,7 @@ docker-compose.override.yml
 uploads/
 files/
 
-# Node modules (if using frontend build tools)
+# Node modules 
 node_modules/
 package-lock.json
 yarn.lock

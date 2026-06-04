@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Standalone script to preview and delete rows from the `act_unlocks` table using direct MySQL connection.
-This script does NOT import the Flask app and therefore avoids dependencies like eventlet.
 
 Usage examples (PowerShell):
 

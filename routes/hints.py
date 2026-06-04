@@ -1,5 +1,3 @@
-# Hints Routes - Add this to routes/__init__.py or create routes/hints.py
-
 from flask import Blueprint, request, jsonify, render_template
 from flask_login import login_required, current_user
 from models import db
@@ -212,7 +210,6 @@ def admin_manage_hint(hint_id):
             db.session.rollback()
             return jsonify({'success': False, 'message': str(e)}), 500
     
-    # UPDATE
     content = request.form.get('content')
     cost = request.form.get('cost', type=int)
     order = request.form.get('order', type=int)

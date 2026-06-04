@@ -32,10 +32,9 @@ if [ ! -d "${BACKUP_PATH}" ]; then
     exit 1
 fi
 
-echo "==========================================="
 echo "WARNING: This will restore from backup and"
 echo "OVERWRITE ALL CURRENT DATA!"
-echo "==========================================="
+echo ""
 echo "Backup: ${BACKUP_NAME}"
 echo "Location: ${BACKUP_PATH}"
 echo ""
@@ -71,13 +70,13 @@ if [ -f "${BACKUP_PATH}/database.sql.gz" ]; then
     
     # Restore from backup
     if gunzip < "${BACKUP_PATH}/database.sql.gz" | mysql -h"${DB_HOST}" -u"${DB_USER}" -p"${DB_PASSWORD}" "${DB_NAME}"; then
-        echo "✓ Database restored successfully" | tee -a "${BACKUP_DIR}/restore.log"
+        echo "Database restored successfully" | tee -a "${BACKUP_DIR}/restore.log"
     else
-        echo "✗ Database restore failed!" | tee -a "${BACKUP_DIR}/restore.log"
+        echo "Database restore failed!" | tee -a "${BACKUP_DIR}/restore.log"
         exit 1
     fi
 else
-    echo "⚠ No database backup found, skipping" | tee -a "${BACKUP_DIR}/restore.log"
+    echo "No database backup found, skipping" | tee -a "${BACKUP_DIR}/restore.log"
 fi
 
 # Restore uploads
@@ -85,9 +84,9 @@ if [ -f "${BACKUP_PATH}/uploads.tar.gz" ]; then
     echo "Restoring uploads..." | tee -a "${BACKUP_DIR}/restore.log"
     rm -rf /var/uploads/*
     tar -xzf "${BACKUP_PATH}/uploads.tar.gz" -C /var/uploads/
-    echo "✓ Uploads restored successfully" | tee -a "${BACKUP_DIR}/restore.log"
+    echo "Uploads restored successfully" | tee -a "${BACKUP_DIR}/restore.log"
 else
-    echo "⚠ No uploads backup found, skipping" | tee -a "${BACKUP_DIR}/restore.log"
+    echo "No uploads backup found, skipping" | tee -a "${BACKUP_DIR}/restore.log"
 fi
 
 # Restore Redis data
@@ -97,16 +96,15 @@ if [ -f "${BACKUP_PATH}/redis.rdb" ]; then
     sleep 2
     cp "${BACKUP_PATH}/redis.rdb" /var/redis/dump.rdb
     # Redis will be restarted automatically by docker
-    echo "✓ Redis data copied (will load on next start)" | tee -a "${BACKUP_DIR}/restore.log"
+    echo "Redis data copied (will load on next start)" | tee -a "${BACKUP_DIR}/restore.log"
 else
-    echo "⚠ No Redis backup found, skipping" | tee -a "${BACKUP_DIR}/restore.log"
+    echo "No Redis backup found, skipping" | tee -a "${BACKUP_DIR}/restore.log"
 fi
 
-echo "==========================================="
-echo "✓ Restore completed successfully!"
+echo ""
+echo "Restore completed successfully!"
 echo "Backup: ${BACKUP_NAME}"
 echo "Time: $(date)"
-echo "==========================================="
 echo ""
 echo "NOTE: Please restart the application containers:"
 echo "  docker-compose restart blackbox cache"
