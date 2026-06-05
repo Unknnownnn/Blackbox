@@ -139,14 +139,16 @@ def register():
                     
                 html = f'<p>Welcome to {current_app.config.get("CTF_NAME", "the CTF")}!</p><p>Please verify your email by clicking the link below:</p><p><a href="{verify_url}" style="display:inline-block;padding:10px 20px;background-color:#667eea;color:white;text-decoration:none;border-radius:5px;font-weight:bold;">Verify Email Address</a></p>'
                 
-                success = send_email(user.email, 'Verify your email address', html)
-                if success:
-                    flash('Registration successful! A verification email has been sent to your address. Please verify before logging in.', 'success')
-                else:
-                    flash('Registration successful, but there was an issue sending the verification email. The SMTP server might be unreachable.', 'warning')
+                from utils.email import send_email_async
+                import threading
+                app = current_app._get_current_object()
+                thread = threading.Thread(target=send_email_async, args=(app, user.email, 'Verify your email address', html))
+                thread.start()
+                
+                flash('Registration successful! A verification email is being sent to your address. Please verify before logging in.', 'success')
             except Exception as e:
-                current_app.logger.error(f"Error sending verification email: {e}")
-                flash('Registration successful, but there was an unexpected error with the email system.', 'warning')
+                current_app.logger.error(f"Error preparing verification email: {e}")
+                flash('Registration successful, but there was an unexpected error preparing the email system.', 'warning')
         else:
             flash('Registration successful! Please login.', 'success')
         
@@ -222,11 +224,14 @@ def resend_verification():
             verify_url = url_for('auth.verify_email', token=token, _external=True)
             
         html = f'<p>Please verify your email by clicking the link below:</p><p><a href="{verify_url}" style="display:inline-block;padding:10px 20px;background-color:#667eea;color:white;text-decoration:none;border-radius:5px;font-weight:bold;">Verify Email Address</a></p>'
-        success = send_email(user.email, 'Verify your email address', html)
-        if success:
-            flash('Verification email resent. Please check your inbox.', 'success')
-        else:
-            flash('Error sending verification email. The server might be unreachable or credentials incorrect.', 'error')
+        
+        from utils.email import send_email_async
+        import threading
+        app = current_app._get_current_object()
+        thread = threading.Thread(target=send_email_async, args=(app, user.email, 'Verify your email address', html))
+        thread.start()
+        
+        flash('Verification email is being resent. Please check your inbox shortly.', 'success')
     else:
         flash('Invalid request or user already verified.', 'error')
     return redirect(url_for('auth.login'))
@@ -250,7 +255,11 @@ def forgot_password():
                 reset_url = url_for('auth.reset_password', token=token, _external=True)
                 
             html = f'<p>To reset your password, click the link below:</p><p><a href="{reset_url}" style="display:inline-block;padding:10px 20px;background-color:#667eea;color:white;text-decoration:none;border-radius:5px;font-weight:bold;">Reset Password</a></p>'
-            send_email(user.email, 'Password Reset Request', html)
+            from utils.email import send_email_async
+            import threading
+            app = current_app._get_current_object()
+            thread = threading.Thread(target=send_email_async, args=(app, user.email, 'Password Reset Request', html))
+            thread.start()
         
         flash('If an account exists with that email, a password reset link has been sent.', 'info')
         return redirect(url_for('auth.login'))
