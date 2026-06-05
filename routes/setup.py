@@ -55,7 +55,8 @@ def initial_setup():
                 email=email,
                 full_name='Administrator',
                 is_admin=True,
-                is_active=True
+                is_active=True,
+                is_verified=True
             )
             admin.set_password(password)
             
