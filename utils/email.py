@@ -38,10 +38,12 @@ def send_email(to_email, subject, html_content):
     msg.attach(part)
     
     try:
-        smtp_server = Settings.get('mail_server', 'smtp.gmail.com')
-        smtp_port = int(Settings.get('mail_port', 587))
+        smtp_server = Settings.get('mail_server') or 'smtp.gmail.com'
+        smtp_port = int(Settings.get('mail_port') or 587)
         
-        server = smtplib.SMTP(smtp_server, smtp_port)
+        # Add a 10-second timeout to prevent the application from hanging 
+        # if the SMTP server is unreachable (e.g., firewall blocking port 587)
+        server = smtplib.SMTP(smtp_server, smtp_port, timeout=10)
         server.starttls()
         server.login(sender_email, sender_password)
         server.sendmail(sender_email, to_email, msg.as_string())

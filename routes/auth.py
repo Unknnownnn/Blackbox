@@ -138,11 +138,15 @@ def register():
                     verify_url = url_for('auth.verify_email', token=token, _external=True)
                     
                 html = f'<p>Welcome to {current_app.config.get("CTF_NAME", "the CTF")}!</p><p>Please verify your email by clicking the link below:</p><p><a href="{verify_url}" style="display:inline-block;padding:10px 20px;background-color:#667eea;color:white;text-decoration:none;border-radius:5px;font-weight:bold;">Verify Email Address</a></p>'
-                send_email(user.email, 'Verify your email address', html)
-                flash('Registration successful! A verification email has been sent to your address. Please verify before logging in.', 'success')
+                
+                success = send_email(user.email, 'Verify your email address', html)
+                if success:
+                    flash('Registration successful! A verification email has been sent to your address. Please verify before logging in.', 'success')
+                else:
+                    flash('Registration successful, but there was an issue sending the verification email. The SMTP server might be unreachable.', 'warning')
             except Exception as e:
                 current_app.logger.error(f"Error sending verification email: {e}")
-                flash('Registration successful, but there was an issue sending the verification email. Please contact an admin.', 'warning')
+                flash('Registration successful, but there was an unexpected error with the email system.', 'warning')
         else:
             flash('Registration successful! Please login.', 'success')
         
@@ -218,8 +222,11 @@ def resend_verification():
             verify_url = url_for('auth.verify_email', token=token, _external=True)
             
         html = f'<p>Please verify your email by clicking the link below:</p><p><a href="{verify_url}" style="display:inline-block;padding:10px 20px;background-color:#667eea;color:white;text-decoration:none;border-radius:5px;font-weight:bold;">Verify Email Address</a></p>'
-        send_email(user.email, 'Verify your email address', html)
-        flash('Verification email resent. Please check your inbox.', 'success')
+        success = send_email(user.email, 'Verify your email address', html)
+        if success:
+            flash('Verification email resent. Please check your inbox.', 'success')
+        else:
+            flash('Error sending verification email. The server might be unreachable or credentials incorrect.', 'error')
     else:
         flash('Invalid request or user already verified.', 'error')
     return redirect(url_for('auth.login'))
