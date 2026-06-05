@@ -153,6 +153,57 @@
                 </div>
             </div>
             
+            <!-- Email Configuration -->
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-envelope"></i> Email Configuration</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('admin.update_email_config') }}">
+                        <div class="mb-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="require_email_verification" name="require_email_verification"
+                                       {% if settings.get('require_email_verification', True) %}checked{% endif %}>
+                                <label class="form-check-label" for="require_email_verification">
+                                    <strong>Require Email Verification</strong>
+                                </label>
+                            </div>
+                            <div class="form-text">When enabled, new users must verify their email address before logging in.</div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="mail_server" class="form-label"><strong>SMTP Server</strong></label>
+                                <input type="text" class="form-control" id="mail_server" name="mail_server" 
+                                       value="{{ settings.get('mail_server', 'smtp.gmail.com') }}">
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="mail_port" class="form-label"><strong>SMTP Port</strong></label>
+                                <input type="number" class="form-control" id="mail_port" name="mail_port" 
+                                       value="{{ settings.get('mail_port', '587') }}">
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="mail_username" class="form-label"><strong>SMTP Username (Email)</strong></label>
+                                <input type="email" class="form-control" id="mail_username" name="mail_username" 
+                                       value="{{ settings.get('mail_username', '') }}">
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="mail_password" class="form-label"><strong>SMTP Password / App Password</strong></label>
+                                <input type="password" class="form-control" id="mail_password" name="mail_password" 
+                                       value="{{ settings.get('mail_password', '') }}">
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-save"></i> Save Email Configuration
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
             <!-- System Features -->
             <div class="card mb-4">
                 <div class="card-header">

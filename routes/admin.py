@@ -1146,6 +1146,40 @@ def update_event_config():
     return redirect(url_for('admin.settings'))
 
 
+@admin_bp.route('/settings/email-config', methods=['POST'])
+@login_required
+@admin_required
+def update_email_config():
+    """Update email verification configuration"""
+    from models.settings import Settings
+    
+    try:
+        require_email_verification = 'require_email_verification' in request.form
+        Settings.set('require_email_verification', require_email_verification, 'bool', 'Require email verification for new users')
+        
+        mail_server = request.form.get('mail_server', '').strip()
+        if mail_server:
+            Settings.set('mail_server', mail_server, 'string', 'SMTP Server')
+            
+        mail_port = request.form.get('mail_port', '').strip()
+        if mail_port:
+            Settings.set('mail_port', mail_port, 'string', 'SMTP Port')
+            
+        mail_username = request.form.get('mail_username', '').strip()
+        if mail_username:
+            Settings.set('mail_username', mail_username, 'string', 'SMTP Username')
+            
+        mail_password = request.form.get('mail_password', '').strip()
+        if mail_password:
+            Settings.set('mail_password', mail_password, 'string', 'SMTP Password')
+            
+        flash('Email configuration updated successfully!', 'success')
+    except Exception as e:
+        flash(f'Error updating email configuration: {str(e)}', 'error')
+    
+    return redirect(url_for('admin.settings'))
+
+
 @admin_bp.route('/settings/background-theme', methods=['POST'])
 @login_required
 @admin_required

@@ -20,8 +20,10 @@ def verify_token(token, salt, expiration=3600):
         return False
 
 def send_email(to_email, subject, html_content):
-    sender_email = current_app.config.get('MAIL_USERNAME')
-    sender_password = current_app.config.get('MAIL_PASSWORD')
+    from models.settings import Settings
+    
+    sender_email = Settings.get('mail_username')
+    sender_password = Settings.get('mail_password')
     
     if not sender_email or not sender_password:
         current_app.logger.error("Email credentials not configured")
@@ -36,8 +38,8 @@ def send_email(to_email, subject, html_content):
     msg.attach(part)
     
     try:
-        smtp_server = current_app.config.get('MAIL_SERVER', 'smtp.gmail.com')
-        smtp_port = int(current_app.config.get('MAIL_PORT', 587))
+        smtp_server = Settings.get('mail_server', 'smtp.gmail.com')
+        smtp_port = int(Settings.get('mail_port', 587))
         
         server = smtplib.SMTP(smtp_server, smtp_port)
         server.starttls()

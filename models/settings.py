@@ -10,15 +10,14 @@ class Settings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(100), unique=True, nullable=False, index=True)
     value = db.Column(db.Text)
-    value_type = db.Column(db.String(20), default='string')  # string, int, bool, datetime
+    value_type = db.Column(db.String(20), default='string') 
     description = db.Column(db.Text)
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Redis cache configuration (distributed across all workers)
     CACHE_PREFIX = 'settings:'
-    CACHE_TIMEOUT = 300  # 5 minutes
+    CACHE_TIMEOUT = 300 
     CACHE_ALL_KEY = 'settings:all'
     
     @staticmethod
@@ -52,14 +51,11 @@ class Settings(db.Model):
                 
                 return Settings._convert_value(value, value_type, default)
             
-            # Cache miss - query database with lock to prevent cache stampede
             lock_key = f"lock:{cache_key}"
             if cache.redis_client.set(lock_key, '1', ex=10, nx=True):
-                # We got the lock - load from database
                 try:
                     setting = Settings.query.filter_by(key=key).first()
                     if setting:
-                        # Cache the result
                         cache_data = {
                             'value': setting.value,
                             'type': setting.value_type
@@ -69,22 +65,19 @@ class Settings(db.Model):
                         value_type = type or setting.value_type
                         return Settings._convert_value(setting.value, value_type, default)
                     else:
-                        # Cache negative result (key doesn't exist)
                         cache.set(cache_key, {'value': None, 'type': 'none'}, ttl=60)
                         return default
                 finally:
                     cache.redis_client.delete(lock_key)
             else:
-                # Lock held by another request - wait briefly and retry from cache
                 import time
-                time.sleep(0.05)  # 50ms wait
+                time.sleep(0.05)  
                 cached_value = cache.get(cache_key)
                 if cached_value and isinstance(cached_value, dict):
                     value = cached_value.get('value')
                     value_type = type or cached_value.get('type', 'string')
                     return Settings._convert_value(value, value_type, default)
         except Exception as e:
-            # If cache fails, fall back to direct database query
             print(f"Settings cache error: {e}")
             setting = Settings.query.filter_by(key=key).first()
             if setting:

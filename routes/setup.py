@@ -35,6 +35,13 @@ def initial_setup():
         decay_function = request.form.get('decay_function', 'logarithmic')
         enable_act_system = request.form.get('enable_act_system', 'off') == 'on'
         
+        # Email settings
+        require_email_verification = request.form.get('require_email_verification', 'off') == 'on'
+        mail_server = request.form.get('mail_server', 'smtp.gmail.com')
+        mail_port = request.form.get('mail_port', '587')
+        mail_username = request.form.get('mail_username', '')
+        mail_password = request.form.get('mail_password', '')
+        
         # Validation
         if not all([username, email, password, confirm_password]):
             flash('Please fill in all required fields', 'error')
@@ -68,6 +75,13 @@ def initial_setup():
             Settings.set('require_team_for_challenges', submission_mode == 'team_required', 'bool')
             Settings.set('decay_function', decay_function, 'string')
             Settings.set('act_system_enabled', enable_act_system, 'bool')
+            
+            # Save Email settings
+            Settings.set('require_email_verification', require_email_verification, 'bool')
+            if mail_server: Settings.set('mail_server', mail_server, 'string')
+            if mail_port: Settings.set('mail_port', mail_port, 'string')
+            if mail_username: Settings.set('mail_username', mail_username, 'string')
+            if mail_password: Settings.set('mail_password', mail_password, 'string')
             
             flash('Admin account created successfully! Please login.', 'success')
             return redirect(url_for('auth.login'))

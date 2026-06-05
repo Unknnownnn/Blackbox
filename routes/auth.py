@@ -32,7 +32,10 @@ def login():
                 flash('Your account has been deactivated', 'error')
                 return render_template('login.html')
                 
-            if not getattr(user, 'is_verified', True):
+            from models.settings import Settings
+            require_verification = Settings.get('require_email_verification', True)
+            
+            if require_verification and not getattr(user, 'is_verified', True):
                 flash('Please verify your email address before logging in. Check your inbox.', 'error')
                 return render_template('login.html', unverified_email=user.email)
             
@@ -123,16 +126,20 @@ def register():
         db.session.add(user)
         db.session.commit()
         
-        # Send verification email
-        try:
-            token = generate_confirmation_token(user.email)
-            verify_url = url_for('auth.verify_email', token=token, _external=True)
-            html = f'<p>Welcome to {current_app.config.get("CTF_NAME", "the CTF")}!</p><p>Please verify your email by clicking the link below:</p><p><a href="{verify_url}">{verify_url}</a></p>'
-            send_email(user.email, 'Verify your email address', html)
-            flash('Registration successful! A verification email has been sent to your address. Please verify before logging in.', 'success')
-        except Exception as e:
-            current_app.logger.error(f"Error sending verification email: {e}")
-            flash('Registration successful, but there was an issue sending the verification email. Please contact an admin.', 'warning')
+        # Send verification email if required
+        require_verification = Settings.get('require_email_verification', True)
+        if require_verification:
+            try:
+                token = generate_confirmation_token(user.email)
+                verify_url = url_for('auth.verify_email', token=token, _external=True)
+                html = f'<p>Welcome to {current_app.config.get("CTF_NAME", "the CTF")}!</p><p>Please verify your email by clicking the link below:</p><p><a href="{verify_url}">{verify_url}</a></p>'
+                send_email(user.email, 'Verify your email address', html)
+                flash('Registration successful! A verification email has been sent to your address. Please verify before logging in.', 'success')
+            except Exception as e:
+                current_app.logger.error(f"Error sending verification email: {e}")
+                flash('Registration successful, but there was an issue sending the verification email. Please contact an admin.', 'warning')
+        else:
+            flash('Registration successful! Please login.', 'success')
         
         log_audit_event(user_id=user.id, action='REGISTER')
         

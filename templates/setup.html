@@ -146,6 +146,44 @@
                         <small class="form-text text-muted">When disabled, all challenges are shown in a simple list grouped by category</small>
                     </div>
 
+                    <hr class="my-4">
+                    
+                    <h5 class="mb-3">Email Verification Settings</h5>
+                    
+                    <div class="mb-4">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="require_email_verification" name="require_email_verification">
+                            <label class="form-check-label" for="require_email_verification">
+                                <strong>Require Email Verification</strong>
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">When enabled, newly registered users must verify their email before logging in.</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="mail_server" class="form-label">SMTP Server</label>
+                        <input type="text" class="form-control" id="mail_server" name="mail_server" 
+                               placeholder="smtp.gmail.com" value="smtp.gmail.com">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="mail_port" class="form-label">SMTP Port</label>
+                        <input type="number" class="form-control" id="mail_port" name="mail_port" 
+                               placeholder="587" value="587">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="mail_username" class="form-label">SMTP Username / Email</label>
+                        <input type="email" class="form-control" id="mail_username" name="mail_username" 
+                               placeholder="your_ctf_email@gmail.com">
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="mail_password" class="form-label">SMTP Password / App Password</label>
+                        <input type="password" class="form-control" id="mail_password" name="mail_password" 
+                               placeholder="16-character-app-password">
+                    </div>
+
                     <div class="d-grid">
                         <button type="submit" class="btn btn-setup btn-lg">
                             Complete Setup
