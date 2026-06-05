@@ -14,7 +14,7 @@ read
 
 echo ""
 echo "Stopping containers..."
-docker-compose down -v
+docker compose down -v
 
 echo ""
 echo "Removing old data..."
@@ -25,11 +25,11 @@ rm -rf .data/redis/*
 
 echo ""
 echo "Building fresh containers (no cache)..."
-docker-compose build --no-cache
+docker compose build --no-cache
 
 echo ""
 echo "Starting containers..."
-docker-compose up -d
+docker compose up -d
 
 echo ""
 echo "Waiting for services to initialize..."
@@ -41,7 +41,7 @@ sleep 25
 echo ""
 echo "Checking database connection..."
 for i in {1..5}; do
-    docker-compose exec -T db mysql -u root -proot_password -e "SELECT 1;" > /dev/null 2>&1
+    docker compose exec -T db mysql -u root -proot_password -e "SELECT 1;" > /dev/null 2>&1
     if [ $? -eq 0 ]; then
         echo "✓ Database is ready"
         break
@@ -53,24 +53,24 @@ done
 
 echo ""
 echo "Creating database tables..."
-docker-compose exec -T blackbox python -c "from app import create_app; from models import db; app = create_app(); app.app_context().push(); db.create_all(); print('✓ Tables created')"
+docker compose exec -T blackbox python -c "from app import create_app; from models import db; app = create_app(); app.app_context().push(); db.create_all(); print('✓ Tables created')"
 
 echo ""
 echo "Running database migrations..."
 
 # Pipe SQL files from the host into the DB container's mysql client (avoid running mysql inside blackbox)
-docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_hints_and_team_requirements.sql 2>/dev/null || true
-docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_team_invites_and_attempts.sql 2>/dev/null || true
-docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_challenge_branching.sql 2>/dev/null || true
-docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_ctf_control.sql 2>/dev/null || true
-docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_event_config.sql 2>/dev/null || true
-docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_first_blood_and_dynamic_scoring.sql 2>/dev/null || true
-docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_container_orchestration.sql 2>/dev/null || true
-docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_docker_settings.sql 2>/dev/null || true
-docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_enhanced_flag_features.sql 2>/dev/null || true
-docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_detect_regex_sharing.sql 2>/dev/null || true
-docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_notifications.sql 2>/dev/null || true
-docker-compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_notifications_play_sound.sql 2>/dev/null || true
+docker compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_hints_and_team_requirements.sql 2>/dev/null || true
+docker compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_team_invites_and_attempts.sql 2>/dev/null || true
+docker compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_challenge_branching.sql 2>/dev/null || true
+docker compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_ctf_control.sql 2>/dev/null || true
+docker compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_event_config.sql 2>/dev/null || true
+docker compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_first_blood_and_dynamic_scoring.sql 2>/dev/null || true
+docker compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_container_orchestration.sql 2>/dev/null || true
+docker compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_docker_settings.sql 2>/dev/null || true
+docker compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_enhanced_flag_features.sql 2>/dev/null || true
+docker compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_detect_regex_sharing.sql 2>/dev/null || true
+docker compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_notifications.sql 2>/dev/null || true
+docker compose exec -T db mysql -u root -proot_password ctf_platform < migrations/add_notifications_play_sound.sql 2>/dev/null || true
 
 echo "Migrations completed"
 
