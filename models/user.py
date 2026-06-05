@@ -16,6 +16,7 @@ class User(UserMixin, db.Model):
     full_name = db.Column(db.String(120))
     is_admin = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
+    is_verified = db.Column(db.Boolean, default=False)
     
     # Team relationship - nullable to break circular dependency
     team_id = db.Column(db.Integer, db.ForeignKey('teams.id', use_alter=True, name='fk_user_team'), nullable=True)

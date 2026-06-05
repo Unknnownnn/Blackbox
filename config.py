@@ -97,6 +97,12 @@ class Config:
     # Security
     # These headers are managed by security_utils.py
     # Additional security settings can be added here
+    
+    # Email
+    MAIL_SERVER = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
+    MAIL_PORT = int(os.getenv('MAIL_PORT', 587))
+    MAIL_USERNAME = os.getenv('MAIL_USERNAME', '')
+    MAIL_PASSWORD = os.getenv('MAIL_PASSWORD', '')
 
 class DevelopmentConfig(Config):
     """Development configuration"""

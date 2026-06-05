@@ -4,6 +4,9 @@ from models import db
 from models.user import User
 from datetime import datetime
 from utils.audit import log_audit_event
+import re
+from utils.email import send_email, generate_confirmation_token, verify_token
+from flask import current_app
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -28,6 +31,10 @@ def login():
             if not user.is_active:
                 flash('Your account has been deactivated', 'error')
                 return render_template('login.html')
+                
+            if not getattr(user, 'is_verified', True):
+                flash('Please verify your email address before logging in. Check your inbox.', 'error')
+                return render_template('login.html', unverified_email=user.email)
             
             login_user(user, remember=remember)
             user.last_login = datetime.utcnow()
@@ -77,6 +84,16 @@ def register():
         if not all([username, email, password, confirm_password]):
             flash('Please fill in all required fields', 'error')
             return render_template('register.html')
+            
+        # Validate username (alphanumeric and underscore only, 3-30 chars)
+        if not re.match(r'^[a-zA-Z0-9_]{3,30}$', username):
+            flash('Username must be 3-30 characters long and contain only letters, numbers, and underscores', 'error')
+            return render_template('register.html')
+            
+        # Validate email format
+        if not re.match(r'^[\w\.-]+@[\w\.-]+\.\w+$', email):
+            flash('Please enter a valid email address', 'error')
+            return render_template('register.html')
         
         if password != confirm_password:
             flash('Passwords do not match', 'error')
@@ -106,9 +123,19 @@ def register():
         db.session.add(user)
         db.session.commit()
         
+        # Send verification email
+        try:
+            token = generate_confirmation_token(user.email)
+            verify_url = url_for('auth.verify_email', token=token, _external=True)
+            html = f'<p>Welcome to {current_app.config.get("CTF_NAME", "the CTF")}!</p><p>Please verify your email by clicking the link below:</p><p><a href="{verify_url}">{verify_url}</a></p>'
+            send_email(user.email, 'Verify your email address', html)
+            flash('Registration successful! A verification email has been sent to your address. Please verify before logging in.', 'success')
+        except Exception as e:
+            current_app.logger.error(f"Error sending verification email: {e}")
+            flash('Registration successful, but there was an issue sending the verification email. Please contact an admin.', 'warning')
+        
         log_audit_event(user_id=user.id, action='REGISTER')
         
-        flash('Registration successful! Please login.', 'success')
         return redirect(url_for('auth.login'))
     
     return render_template('register.html')
@@ -118,7 +145,6 @@ def register():
 @login_required
 def logout():
     """Logout handler"""
-    # Snapshot IDs before logout_user() clears the session proxy.
     _user_id = current_user.id
     _team_id = current_user.team_id
     logout_user()
@@ -136,3 +162,94 @@ def profile():
     progress = ScoringService.get_user_progress(current_user.id)
     
     return render_template('profile.html', user=current_user, progress=progress)
+
+
+@auth_bp.route('/verify-email/<token>')
+def verify_email(token):
+    email = verify_token(token, salt='email-confirm-salt')
+    if not email:
+        flash('The verification link is invalid or has expired.', 'error')
+        return redirect(url_for('auth.login'))
+        
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(url_for('auth.login'))
+        
+    if getattr(user, 'is_verified', False):
+        flash('Account already verified. Please login.', 'success')
+    else:
+        user.is_verified = True
+        db.session.commit()
+        log_audit_event(user_id=user.id, action='EMAIL_VERIFIED')
+        flash('You have successfully verified your email! You can now login.', 'success')
+        
+    return redirect(url_for('auth.login'))
+
+
+@auth_bp.route('/resend-verification', methods=['POST'])
+def resend_verification():
+    email = request.form.get('email')
+    user = User.query.filter_by(email=email).first()
+    if user and not getattr(user, 'is_verified', True):
+        token = generate_confirmation_token(user.email)
+        verify_url = url_for('auth.verify_email', token=token, _external=True)
+        html = f'<p>Please verify your email by clicking the link below:</p><p><a href="{verify_url}">{verify_url}</a></p>'
+        send_email(user.email, 'Verify your email address', html)
+        flash('Verification email resent. Please check your inbox.', 'success')
+    else:
+        flash('Invalid request or user already verified.', 'error')
+    return redirect(url_for('auth.login'))
+
+
+@auth_bp.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+        
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user = User.query.filter_by(email=email).first()
+        if user:
+            token = generate_confirmation_token(user.email)
+            reset_url = url_for('auth.reset_password', token=token, _external=True)
+            html = f'<p>To reset your password, click the link below:</p><p><a href="{reset_url}">{reset_url}</a></p>'
+            send_email(user.email, 'Password Reset Request', html)
+        
+        flash('If an account exists with that email, a password reset link has been sent.', 'info')
+        return redirect(url_for('auth.login'))
+        
+    return render_template('forgot_password.html')
+
+
+@auth_bp.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+        
+    email = verify_token(token, salt='email-confirm-salt')
+    if not email:
+        flash('The password reset link is invalid or has expired.', 'error')
+        return redirect(url_for('auth.login'))
+        
+    if request.method == 'POST':
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        if not password or password != confirm_password:
+            flash('Passwords do not match or are empty', 'error')
+            return render_template('reset_password.html', token=token)
+            
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long', 'error')
+            return render_template('reset_password.html', token=token)
+            
+        user = User.query.filter_by(email=email).first()
+        if user:
+            user.set_password(password)
+            db.session.commit()
+            log_audit_event(user_id=user.id, action='PASSWORD_RESET')
+            flash('Your password has been updated! You can now login.', 'success')
+            return redirect(url_for('auth.login'))
+            
+    return render_template('reset_password.html', token=token)

@@ -98,20 +98,17 @@ def create_app(config_name=None):
         from flask import request
         from routes.setup import is_setup_complete
         
-        # Skip setup check for these paths
         if request.path.startswith('/setup') or \
            request.path.startswith('/static') or \
            request.path.startswith('/health') or \
            request.path.startswith('/files'):
             return None
         
-        # Check if setup is complete
         try:
             if not is_setup_complete():
                 from flask import redirect, url_for
                 return redirect(url_for('setup.initial_setup'))
         except:
-            # Database might not be initialized yet
             pass
         
         return None
@@ -147,17 +144,11 @@ def create_app(config_name=None):
         
         upload_folder = app.config.get('UPLOAD_FOLDER', 'uploads')
         
-        # Normalize the path for database lookup (try both forward and backslashes)
         normalized_path = filename.replace('/', os.sep)
-        
-        # Try to find file record (check both path formats)
         file_record = ChallengeFile.query.filter_by(relative_path=normalized_path).first()
-        if not file_record:
-            # Try with forward slashes  
+        if not file_record: 
             file_record = ChallengeFile.query.filter_by(relative_path=filename).first()
         
-        # Build full file path
-        # Fix for path traversal vuln
         file_path = os.path.realpath(os.path.join(upload_folder, normalized_path))
         if not file_path.startswith(os.path.realpath(upload_folder) + os.sep):
             abort(403)
@@ -166,7 +157,6 @@ def create_app(config_name=None):
             app.logger.warning(f"File not found: {file_path}")
             abort(404)
         
-        # Determine the filename to use for download
         if file_record and file_record.original_filename:
             download_filename = file_record.original_filename
             app.logger.info(f"Found DB record: {download_filename}")
@@ -174,7 +164,6 @@ def create_app(config_name=None):
             download_filename = os.path.basename(file_path)
             app.logger.warning(f"No DB record, using: {download_filename}")
         
-        # Use send_file with proper parameters
         return send_file(
             file_path,
             as_attachment=True,

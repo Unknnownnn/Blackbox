@@ -29,7 +29,7 @@ class SecurityHeaders:
         # Referrer policy
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
         
-        # Content Security Policy (adjust based on your needs)
+        # Content Security Policy 
         csp = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdn.socket.io; "
@@ -41,7 +41,7 @@ class SecurityHeaders:
         )
         response.headers['Content-Security-Policy'] = csp
         
-        # HSTS (HTTP Strict Transport Security) - only in production with HTTPS
+        # HSTS
         if not current_app.debug:
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         
@@ -172,7 +172,6 @@ class CSRFProtection:
         if '_csrf_token' not in session:
             return False
         
-        # Use secrets.compare_digest for timing-attack safe comparison
         return secrets.compare_digest(session['_csrf_token'], token)
     
     @staticmethod
@@ -181,11 +180,9 @@ class CSRFProtection:
         def decorator(f):
             @wraps(f)
             def decorated_function(*args, **kwargs):
-                # Skip CSRF for GET, HEAD, OPTIONS
                 if request.method in ['GET', 'HEAD', 'OPTIONS']:
                     return f(*args, **kwargs)
                 
-                # Get token from form or header
                 token = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token')
                 
                 if not token or not CSRFProtection.validate_csrf_token(token):
@@ -204,7 +201,7 @@ class RateLimiter:
     """Simple in-memory rate limiter (for non-Redis deployments)"""
     
     _limits = {}
-    _cleanup_interval = 60  # Clean up old entries every 60 seconds
+    _cleanup_interval = 60  
     _last_cleanup = time.time()
     
     @staticmethod
@@ -254,13 +251,11 @@ class RateLimiter:
         keys_to_delete = []
         
         for key, timestamps in RateLimiter._limits.items():
-            # Remove timestamps older than 5 minutes
             RateLimiter._limits[key] = [
                 ts for ts in timestamps
                 if now - ts < 300
             ]
             
-            # Mark empty entries for deletion
             if not RateLimiter._limits[key]:
                 keys_to_delete.append(key)
         
@@ -282,13 +277,11 @@ class RateLimiter:
         def decorator(f):
             @wraps(f)
             def decorated_function(*args, **kwargs):
-                # Generate key
                 if key_func:
                     key = key_func()
                 else:
                     key = f"ip:{request.remote_addr}:{f.__name__}"
                 
-                # Check rate limit
                 allowed, remaining = RateLimiter.check_rate_limit(key, limit, window)
                 
                 if not allowed:

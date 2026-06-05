@@ -1,11 +1,10 @@
 #!/bin/bash
 set -eo pipefail
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 echo "  BlackBox CTF Platform - Docker Entrypoint"
 echo ""
@@ -67,7 +66,7 @@ mkdir -p "$LOG_DIR" 2>/dev/null || true
 if [ -w "$UPLOAD_DIR" ]; then
     echo -e "${GREEN}  Upload directory is writable${NC}"
 else
-    echo -e "${YELLOW}  ⚠ Upload directory has limited permissions, but may work with volume mount${NC}"
+    echo -e "${YELLOW}  Upload directory has limited permissions, but may work with volume mount${NC}"
 fi
 
 echo -e "${GREEN}  Directories setup complete${NC}"
