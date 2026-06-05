@@ -136,6 +136,11 @@ def register():
         
         log_audit_event(user_id=user.id, action='REGISTER')
         
+        # Clear any stale session cookies. This prevents an issue where testing with 
+        # database resets causes old session cookies to instantly log the user in 
+        # (since the new user gets the same database ID as the old deleted one).
+        logout_user()
+        
         return redirect(url_for('auth.login'))
     
     return render_template('register.html')
