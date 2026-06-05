@@ -50,7 +50,7 @@
                 {% endif %}
                 
                 {% if unverified_email %}
-                <div class="mt-4 p-3 border rounded bg-light text-center">
+                <div class="mt-4 p-3 border rounded text-center" style="background-color: var(--bs-tertiary-bg, rgba(128,128,128,0.1));">
                     <p class="small mb-2">Didn't receive the verification email?</p>
                     <form method="POST" action="{{ url_for('auth.resend_verification') }}">
                         <input type="hidden" name="email" value="{{ unverified_email }}">
