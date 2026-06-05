@@ -241,6 +241,15 @@
                 </div>
                 <div class="card-body">
                     <form method="POST" action="{{ url_for('admin.update_system_settings') }}">
+                        <div class="mb-4">
+                            <label for="base_url" class="form-label"><strong>Platform Base URL</strong></label>
+                            <input type="url" class="form-control" id="base_url" name="base_url" 
+                                   placeholder="e.g., https://ctf.example.com" value="{{ settings.get('base_url', '') }}">
+                            <div class="form-text">
+                                <i class="bi bi-info-circle"></i> Used for generating absolute links in emails (password reset, verification). If blank, the current domain/IP is used automatically.
+                            </div>
+                        </div>
+                        
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="timezone" class="form-label"><strong>Platform Timezone</strong></label>

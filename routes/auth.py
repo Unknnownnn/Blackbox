@@ -131,8 +131,13 @@ def register():
         if require_verification:
             try:
                 token = generate_confirmation_token(user.email)
-                verify_url = url_for('auth.verify_email', token=token, _external=True)
-                html = f'<p>Welcome to {current_app.config.get("CTF_NAME", "the CTF")}!</p><p>Please verify your email by clicking the link below:</p><p><a href="{verify_url}">{verify_url}</a></p>'
+                base_url = Settings.get('base_url', '')
+                if base_url:
+                    verify_url = f"{base_url.rstrip('/')}{url_for('auth.verify_email', token=token)}"
+                else:
+                    verify_url = url_for('auth.verify_email', token=token, _external=True)
+                    
+                html = f'<p>Welcome to {current_app.config.get("CTF_NAME", "the CTF")}!</p><p>Please verify your email by clicking the link below:</p><p><a href="{verify_url}" style="display:inline-block;padding:10px 20px;background-color:#667eea;color:white;text-decoration:none;border-radius:5px;font-weight:bold;">Verify Email Address</a></p>'
                 send_email(user.email, 'Verify your email address', html)
                 flash('Registration successful! A verification email has been sent to your address. Please verify before logging in.', 'success')
             except Exception as e:
@@ -205,8 +210,14 @@ def resend_verification():
     user = User.query.filter_by(email=email).first()
     if user and not getattr(user, 'is_verified', True):
         token = generate_confirmation_token(user.email)
-        verify_url = url_for('auth.verify_email', token=token, _external=True)
-        html = f'<p>Please verify your email by clicking the link below:</p><p><a href="{verify_url}">{verify_url}</a></p>'
+        from models.settings import Settings
+        base_url = Settings.get('base_url', '')
+        if base_url:
+            verify_url = f"{base_url.rstrip('/')}{url_for('auth.verify_email', token=token)}"
+        else:
+            verify_url = url_for('auth.verify_email', token=token, _external=True)
+            
+        html = f'<p>Please verify your email by clicking the link below:</p><p><a href="{verify_url}" style="display:inline-block;padding:10px 20px;background-color:#667eea;color:white;text-decoration:none;border-radius:5px;font-weight:bold;">Verify Email Address</a></p>'
         send_email(user.email, 'Verify your email address', html)
         flash('Verification email resent. Please check your inbox.', 'success')
     else:
@@ -224,8 +235,14 @@ def forgot_password():
         user = User.query.filter_by(email=email).first()
         if user:
             token = generate_confirmation_token(user.email)
-            reset_url = url_for('auth.reset_password', token=token, _external=True)
-            html = f'<p>To reset your password, click the link below:</p><p><a href="{reset_url}">{reset_url}</a></p>'
+            from models.settings import Settings
+            base_url = Settings.get('base_url', '')
+            if base_url:
+                reset_url = f"{base_url.rstrip('/')}{url_for('auth.reset_password', token=token)}"
+            else:
+                reset_url = url_for('auth.reset_password', token=token, _external=True)
+                
+            html = f'<p>To reset your password, click the link below:</p><p><a href="{reset_url}" style="display:inline-block;padding:10px 20px;background-color:#667eea;color:white;text-decoration:none;border-radius:5px;font-weight:bold;">Reset Password</a></p>'
             send_email(user.email, 'Password Reset Request', html)
         
         flash('If an account exists with that email, a password reset link has been sent.', 'info')

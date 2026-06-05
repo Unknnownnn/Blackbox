@@ -1242,6 +1242,10 @@ def update_system_settings():
     from services.backup_scheduler import backup_scheduler
     
     try:
+        # Update base URL
+        base_url = request.form.get('base_url', '').strip()
+        Settings.set('base_url', base_url, 'string', 'Platform Base URL for email links')
+        
         # Update timezone
         timezone = request.form.get('timezone', 'UTC')
         Settings.set('timezone', timezone, 'string', 'Platform timezone')
