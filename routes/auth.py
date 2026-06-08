@@ -127,6 +127,7 @@ def register():
         db.session.commit()
         
         # Send verification email if required
+        from models.settings import Settings
         require_verification = Settings.get('require_email_verification', True)
         if require_verification:
             try:
