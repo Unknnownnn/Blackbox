@@ -192,8 +192,10 @@
                             
                             <div class="col-md-6 mb-3">
                                 <label for="mail_password" class="form-label"><strong>SMTP Password / App Password</strong></label>
-                                <input type="password" class="form-control" id="mail_password" name="mail_password" 
-                                       value="{{ settings.get('mail_password', '') }}">
+                                <input type="text" class="form-control font-monospace" id="mail_password" name="mail_password" 
+                                       placeholder="{% if settings.get('mail_password') %}(saved — paste to update){% else %}Enter app password{% endif %}"
+                                       autocomplete="off" spellcheck="false">
+                                <div class="form-text">Leave blank to keep the existing password. For Gmail, use your App Password (spaces are OK).</div>
                             </div>
                         </div>
                         
