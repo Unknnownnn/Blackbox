@@ -141,10 +141,9 @@ def register():
                 html = f'<p>Welcome to {current_app.config.get("CTF_NAME", "the CTF")}!</p><p>Please verify your email by clicking the link below:</p><p><a href="{verify_url}" style="display:inline-block;padding:10px 20px;background-color:#667eea;color:white;text-decoration:none;border-radius:5px;font-weight:bold;">Verify Email Address</a></p>'
                 
                 from utils.email import send_email_async
-                import threading
+                import gevent
                 app = current_app._get_current_object()
-                thread = threading.Thread(target=send_email_async, args=(app, user.email, 'Verify your email address', html))
-                thread.start()
+                gevent.spawn(send_email_async, app, user.email, 'Verify your email address', html)
                 
                 flash('Registration successful! A verification email is being sent to your address. Please verify before logging in.', 'success')
             except Exception as e:
@@ -227,10 +226,9 @@ def resend_verification():
         html = f'<p>Please verify your email by clicking the link below:</p><p><a href="{verify_url}" style="display:inline-block;padding:10px 20px;background-color:#667eea;color:white;text-decoration:none;border-radius:5px;font-weight:bold;">Verify Email Address</a></p>'
         
         from utils.email import send_email_async
-        import threading
+        import gevent
         app = current_app._get_current_object()
-        thread = threading.Thread(target=send_email_async, args=(app, user.email, 'Verify your email address', html))
-        thread.start()
+        gevent.spawn(send_email_async, app, user.email, 'Verify your email address', html)
         
         flash('Verification email is being resent. Please check your inbox shortly.', 'success')
     else:
@@ -257,10 +255,9 @@ def forgot_password():
                 
             html = f'<p>To reset your password, click the link below:</p><p><a href="{reset_url}" style="display:inline-block;padding:10px 20px;background-color:#667eea;color:white;text-decoration:none;border-radius:5px;font-weight:bold;">Reset Password</a></p>'
             from utils.email import send_email_async
-            import threading
+            import gevent
             app = current_app._get_current_object()
-            thread = threading.Thread(target=send_email_async, args=(app, user.email, 'Password Reset Request', html))
-            thread.start()
+            gevent.spawn(send_email_async, app, user.email, 'Password Reset Request', html)
         
         flash('If an account exists with that email, a password reset link has been sent.', 'info')
         return redirect(url_for('auth.login'))
