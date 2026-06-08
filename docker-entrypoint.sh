@@ -98,11 +98,13 @@ echo -e "${GREEN}  Docker schema check complete${NC}"
 
 
 # Start application with Gunicorn
+# Worker class is defined in gunicorn.conf.py (gevent) — do NOT override here.
+# gevent workers are consistent with gevent.monkey.patch_all() in app.py,
+# which enables non-blocking I/O (SMTP, Redis, DB) and gevent.spawn() for background tasks.
 exec gunicorn \
     --config gunicorn.conf.py \
     --bind 0.0.0.0:8000 \
     --workers "${WORKERS:-4}" \
-    --worker-class eventlet \
     --timeout 120 \
     --access-logfile "${ACCESS_LOG:--}" \
     --error-logfile "${ERROR_LOG:--}" \
