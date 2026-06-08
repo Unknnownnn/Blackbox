@@ -91,16 +91,10 @@ echo ""
 echo "  Starting BlackBox CTF Platform"
 echo ""
 
-# Ensure Docker settings schema & defaults exist (non-destructive)
 echo -e "${YELLOW}Ensuring Docker settings schema exists...${NC}"
 python scripts/ensure_docker_schema.py || echo -e "${RED}Warning: ensure_docker_schema.py failed (continuing)${NC}"
 echo -e "${GREEN}  Docker schema check complete${NC}"
 
-
-# Start application with Gunicorn
-# Worker class is defined in gunicorn.conf.py (gevent) — do NOT override here.
-# gevent workers are consistent with gevent.monkey.patch_all() in app.py,
-# which enables non-blocking I/O (SMTP, Redis, DB) and gevent.spawn() for background tasks.
 exec gunicorn \
     --config gunicorn.conf.py \
     --bind 0.0.0.0:8000 \
