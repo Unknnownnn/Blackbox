@@ -8,6 +8,7 @@ import random
 import hashlib
 import tempfile
 import json
+import platform
 from datetime import datetime, timedelta
 from pathlib import Path
 from flask import current_app
@@ -36,8 +37,11 @@ class ContainerOrchestrator:
             settings = DockerSettings.get_config()
             
             if not settings.hostname:
-                # Use local Docker socket
-                self.docker_client = docker.from_env()
+                # Use local Docker socket on Linux/macOS, but Docker Desktop on Windows
+                if platform.system().lower() == 'windows':
+                    self.docker_client = docker.DockerClient(base_url='npipe:////./pipe/docker_engine')
+                else:
+                    self.docker_client = docker.from_env()
             elif settings.tls_enabled and settings.ca_cert:
                 # Use TLS connection
                 tls_config = self._create_tls_config(settings)
@@ -121,6 +125,11 @@ class ContainerOrchestrator:
             
             if not challenge.docker_enabled or not challenge.docker_image:
                 return {'success': False, 'error': 'This challenge does not support containers'}
+            
+            # TOCTOU FIX: Lock the Challenge row to serialize container starts
+            # for the same challenge. This prevents two rapid requests from both
+            # passing the existing-container and max-containers checks.
+            Challenge.query.with_for_update().get(challenge_id)
             
             settings = DockerSettings.get_config()
             
@@ -577,10 +586,13 @@ class ContainerOrchestrator:
     
     def _get_available_port(self, settings):
         """Get an available port in the configured range"""
-        # Get ports in use
+        # TOCTOU FIX: Lock running instances while reading used ports to prevent
+        # two concurrent calls from picking the same port.
         used_ports = set()
-        instances = ContainerInstance.query.filter_by(status='running').all()
-        for instance in instances:
+        instances = ContainerInstance.query.filter_by(status='running').with_for_update().all()
+        # Also include 'starting' instances to avoid conflicts with containers being provisioned
+        starting_instances = ContainerInstance.query.filter_by(status='starting').with_for_update().all()
+        for instance in instances + starting_instances:
             if instance.host_port:
                 used_ports.add(instance.host_port)
         
