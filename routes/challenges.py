@@ -422,7 +422,13 @@ def submit_flag(challenge_id):
     if not submitted_flag:
         return jsonify({'success': False, 'message': 'Please enter a flag'}), 400
     
-    # Check if already solved (by user or team)
+    # TOCTOU FIX: Acquire row-level lock on the Challenge row BEFORE checking
+    # already_solved. This serializes concurrent flag submissions for the same
+    # challenge, preventing double-solve and double first-blood race conditions.
+    # The lock is held until the transaction commits or rolls back.
+    Challenge.query.with_for_update().get(challenge_id)
+    
+    # Check if already solved (by user or team) — now protected by the lock above
     if team:
         already_solved = challenge.is_solved_by_team(team_id)
     else:
@@ -827,10 +833,9 @@ def submit_flag(challenge_id):
         is_first_blood = False
         first_blood_bonus = Settings.get('first_blood_bonus', 0, type='int')
         
-        # LOCKING: Lock the challenge row to prevent race conditions on first blood
-        # This ensures that if multiple users submit simultaneously, they are processed sequentially
-        # for the purpose of determining first blood.
-        Challenge.query.with_for_update().get(challenge_id)
+        # NOTE: Challenge row is already locked via with_for_update() at the top of
+        # submit_flag(). Both the already_solved check and this first-blood check
+        # are serialized under that single lock — no separate lock needed here.
         
         existing_solves = Solve.query.filter_by(challenge_id=challenge_id).filter(
             Solve.challenge_id != None  # Exclude manual adjustments

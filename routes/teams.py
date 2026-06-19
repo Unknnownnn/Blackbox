@@ -63,7 +63,18 @@ def create_team():
         current_user.team_id = team.id
         current_user.is_team_captain = True
         
-        db.session.commit()
+        # TOCTOU FIX: Two concurrent team creations with the same name can both
+        # pass the existence check above. Catch IntegrityError from the DB UNIQUE
+        # constraint and return a friendly message instead of a 500.
+        try:
+            db.session.commit()
+        except Exception as commit_err:
+            db.session.rollback()
+            err_msg = str(commit_err).lower()
+            if 'unique' in err_msg or 'duplicate' in err_msg or 'integrity' in err_msg:
+                flash('Team name already taken. Please try a different name.', 'error')
+                return render_template('create_team.html')
+            raise
         
         log_audit_event(user_id=current_user.id, team_id=team.id, action='CREATE_TEAM')
         

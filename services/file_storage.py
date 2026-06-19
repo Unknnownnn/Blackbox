@@ -20,16 +20,14 @@ class FileStorageService:
         """Initialize file storage with Flask app"""
         self.upload_folder = app.config.get('UPLOAD_FOLDER', 'uploads')
         
-        # Create upload directory if it doesn't exist
-        if not os.path.exists(self.upload_folder):
-            os.makedirs(self.upload_folder)
+        # TOCTOU FIX: Use exist_ok=True instead of check-then-create pattern
+        os.makedirs(self.upload_folder, exist_ok=True)
         
         # Create subdirectories for organization
         subdirs = ['challenges', 'temp', 'avatars']
         for subdir in subdirs:
             path = os.path.join(self.upload_folder, subdir)
-            if not os.path.exists(path):
-                os.makedirs(path)
+            os.makedirs(path, exist_ok=True)
     
     def allowed_file(self, filename):
         """Check if file has a filename (always returns True - no restrictions)"""
@@ -85,8 +83,8 @@ class FileStorageService:
         # Determine save path
         if challenge_id:
             challenge_dir = os.path.join(self.upload_folder, 'challenges', str(challenge_id))
-            if not os.path.exists(challenge_dir):
-                os.makedirs(challenge_dir)
+            # TOCTOU FIX: Use exist_ok=True instead of check-then-create pattern
+            os.makedirs(challenge_dir, exist_ok=True)
             filepath = os.path.join(challenge_dir, unique_filename)
             relative_path = os.path.join('challenges', str(challenge_id), unique_filename)
         else:
@@ -137,10 +135,13 @@ class FileStorageService:
     
     def delete_file(self, filepath):
         """Delete a file from storage"""
+        # TOCTOU FIX: Use try/except instead of check-then-delete pattern
+        # to avoid race where file is replaced between exists() and remove()
         try:
-            if os.path.exists(filepath):
-                os.remove(filepath)
-                return True
+            os.remove(filepath)
+            return True
+        except FileNotFoundError:
+            return False
         except Exception as e:
             print(f"Error deleting file {filepath}: {str(e)}")
         return False
@@ -149,25 +150,28 @@ class FileStorageService:
         """Delete all files associated with a challenge"""
         challenge_dir = os.path.join(self.upload_folder, 'challenges', str(challenge_id))
         
+        # TOCTOU FIX: Use try/except instead of check-then-delete pattern
         try:
-            if os.path.exists(challenge_dir):
-                shutil.rmtree(challenge_dir)
-                return True
+            shutil.rmtree(challenge_dir)
+            return True
+        except FileNotFoundError:
+            return False
         except Exception as e:
             print(f"Error deleting challenge files: {str(e)}")
         return False
     
     def get_file_info(self, filepath):
         """Get information about a stored file"""
-        if not os.path.exists(filepath):
+        # TOCTOU FIX: Use try/except instead of check-then-read pattern
+        try:
+            return {
+                'exists': True,
+                'size': os.path.getsize(filepath),
+                'modified': datetime.fromtimestamp(os.path.getmtime(filepath)).isoformat(),
+                'hash': self.calculate_file_hash(filepath)
+            }
+        except FileNotFoundError:
             return None
-        
-        return {
-            'exists': True,
-            'size': os.path.getsize(filepath),
-            'modified': datetime.fromtimestamp(os.path.getmtime(filepath)).isoformat(),
-            'hash': self.calculate_file_hash(filepath)
-        }
     
     def format_file_size(self, size_bytes):
         """Format file size in human-readable format"""

@@ -72,7 +72,13 @@ def unlock_hint(hint_id):
         if not challenge.is_unlocked_for_user(current_user.id, team_id):
             return jsonify({'success': False, 'message': 'Challenge not found'}), 404
     
-    # Check if already unlocked
+    # TOCTOU FIX: Lock the Hint row to serialize concurrent unlock attempts.
+    # Without this lock, two team members clicking "unlock" simultaneously can
+    # both pass the already_unlocked check, creating duplicate HintUnlock records
+    # and deducting points twice.
+    Hint.query.with_for_update().get(hint_id)
+    
+    # Check if already unlocked (now protected by the lock above)
     if team:
         # For teams, check if unlocked by team OR by user (if logic allows mixed)
         # But strictly, we should check if the TEAM has unlocked it.

@@ -124,7 +124,18 @@ def register():
         user.set_password(password)
         
         db.session.add(user)
-        db.session.commit()
+        # TOCTOU FIX: Two concurrent registrations with the same username/email
+        # can both pass the existence checks above. Catch IntegrityError from the
+        # DB UNIQUE constraint and return a friendly message instead of a 500.
+        try:
+            db.session.commit()
+        except Exception as commit_err:
+            db.session.rollback()
+            err_msg = str(commit_err).lower()
+            if 'unique' in err_msg or 'duplicate' in err_msg or 'integrity' in err_msg:
+                flash('Username or email already taken. Please try a different one.', 'error')
+                return render_template('register.html')
+            raise
         
         # Send verification email if required
         from models.settings import Settings
