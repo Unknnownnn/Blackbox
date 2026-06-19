@@ -7,9 +7,9 @@
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Docker](https://img.shields.io/badge/Docker-Ready-brightgreen.svg)
 
-A modern, feature-rich Capture The Flag (CTF) platform built with Flask, designed for hosting cybersecurity competitions with advanced challenge management, real-time scoring, and comprehensive admin controls.
+A modern, feature-rich Capture The Flag (CTF) platform built with Flask, designed for hosting cybersecurity competitions with advanced challenge management, dynamic Docker-based challenges, real-time scoring, and comprehensive admin controls.
 
-[Features](#features) • [Quick Start](#quick-start) • [Installation](#installation) • [Documentation](#documentation) • [Contributing](#contributing)
+[Features](#features) • [Quick Start](#quick-start) • [Installation](#installation) • [Docker Integration](#docker-integration) • [Usage Guide](#usage-guide) • [Configuration](#configuration) • [Contributing](#contributing)
 
 </div>
 
@@ -45,7 +45,6 @@ A modern, feature-rich Capture The Flag (CTF) platform built with Flask, designe
 #### Hint System
 - **Progressive Hints**: Multiple hints per challenge with point costs
 - **Hint Prerequisites**: Hints can require previous hints to be unlocked first
-- **Team Requirements**: Limit hints to team mode only
 - **Cost Deduction**: Automatic point deduction from team/user score
 - **Unlock History**: Track who unlocked which hints and when
 - **Admin Hint Logs**: Comprehensive logging of all hint unlocks with filtering
@@ -62,24 +61,28 @@ A modern, feature-rich Capture The Flag (CTF) platform built with Flask, designe
   - Team captain controls
   - Kick members
   - Leave team functionality
+
+![Teams](images/image4.png)
+
 - **Team Scoring**: Aggregate team scores with solve tracking
 - **Team Profiles**: View team members, solves, and statistics
 
-#### User Management
-- **Registration System**: Optional user registration (can be disabled for admin-only user creation)
-- **Authentication**: Secure login/logout with Flask-Login
-- **User Profiles**: View solve history, hints unlocked, team membership
-- **Admin Roles**: Dedicated admin panel with full platform control
+#### User Management & Authentication
+- **Flexible Registration & Auth**: Optional user registration (can be disabled at any stage) with Flask-Login and secure logout
+- **Email Verification**: Option to require new users to verify their email address before logging in, with verification links sent via email
+- **Password Recovery**: Secure password reset flow using time-sensitive confirmation tokens sent via email
+- **User Profiles**: Detailed solve history, unlocked hints, and team membership stats
+- **Admin Roles**: Dedicated admin panel with complete platform controls
 - **Password Security**: Bcrypt password hashing
+
+![Teams](images/image7.png)
+
 
 ### Scoring & Competition
 
 #### Real-Time Scoreboard
 - **Live Updates**: WebSocket-based real-time score updates
-- **Team/Solo Rankings**: Separate scoreboards for team and solo modes
 - **Solve Timeline**: Visual timeline of challenge solves
-- **Score History**: Track score progression over time
-- **First Blood Indicators**: Highlight first solvers
 - **Scoreboard Visibility**: Admin can hide/show scoreboard to users
 
 #### Submission Tracking
@@ -95,17 +98,12 @@ A modern, feature-rich Capture The Flag (CTF) platform built with Flask, designe
 - **Pause/Resume**: Pause submissions without ending the CTF
 - **Always-On Mode**: Run continuous CTF without time limits
 - **Countdown Timer**: Automatic countdown page before event starts
-- **Event Status**: Track if CTF is running, paused, scheduled, or ended
 
 ### User Interface
 
 #### Modern Design
 - **Bootstrap 5**: Responsive, mobile-friendly interface
-- **Bootstrap Icons**: Comprehensive icon set
-- **Dark/Light Themes**: Clean, professional design
-- **Custom Backgrounds**: Animated gradient backgrounds with live preview
-- **Matrix Effects**: Cyber-themed background options
-- **Smooth Animations**: CSS transitions and hover effects
+- **Custom Backgrounds**: Animated gradient backgrounds with live preview. Admins can create custom background animations using HTML and CSS.
 
 #### Admin Panel
 - **Dashboard**: Overview of platform stats, recent activity
@@ -113,13 +111,15 @@ A modern, feature-rich Capture The Flag (CTF) platform built with Flask, designe
   - Create/edit/delete challenges
   - Bulk operations
   - Visual branching editor
-  - Card-based UI with colored sections
 - **User Management**: View users, adjust points, track activity
 - **Team Management**: Manage teams, adjust scores, view members
 - **Hint Management**: Create/edit/delete hints, view unlock logs
 - **Settings**: Configure platform, event details, branding
 - **CTF Control**: Manage competition timing and status
 - **Backup System**: Automated and manual backups
+- **Anti-Cheat System**: Use dynamic flags (unique flags for each team/player) or regex based matching to detect flag sharing between players
+
+![Teams](images/image6.png)
 
 ### Security Features
 
@@ -149,55 +149,24 @@ A modern, feature-rich Capture The Flag (CTF) platform built with Flask, designe
 
 ### Performance & Scalability
 
-#### Caching
 - **Redis Caching**: Distributed caching for high availability
-- **Settings Cache**: 5-minute TTL for database settings
-- **Challenge Cache**: Invalidation on updates
-- **Session Storage**: Redis-based sessions for horizontal scaling
-
-#### Database Optimization
 - **Connection Pooling**: Configurable pool size and overflow
 - **Query Optimization**: Indexed columns for fast lookups
-- **Lazy Loading**: Efficient relationship loading
-- **Transaction Management**: Proper commit/rollback handling
-- **Pool Pre-Ping**: Automatic stale connection detection
-
-#### Real-Time Features
-- **Socket.IO**: WebSocket support for live updates
-- **Eventlet**: Async worker for concurrent connections
-- **Live Scoreboard**: Instant score updates without page refresh
-- **Event Broadcasting**: Challenge solves broadcast to all users
-
-### Administration Tools
-
-#### Backup System
-- **Automated Backups**: Scheduled backups (hourly/daily/weekly/monthly)
-- **Manual Backups**: One-click backup creation
-- **Backup Frequency Configuration**: Choose backup schedule
-- **Timezone-Aware**: Backup times respect platform timezone
-- **Compressed Storage**: Gzip-compressed SQL dumps
-- **Metadata Tracking**: JSON metadata for each backup
-- **Restore Functionality**: One-click database restore
-- **Backup Cleanup**: Auto-delete old automatic backups (keeps last 10)
-- **Upload/Download**: Import and export backup files
 
 
-#### Flag Sharing Detection
+### Flag Sharing & Abuse Detection
 
-- Per-team dynamic flags for Docker/file-based challenges
-   - Dockerized challenges may now use per-team dynamic flags. When a container is started for a team (or individual in solo mode) the platform generates a unique, time-scoped flag and injects it into the running container at the path configured by the challenge admin (`docker_flag_path`). This prevents simple flag sharing and enables each team to have a unique indicator inside their container.
-   - The generated dynamic flags are deterministic per (challenge, team/user, date) so that restarting a session within the same day keeps the same flag value.
-
-- Flag-sharing detection and admin visibility
-   - If a user submits a dynamic flag that belongs to a different team or user, the submission handler now detects that and records a `FlagAbuseAttempt` in the database. Administrators can review these attempts in the Admin → Flag Sharing page and see helpful context (submitter, claimed owner, challenge, IP, and human-readable owner names).
-   - Frequent or repeated abuse attempts are logged for review — this helps detect intentional sharing or misuse of dynamic flags.
-
-- Database schema helper (self-healing migrations)
-   - Startup logic includes an idempotent schema helper that will create missing columns/tables used by the Docker and flag-abuse changes. If your deployment is running an older schema and you see OperationalError exceptions related to missing columns (for example `challenges.docker_flag_path`), make sure the running app process executes the `scripts/ensure_docker_schema.py` helper (it is normally called at app startup). If you run into problems, execute the helper inside your app container so it has the same import paths and DB access.
-
-- Container lifecycle and permission hardening
-   - The container injection logic now ensures the target directory exists, writes the flag file with permissive file mode, and runs a best-effort `chmod` inside the container. This avoids permission errors when in-container services try to modify the flag file.
-   - Background reconciliation and container cleanup were improved to help with stuck containers or expired sessions. Admins can also force-clean containers from the admin UI if necessary.
+- **HMAC-Based Dynamic Flags**:
+   - Dockerized challenges can use per-team dynamic flags generated using cryptographically secure HMAC-SHA256 signatures. When a container is started for a team (or individual in solo mode), the platform generates a unique, deterministic flag using a derived challenge key and the team/user identifier. The flag is injected into the running container at the path configured by the challenge admin (`docker_flag_path`). This prevents flag sharing between teams while allowing team members to share, without storing the flags in the cache or database.
+   - The flags are verified deterministically via HMAC validation, ensuring they stay constant for a team/user throughout the entire competition.
+- **Flag-sharing Detection and Admin Visibility**:
+   - If a user submits a dynamic flag that belongs to a different team or user, the submission handler automatically detects it and records a `FlagAbuseAttempt` in the database.
+   - Administrators can review these attempts in the **Admin → Flag Sharing** page, including submitter details, claimed owner, challenge, IP address, and human-readable owner names to detect intentional sharing.
+- **Database Schema Helper (Self-healing Migrations)**:
+   - Startup logic executes an idempotent schema helper (`scripts/db_schema.py` / `ensure_docker_schema` at startup) that automatically creates missing columns/tables for Docker and flag-abuse features, ensuring seamless database upgrades.
+- **Container Lifecycle & Permission Hardening**:
+   - The container injection logic ensures target paths exist, writes flag files with appropriate permissions, and runs a best-effort `chmod` inside containers to avoid permissions issues.
+   - Background container reconciliation runs every 60 seconds to automatically prune stuck containers or expired sessions. Admins can also force-clean containers from the admin UI.
 
 
 
@@ -210,9 +179,10 @@ A modern, feature-rich Capture The Flag (CTF) platform built with Flask, designe
   - Scoreboard visibility
   - First blood bonus
 - **System Settings**:
+  - Platform Base URL (used for generating absolute password reset and email verification links)
   - Timezone configuration (16 timezones supported)
-  - Backup frequency
-  - Automatic backup scheduling
+  - Email SMTP Server settings (SMTP Server, Port, Username, Password)
+  - Backup frequency and automatic backup scheduling
 - **Custom Theming**:
   - Custom CSS backgrounds
   - Live preview
@@ -225,6 +195,8 @@ A modern, feature-rich Capture The Flag (CTF) platform built with Flask, designe
 - **Hint Unlock Logs**: Comprehensive hint unlock history
 - **Solve History**: Detailed solve timeline with points
 - **Admin Actions**: Logged point adjustments with reasons
+
+![alt text](images/image5.png)
 
 ### Internationalization
 
@@ -255,9 +227,20 @@ A modern, feature-rich Capture The Flag (CTF) platform built with Flask, designe
 # Clone the repository
 git clone https://github.com/Unknnownnn/Blackbox.git
 cd Blackbox
+chmod +x docker-entrypoint.sh enable_docker.sh
 
-# Start the platform
-docker-compose up -d --build
+# Configure environment (optional but recommended)
+cp .env.example .env
+nano .env
+
+# Start services
+docker compose up -d --build
+
+# View logs
+docker compose logs -f blackbox
+
+# Stop services
+docker compose down
 
 # Access the platform
 # Web: http://localhost:8000
@@ -273,8 +256,8 @@ That's it! The platform will be running with:
 
 1. **Navigate to Setup Page**: http://localhost:5000/setup
 2. **Create Admin Account**:
-   - Username: `admin`
-   - Email: `admin@example.com`
+   - Username: `UniqueAdminUsername`
+   - Email: `YourEmail@example.com`
    - Password: (your secure password)
 3. **Configure Event**:
    - CTF Name
@@ -285,30 +268,21 @@ That's it! The platform will be running with:
 
 ---
 
-## Installation Options
+## Installation
 
-### Option 1: Docker (Production)
+### Recommended Production Deployment (Best Practice)
 
-```bash
-# Clone repository
-git clone https://github.com/Unknnownnn/Blackbox.git
-cd Blackbox
+For hosting a live CTF event, the **best and most secure** way to deploy the platform is to:
+1. **Provision a Dedicated VM** on a Virtual Private Server (VPS) provider (such as DigitalOcean, AWS, GCP, or Linode).
+2. **Deploy via Docker Compose**: Running the application inside Docker containers ensures isolated, stable runtimes for the Flask web application, MariaDB database, and Redis cache.
+3. **Isolate Challenge Containers**: Since the platform dynamically spawns isolated Docker containers for participant challenges, hosting on a dedicated VPS VM protects your private/local network infrastructure and allows you to enforce clean CPU, memory, and networking limits.
 
-# Configure environment (optional)
-cp .env.example .env
-nano .env
+To deploy:
+1. SSH into your VPS VM.
+2. Install Docker and the Docker Compose plugin.
+3. Follow the steps in the **[Quick Start](#quick-start)** section to clone, configure, and spin up the containerized stack.
 
-# Start services
-docker-compose up -d --build
-
-# View logs
-docker-compose logs -f blackbox
-
-# Stop services
-docker-compose down
-```
-
-### Option 2: Manual Installation (Development)
+### Manual Installation for Development
 
 ```bash
 # Clone repository
@@ -325,12 +299,8 @@ pip install -r requirements.txt
 # Set up database
 # Install MariaDB/MySQL and Redis
 
-# Configure environment
-cp .env.example .env
 # Edit .env with your database and Redis credentials
-
-# Initialize database
-python init_db.py
+cp .env.example .env
 
 # Start the application
 python app.py
@@ -339,35 +309,60 @@ python app.py
 gunicorn -c gunicorn.conf.py app:app
 ```
 
-### Environment Variables
 
-Create a `.env` file with the following:
+## Docker Integration
 
-```env
-# Flask
-SECRET_KEY=your-secret-key-here
-FLASK_ENV=production
-DEBUG=false
+The platform supports dynamic, isolated Docker-based challenges that spin up a dedicated container instance on-demand for each team (or individual in solo mode) when they click "Start Instance" and automatically shut down when the timer expires or when they are stopped.
 
-# Database
-DATABASE_URL=mysql+pymysql://blackbox_user:secure_password@blackbox-db:3306/ctf_platform
+### Enabling Docker Integration
 
-# Redis
-REDIS_URL=redis://blackbox-redis:6379/0
+To enable and configure Docker-based challenges, use the provided helper script:
 
-# Application
-CTF_NAME=My_CTF
-CTF_DESCRIPTION=Sample_Text
-REGISTRATION_ENABLED=true
+```bash
+# Make the helper scripts executable (if not already done)
+chmod +x enable_docker.sh get_docker_gid.sh
 
-# File Uploads
-MAX_UPLOAD_SIZE=52428800  
-
-# Server
-HOST=0.0.0.0
-PORT=8000
-WORKERS=4
+# Run the helper script to configure permissions and restart the services
+./enable_docker.sh
 ```
+
+The script performs the following:
+1. Detects the GID of `/var/run/docker.sock` on the host to configure socket permissions.
+2. Rebuilds the `blackbox` container to map the docker group GID.
+3. Restarts the container stack with the socket mounted.
+4. Verifies that the Docker CLI inside the container can communicate with the host's Docker daemon.
+5. Runs necessary database migrations to create the `docker_settings` and `container_instances` tables.
+
+---
+### Step-by-Step Configuration Guide
+
+#### 1. Build your Challenge Images
+Admins can build their custom challenge Docker images on the host machine. Make sure to tag them appropriately:
+```bash
+docker build -t ctf-web-basic:v1 challenge-examples/web-basic/
+```
+
+#### 2. Configure Settings in the Admin Panel
+Navigate to the platform and log in as an administrator:
+1. Go to **Admin → Docker → Settings** (or visit `/admin/docker/settings`).
+2. **Docker Host**: Leave empty to connect via the default local Unix socket (`/var/run/docker.sock`).
+3. **Use TLS**: Uncheck.
+4. **Repository Whitelist**: Add a comma-separated list of images allowed to be run (e.g., `ctf-web-basic`).
+5. Save settings.
+
+![DockerSystem](images/image3.png)
+
+#### 3. Create a Docker-Enabled Challenge
+When creating or editing a challenge:
+1. Scroll down to the **Docker Settings** section and check **Docker Enabled**.
+2. **Docker Image**: Select from the dropdown (or select *Custom* and type the image tag, e.g. `ctf-web-basic:v1`).
+3. **Connection Info Template**: Enter the format for the participant to connect, e.g., `http://{host}:{port}` or `nc {host} {port}`.
+4. **Docker Flag Path** (Optional): Specify the absolute path inside the container where the dynamic flag should be written (e.g., `/flag.txt` or `/var/www/html/flag.txt`). If provided, the system will inject the unique HMAC-based flag into that file upon container startup.
+
+#### 4. Container Reconciliation & Pruning
+- **Automatic Pruning**: A background thread runs every 60 seconds to clean up expired container sessions.
+- **Admin Control**: Active container instances can be monitored and stopped/deleted under **Admin → Docker → Status**.
+- **User Control**: Participants can start/stop their instance directly from the challenge page, or trigger a **Force Cleanup** if their container gets into a stuck/error state.
 
 ---
 
@@ -389,6 +384,7 @@ WORKERS=4
 - Each challenge has a category, difficulty, and point value
 - Some challenges may have file attachments to download
 - Connection info provided for remote challenges
+- Some challenges may require to connect to a isolated docker container which spins up once challenge is opened and stops once challenge is closed.
 - Multiple flags may be accepted (case-insensitive option)
 - First blood bonus awarded to first solver
 
@@ -482,8 +478,15 @@ Access via **Admin → Backups**:
 3. **Restore**: Restore from any backup
 4. **Download**: Export backup files
 
+## Contributing
+
+Contributions are welcome! If you'd like to help improve the BlackBox CTF Platform, please follow these steps:
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feature/amazing-feature`).
+3. Commit your changes (`git commit -m 'Add some amazing feature'`).
+4. Push to the branch (`git push origin feature/amazing-feature`).
+5. Open a Pull Request.
+
 ---
 
 [Back to Top](#blackbox-ctf-platform)
-
-</div>

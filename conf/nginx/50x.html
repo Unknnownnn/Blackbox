@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>502 Bad Gateway - BlackBox</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #212529;
+            color: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        .error-container {
+            text-align: center;
+            max-width: 600px;
+            padding: 2rem;
+        }
+
+        .display-1 {
+            font-weight: 700;
+            color: #dc3545;
+            font-size: 6rem;
+            margin-bottom: 1rem;
+        }
+
+        .lead {
+            color: #adb5bd;
+            margin-bottom: 2rem;
+            font-size: 1.25rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="error-container">
+        <h1 class="display-1">502</h1>
+        <p class="fs-3">Bad Gateway</p>
+        <p class="lead">
+            The application server is currently restarting or temporarily unavailable.
+            <br>Please try again in a few moments.
+        </p>
+        <button onclick="window.location.reload()" class="btn btn-primary btn-lg">
+            Refresh Page
+        </button>
+    </div>
+</body>
+
+</html>

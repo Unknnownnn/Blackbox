@@ -42,7 +42,9 @@ def reconcile_containers(app):
                 # Possibly missing column (e.g., dynamic_flag) - attempt to add it and retry
                 logger.warning(f"OperationalError when querying containers: {oe}; attempting to add missing column and retry")
                 try:
-                    db.engine.execute(text("ALTER TABLE container_instances ADD COLUMN IF NOT EXISTS dynamic_flag VARCHAR(512) DEFAULT NULL;"))
+                    with db.engine.connect() as conn:
+                        conn.execute(text("ALTER TABLE container_instances ADD COLUMN IF NOT EXISTS dynamic_flag VARCHAR(512) DEFAULT NULL;"))
+                        conn.commit()
                     db_containers = ContainerInstance.query.filter(
                         ContainerInstance.status.in_(['starting', 'running', 'stopping'])
                     ).all()
@@ -135,6 +137,8 @@ def reconcile_containers(app):
         except Exception as e:
             logger.error(f"Container reconciliation failed: {e}")
             db.session.rollback()
+        finally:
+            db.session.remove()
 
 
 def run_reconciliation_loop(app, interval_seconds=60):
