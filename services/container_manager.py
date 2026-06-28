@@ -226,7 +226,7 @@ class ContainerOrchestrator:
                     challenge.docker_image,
                     name=container_name,
                     detach=True,
-                    ports={'80/tcp': port},  # Map container port 80 to host port
+                    ports={'1337/tcp': port},  # Map container port 80 to host port
                     network='ctf_challenges',  # Connect to challenge network
                     environment={
                         'CTF_USER_ID': str(user_id),
@@ -572,8 +572,8 @@ class ContainerOrchestrator:
             return host
         
         # Use local hostname
-        import socket
-        return socket.gethostname()
+        import socket, os
+        return os.environ.get('PUBLIC_IP', socket.gethostname())
     
     def _get_available_port(self, settings):
         """Get an available port in the configured range"""

@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Submissions Log - Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Submissions Log</h2>
+        <span class="badge bg-secondary fs-6">{{ submissions.total }} total</span>
+    </div>
+
+    <!-- Filters -->
+    <form method="GET" class="row g-2 mb-4">
+        <div class="col-md-3">
+            <select name="challenge_id" class="form-select">
+                <option value="">All Challenges</option>
+                {% for c in challenges %}
+                <option value="{{ c.id }}" {% if request.args.get('challenge_id')|int == c.id %}selected{% endif %}>
+                    {{ c.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select name="user_id" class="form-select">
+                <option value="">All Users</option>
+                {% for u in users %}
+                <option value="{{ u.id }}" {% if request.args.get('user_id')|int == u.id %}selected{% endif %}>
+                    {{ u.username }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select name="correct_only" class="form-select">
+                <option value="">All</option>
+                <option value="1" {% if request.args.get('correct_only') == '1' %}selected{% endif %}>Correct Only</option>
+                <option value="0" {% if request.args.get('correct_only') == '0' %}selected{% endif %}>Wrong Only</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-primary w-100">Filter</button>
+        </div>
+        <div class="col-md-1">
+            <a href="{{ url_for('admin.submissions') }}" class="btn btn-outline-secondary w-100">Reset</a>
+        </div>
+        <div class="col-md-2">
+            <a href="{{ url_for('admin.export_submissions', **request.args) }}" class="btn btn-success w-100">Export CSV</a>
+        </div>
+    </form>
+
+    <!-- Table -->
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>#</th>
+                    <th>Time</th>
+                    <th>User</th>
+                    <th>Team</th>
+                    <th>Challenge</th>
+                    <th>Flag Submitted</th>
+                    <th>IP Address</th>
+                    <th>Result</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in submissions.items %}
+                <tr>
+                    <td class="text-muted small">{{ s.id }}</td>
+                    <td class="small text-nowrap">{{ s.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if s.submitted_at else '-' }}</td>
+                    <td>{{ s.user.username if s.user else s.user_id }}</td>
+                    <td>{{ s.team.name if s.team else '-' }}</td>
+                    <td>{{ s.challenge.name if s.challenge else s.challenge_id }}</td>
+                    <td>
+                        <code class="small text-break" style="max-width:300px;display:inline-block;">
+                            {{ s.submitted_flag[:80] }}{{ '…' if s.submitted_flag|length > 80 }}
+                        </code>
+                    </td>
+                    <td class="small font-monospace">{{ s.ip_address or '-' }}</td>
+                    <td>
+                        {% if s.is_correct %}
+                        <span class="badge bg-success">Correct</span>
+                        {% else %}
+                        <span class="badge bg-danger">Wrong</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">No submissions found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if submissions.pages > 1 %}
+    <nav>
+        <ul class="pagination justify-content-center">
+            {% if submissions.has_prev %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('admin.submissions', page=submissions.prev_num, **request.args) }}">Previous</a>
+            </li>
+            {% endif %}
+            {% for p in submissions.iter_pages(left_edge=2, right_edge=2, left_current=2, right_current=2) %}
+                {% if p %}
+                <li class="page-item {{ 'active' if p == submissions.page }}">
+                    <a class="page-link" href="{{ url_for('admin.submissions', page=p, **request.args) }}">{{ p }}</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+            {% endfor %}
+            {% if submissions.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('admin.submissions', page=submissions.next_num, **request.args) }}">Next</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

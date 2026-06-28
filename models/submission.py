@@ -11,6 +11,7 @@ class Submission(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
     challenge_id = db.Column(db.Integer, db.ForeignKey('challenges.id'), nullable=False, index=True)
     team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True, index=True)
+    team = db.relationship('Team', backref=db.backref('sub_entries', lazy=True), lazy=True)
     
     # Submission details
     submitted_flag = db.Column(db.String(255), nullable=False)
@@ -21,14 +22,17 @@ class Submission(db.Model):
     submitted_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     
     def to_dict(self):
-        """Convert submission to dictionary"""
         return {
             'id': self.id,
             'user_id': self.user_id,
+            'username': self.user.username if self.user else None,
+            'team_name': self.team.name if self.team else None,
             'challenge_id': self.challenge_id,
-            'team_id': self.team_id,
+            'challenge_name': self.challenge.name if self.challenge else None,
+            'submitted_flag': self.submitted_flag,
             'is_correct': self.is_correct,
-            'submitted_at': self.submitted_at.isoformat() if self.submitted_at else None
+            'ip_address': self.ip_address,
+            'submitted_at': self.submitted_at.isoformat() if self.submitted_at else None,
         }
     
     def __repr__(self):
