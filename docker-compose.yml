@@ -54,6 +54,7 @@ services:
     volumes:
       - ./conf/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./conf/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./conf/nginx/50x.html:/usr/share/nginx/html/50x.html:ro
       - uploads:/var/uploads:ro
       - nginx_cache:/var/cache/nginx
     depends_on:

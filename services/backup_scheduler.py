@@ -300,16 +300,14 @@ class BackupScheduler:
     def _cleanup_old_backups(self, backup_dir):
         """Keep only the most recent automatic backups"""
         try:
-            max_backups = 10  # Keep last 10 automatic backups
+            max_backups = 10  
             
-            # Get all automatic backup files
             auto_backups = sorted(
                 backup_dir.glob('backup_auto_*.sql.gz'),
                 key=lambda f: f.stat().st_mtime,
                 reverse=True
             )
             
-            # Remove old backups
             for backup_file in auto_backups[max_backups:]:
                 metadata_file = backup_file.with_suffix('.json')
                 
@@ -323,7 +321,6 @@ class BackupScheduler:
             logger.error(f"Failed to cleanup old backups: {str(e)}")
 
 
-# Global scheduler instance
 backup_scheduler = None
 
 

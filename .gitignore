@@ -27,7 +27,8 @@ env/
 ENV/
 env.bak/
 venv.bak/
-
+.venv
+.venv312
 # Flask
 instance/
 .webassets-cache
