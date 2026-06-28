@@ -21,7 +21,7 @@ def _handle_challenges_exception(error):
     import traceback
     current_app.logger.error(f"Unhandled exception in challenges blueprint: {error}\n{traceback.format_exc()}")
     # Return JSON for AJAX/Fetch callers to avoid JSON.parse errors on HTML 500 pages
-    return jsonify({'success': False, 'message': 'Internal server error'}), 500
+    return jsonify({'success': False, 'message': f'Internal server error: {str(error)}'}), 500
 
 @challenges_bp.route('/')
 @login_required
@@ -426,13 +426,12 @@ def submit_flag(challenge_id):
     # already_solved. This serializes concurrent flag submissions for the same
     # challenge, preventing double-solve and double first-blood race conditions.
     # The lock is held until the transaction commits or rolls back.
-    Challenge.query.with_for_update().get(challenge_id)
+    db.session.get(Challenge, challenge_id, with_for_update=True)
     
     # Check if already solved (by user or team) — now protected by the lock above
-    if team:
+    already_solved = challenge.is_solved_by_user(current_user.id)
+    if team and not already_solved:
         already_solved = challenge.is_solved_by_team(team_id)
-    else:
-        already_solved = challenge.is_solved_by_user(current_user.id)
     
     # Check if this challenge has branching flags (allows re-submission for different paths)
     from models.branching import ChallengeFlag
@@ -847,15 +846,16 @@ def submit_flag(challenge_id):
                 points += first_blood_bonus
         
         # Create solve record - marks challenge as solved for entire team
-        solve = Solve(
-            user_id=current_user.id,
-            challenge_id=challenge_id,
-            flag_id=matched_flag.id if hasattr(matched_flag, 'id') else None,
-            team_id=team_id,
-            points_earned=points,
-            is_first_blood=is_first_blood
-        )
-        db.session.add(solve)
+        if not already_solved:
+            solve = Solve(
+                user_id=current_user.id,
+                challenge_id=challenge_id,
+                flag_id=matched_flag.id if hasattr(matched_flag, 'id') else None,
+                team_id=team_id,
+                points_earned=points,
+                is_first_blood=is_first_blood
+            )
+            db.session.add(solve)
         
         # Auto-stop container if challenge has one (cleanup after solve)
         if challenge.docker_enabled:

@@ -162,7 +162,7 @@
 {% block extra_js %}
 <script>
 let socket;
-let scoreboardData = [];
+let scoreboardData = null;
 
 // Connect to WebSocket
 function connectWebSocket() {
@@ -198,7 +198,7 @@ function updateScoreboardTable() {
     const tbody = document.getElementById('scoreboardBody');
     tbody.innerHTML = '';
     
-    if (scoreboardData.length === 0) {
+    if (scoreboardData === null) {
         // Show loading state if no data received yet
         tbody.innerHTML = `
             <tr>
@@ -207,6 +207,17 @@ function updateScoreboardTable() {
                         <span class="visually-hidden">Loading scoreboard...</span>
                     </div>
                     <div class="mt-2 text-muted">Loading scoreboard...</div>
+                </td>
+            </tr>`;
+        return;
+    }
+    
+    if (scoreboardData.length === 0) {
+        // Show empty state if scoreboard is empty
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center py-4 text-muted">
+                    No scoreboard data available.
                 </td>
             </tr>`;
         return;

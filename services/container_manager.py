@@ -11,7 +11,7 @@ import json
 import platform
 from datetime import datetime, timedelta
 from pathlib import Path
-from flask import current_app
+from flask import current_app, request, has_request_context
 from sqlalchemy.orm import joinedload
 from models import db
 from models.container import ContainerInstance, ContainerEvent
@@ -129,7 +129,7 @@ class ContainerOrchestrator:
             # TOCTOU FIX: Lock the Challenge row to serialize container starts
             # for the same challenge. This prevents two rapid requests from both
             # passing the existing-container and max-containers checks.
-            Challenge.query.with_for_update().get(challenge_id)
+            db.session.get(Challenge, challenge_id, with_for_update=True)
             
             settings = DockerSettings.get_config()
             
@@ -228,20 +228,49 @@ class ContainerOrchestrator:
             
             # Log event
             self._log_event(instance.id, 'starting', 'Starting container', event_type='start')
-            
+            # Generate dynamic flag if docker is enabled
+            dynamic_flag = None
+            if challenge.docker_enabled:
+                dynamic_flag = self._generate_dynamic_flag(challenge, team_id or instance.team_id, instance.user_id)
+                if dynamic_flag:
+                    try:
+                        if hasattr(instance, 'dynamic_flag'):
+                            instance.dynamic_flag = dynamic_flag
+                        else:
+                            cache_service.set(f"dynamic_flag:{session_id}", dynamic_flag, ttl=settings.container_lifetime_minutes * 60)
+                    except Exception:
+                        cache_service.set(f"dynamic_flag:{session_id}", dynamic_flag, ttl=settings.container_lifetime_minutes * 60)
+
             # Start Docker container
             try:
+                env_vars = {
+                    'CTF_USER_ID': str(user_id),
+                    'CTF_CHALLENGE_ID': str(challenge_id),
+                    'CTF_SESSION_ID': session_id
+                }
+                if dynamic_flag:
+                    env_vars['FLAG'] = dynamic_flag
+
+                # Determine which port the container expects to expose
+                target_port = '80/tcp'
+                try:
+                    image_info = self.docker_client.images.get(challenge.docker_image)
+                    exposed_ports = image_info.attrs.get('Config', {}).get('ExposedPorts', {})
+                    if exposed_ports:
+                        # Get the first exposed port defined in the image
+                        target_port = list(exposed_ports.keys())[0]
+                        if '/' not in target_port:
+                            target_port += '/tcp'
+                except Exception as e:
+                    current_app.logger.warning(f"Failed to inspect image {challenge.docker_image} for ExposedPorts, defaulting to 80/tcp: {e}")
+
                 container = self.docker_client.containers.run(
                     challenge.docker_image,
                     name=container_name,
                     detach=True,
-                    ports={'80/tcp': port},  # Map container port 80 to host port
+                    ports={target_port: port},  # Map the image's exposed port to the host port
                     network='ctf_challenges',  # Connect to challenge network
-                    environment={
-                        'CTF_USER_ID': str(user_id),
-                        'CTF_CHALLENGE_ID': str(challenge_id),
-                        'CTF_SESSION_ID': session_id
-                    },
+                    environment=env_vars,
                     labels={
                         'ctf.challenge_id': str(challenge_id),
                         'ctf.user_id': str(user_id),
@@ -271,32 +300,17 @@ class ContainerOrchestrator:
                 # Log success event
                 self._log_event(instance.id, 'running', f'Container started on port {port}', event_type='start')
                 
-                # Generate and inject dynamic flag if container exposes /flag.txt or challenge expects a flag file
+                # Inject dynamic flag if container exposes /flag.txt or challenge expects a flag file
                 try:
-                    dynamic_flag = None
-                    # Determine path to write flag. ONLY generate and inject if challenge explicitly configured a docker_flag_path.
+                    # Determine path to write flag. ONLY inject if challenge explicitly configured a docker_flag_path.
                     docker_flag_path = getattr(challenge, 'docker_flag_path', None)
-                    if challenge.docker_enabled and docker_flag_path:
-                        # Generate dynamic flag only when an explicit path is configured on the challenge
-                        dynamic_flag = self._generate_dynamic_flag(challenge, team_id or instance.team_id, instance.user_id)
-                        if dynamic_flag:
-                            # Prefer storing in DB if column exists, otherwise put in cache keyed by session
-                            try:
-                                if hasattr(instance, 'dynamic_flag'):
-                                    instance.dynamic_flag = dynamic_flag
-                                    db.session.commit()
-                                else:
-                                    cache_service.set(f"dynamic_flag:{session_id}", dynamic_flag, ttl=settings.container_lifetime_minutes * 60)
-                            except Exception:
-                                # If DB write fails, fallback to cache
-                                cache_service.set(f"dynamic_flag:{session_id}", dynamic_flag, ttl=settings.container_lifetime_minutes * 60)
-
-                            # Attempt to write flag into the container at the configured path
-                            injected = self._inject_flag_into_container(container, dynamic_flag, path=docker_flag_path)
-                            if injected:
-                                current_app.logger.info(f"Injected dynamic flag into container {container.short_id} at {docker_flag_path}")
-                            else:
-                                current_app.logger.warning(f"Failed to inject dynamic flag into container {container.short_id} at {docker_flag_path}")
+                    if challenge.docker_enabled and docker_flag_path and dynamic_flag:
+                        # Attempt to write flag into the container at the configured path
+                        injected = self._inject_flag_into_container(container, dynamic_flag, path=docker_flag_path)
+                        if injected:
+                            current_app.logger.info(f"Injected dynamic flag into container {container.short_id} at {docker_flag_path}")
+                        else:
+                            current_app.logger.warning(f"Failed to inject dynamic flag into container {container.short_id} at {docker_flag_path}")
                     else:
                         # No explicit path configured; do not generate or write a default /flag.txt to avoid overwriting
                         # non-dynamic challenge data. Log at debug level for visibility.
@@ -579,8 +593,12 @@ class ContainerOrchestrator:
             # Extract hostname from tcp://host:port
             host = settings.hostname.replace('tcp://', '').replace('https://', '').split(':')[0]
             return host
+            
+        if has_request_context():
+            # If in a request context, use the host the client used to access us
+            return request.host.split(':')[0]
         
-        # Use local hostname
+        # Use local hostname (often an internal container ID if running in docker)
         import socket
         return socket.gethostname()
     
