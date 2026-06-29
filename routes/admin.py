@@ -2817,3 +2817,86 @@ def analyze_cheating():
         'flag_sharing_suspects': flag_sharing_results,
         'account_sharing_suspects': account_sharing_results
     })
+
+
+@admin_bp.route('/submissions')
+@login_required
+@admin_required
+def submissions():
+    from models.submission import Submission
+    from models.user import User
+    from models.challenge import Challenge
+
+    page = request.args.get('page', 1, type=int)
+    challenge_id = request.args.get('challenge_id', None, type=int)
+    user_id = request.args.get('user_id', None, type=int)
+    correct_only = request.args.get('correct_only', None)
+
+    query = Submission.query
+
+    if challenge_id:
+        query = query.filter(Submission.challenge_id == challenge_id)
+    if user_id:
+        query = query.filter(Submission.user_id == user_id)
+    if correct_only == '1':
+        query = query.filter(Submission.is_correct == True)
+    elif correct_only == '0':
+        query = query.filter(Submission.is_correct == False)
+
+    submissions = query.order_by(Submission.submitted_at.desc()).paginate(
+        page=page, per_page=50, error_out=False
+    )
+
+    challenges = Challenge.query.order_by(Challenge.name).all()
+    users = User.query.order_by(User.username).all()
+
+    return render_template('admin/submissions.html',
+                           submissions=submissions,
+                           challenges=challenges,
+                           users=users)
+
+
+@admin_bp.route('/submissions/export')
+@login_required
+@admin_required
+def export_submissions():
+    import csv
+    import io
+    from models.submission import Submission
+    from flask import Response
+
+    challenge_id = request.args.get('challenge_id', None, type=int)
+    correct_only = request.args.get('correct_only', None)
+
+    query = Submission.query
+    if challenge_id:
+        query = query.filter(Submission.challenge_id == challenge_id)
+    if correct_only == '1':
+        query = query.filter(Submission.is_correct == True)
+    elif correct_only == '0':
+        query = query.filter(Submission.is_correct == False)
+
+    subs = query.order_by(Submission.submitted_at.desc()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['ID', 'Time', 'Username', 'Team', 'Challenge', 'Flag Submitted', 'Correct', 'IP Address'])
+
+    for s in subs:
+        writer.writerow([
+            s.id,
+            s.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if s.submitted_at else '',
+            s.user.username if s.user else s.user_id,
+            s.team.name if s.team else '',
+            s.challenge.name if s.challenge else s.challenge_id,
+            s.submitted_flag,
+            'Yes' if s.is_correct else 'No',
+            s.ip_address or ''
+        ])
+
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=submissions.csv'}
+    )
