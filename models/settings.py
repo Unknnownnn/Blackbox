@@ -252,8 +252,10 @@ class DockerSettings(db.Model):
     revert_cooldown_minutes = db.Column(db.Integer, default=5)
     
     # Port range for container mapping
+    #FIX1: Any container assigned a port above 30100 will start successfully, look "running" in the admin panel, and be completely unreachable by the participant.
+    #FIX2: The app allocated a "random" host port anywhere in 30000–60000 for a challenge container, but the host only forwarded 30000–30100 from the outside world, so expanded the port to accomodate more dynamic challenges. 
     port_range_start = db.Column(db.Integer, default=30000)
-    port_range_end = db.Column(db.Integer, default=60000)
+    port_range_end = db.Column(db.Integer, default=30400)
     
     # Resource limits
     max_cpu_percent = db.Column(db.Float, default=50.0)

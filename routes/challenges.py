@@ -422,6 +422,19 @@ def submit_flag(challenge_id):
     if not submitted_flag:
         return jsonify({'success': False, 'message': 'Please enter a flag'}), 400
     
+    
+    
+    # PER-TEAM LOCK: scope serialization to this team/user + this challenge only,
+    # instead of the whole Challenge row, so unrelated teams' submissions for the
+    # same challenge stop queuing behind each other. NX+EX means it self-expires
+    # in 10s even if this request dies before finishing, so we don't need a
+    # try/finally to release it.
+    solve_lock_key = f"solve_lock:{challenge_id}:{team_id or current_user.id}"
+    if not cache_service.redis_client.set(solve_lock_key, "1", nx=True, ex=10):
+        return jsonify({
+            'success': False,
+            'message': 'Please wait a moment before resubmitting.'
+        }), 429
     # TOCTOU FIX: Acquire row-level lock on the Challenge row BEFORE checking
     # already_solved. This serializes concurrent flag submissions for the same
     # challenge, preventing double-solve and double first-blood race conditions.

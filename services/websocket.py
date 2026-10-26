@@ -2,7 +2,8 @@ from flask_socketio import SocketIO, emit, join_room, leave_room, rooms
 from flask import request
 from flask_login import current_user
 
-socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet')
+# Since gunicorn.conf.py already runs worker_class = 'gevent' and app.py already monkey-patches for gevent, just make Socket.IO consistent with that instead of eventlet.
+socketio = SocketIO(cors_allowed_origins="*", async_mode='gevent')
 
 class WebSocketService:
     """Service for managing WebSocket connections and real-time updates"""
@@ -10,11 +11,7 @@ class WebSocketService:
     @staticmethod
     def init_app(app):
         """Initialize SocketIO with Flask app"""
-        socketio.init_app(app, 
-                         cors_allowed_origins="*",
-                         async_mode='eventlet',
-                         logger=True,
-                         engineio_logger=True)
+        socketio.init_app(app,cors_allowed_origins="*", async_mode='gevent', logger=True, engineio_logger=True)
     
     @staticmethod
     def emit_scoreboard_update(scoreboard_data):
