@@ -19,8 +19,11 @@ class ScoringService:
         if solve_count is None:
             solve_count = challenge.get_solves_count()
         
-        if solve_count == 0:
+        if solve_count <= 1:
             return challenge.initial_points
+            
+        # Shift so decay begins AFTER the first solve
+        solve_count -= 1
         
         # If we've reached the decay threshold, return minimum
         if solve_count >= challenge.decay_solves:
