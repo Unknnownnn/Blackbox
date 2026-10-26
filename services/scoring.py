@@ -21,8 +21,7 @@ class ScoringService:
         
         if solve_count <= 1:
             return challenge.initial_points
-
-
+            
         # Shift so decay begins AFTER the first solve
         solve_count -= 1
         
